@@ -1,0 +1,47 @@
+{
+  "name": "unigma-agent-runtime",
+  "displayName": "Unigma Agent Runtime",
+  "description": "Internal runtime boundary for the Unigma agent integration.",
+  "version": "0.0.1",
+  "publisher": "unigma",
+  "license": "MIT",
+  "private": true,
+  "engines": {
+    "vscode": "^1.134.0"
+  },
+  "extensionKind": [
+    "workspace"
+  ],
+  "activationEvents": [
+    "onCommand:unigma.agent.runtime.activate"
+  ],
+  "main": "./out/extension.js",
+  "scripts": {
+    "compile": "gulp compile-extension:unigma-agent-runtime",
+    "watch": "gulp watch-extension:unigma-agent-runtime",
+    "test": "node ../../node_modules/mocha/bin/mocha --ui=tdd out/test/activation.test.js"
+  },
+  "capabilities": {
+    "virtualWorkspaces": false,
+    "untrustedWorkspaces": {
+      "supported": false
+    }
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "unigma.agent.runtime.activate",
+        "title": "Activate Unigma Agent Runtime",
+        "category": "Unigma"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "unigma.agent.runtime.activate",
+          "when": "false"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,83 @@
+{
+	"nameShort": "unigma",
+	"nameLong": "unigma",
+	"applicationName": "unigma",
+	"dataFolderName": ".unigma",
+	"sharedDataFolderName": ".unigma-shared",
+	"win32MutexName": "unigma",
+	"licenseName": "MIT",
+	"licenseUrl": "",
+	"serverLicenseUrl": "",
+	"serverGreeting": [],
+	"serverLicense": [],
+	"serverLicensePrompt": "",
+	"serverApplicationName": "unigma-server",
+	"serverDataFolderName": ".unigma-server",
+	"win32DirName": "unigma",
+	"win32NameVersion": "unigma",
+	"win32RegValueName": "Unigma",
+	"win32x64AppId": "{{D77941A8-D9E0-4BCC-AE29-3628C03AEB0C}",
+	"win32arm64AppId": "{{4010489A-5BF9-449E-BBCB-E37FA779E34D}",
+	"win32x64UserAppId": "{{C95E39FC-DD43-49D9-A9E4-81BCA99BBDAA}",
+	"win32arm64UserAppId": "{{AA636291-819F-4FDF-9056-16B8E0D93EA5}",
+	"win32AppUserModelId": "Unigma.Code",
+	"win32ShellNameShort": "unigma",
+	"darwinBundleIdentifier": "code.unigma.desktop",
+	"darwinProfileUUID": "B1AA3AAB-8F2C-4CD5-A4CA-970301986CC1",
+	"darwinProfilePayloadUUID": "154FB01D-21C6-44BC-95FB-948AB1E9F881",
+	"linuxIconName": "unigma",
+	"licenseFileName": "LICENSE.txt",
+	"reportIssueUrl": "",
+	"nodejsArtifactFeed": "",
+	"electronArtifactFeed": "",
+	"urlProtocol": "unigma",
+	"agentsTelemetryAppName": "unigma-agents",
+	"onboardingKeymaps": [
+		{
+			"id": "default",
+			"label": "Default",
+			"description": "Default keyboard mapping"
+		}
+	],
+	"onboardingThemes": [
+		{
+			"id": "dark-2026",
+			"label": "Dark 2026",
+			"themeId": "Dark 2026",
+			"type": "dark"
+		},
+		{
+			"id": "hc-dark",
+			"label": "Dark High Contrast",
+			"themeId": "Default High Contrast",
+			"type": "hcDark"
+		},
+		{
+			"id": "solarized-dark",
+			"label": "Solarized Dark",
+			"themeId": "Solarized Dark",
+			"type": "dark"
+		},
+		{
+			"id": "light-2026",
+			"label": "Light 2026",
+			"themeId": "Light 2026",
+			"type": "light"
+		},
+		{
+			"id": "hc-light",
+			"label": "Light High Contrast",
+			"themeId": "Default High Contrast Light",
+			"type": "hcLight"
+		},
+		{
+			"id": "solarized-light",
+			"label": "Solarized Light",
+			"themeId": "Solarized Light",
+			"type": "light"
+		}
+	],
+	"builtInExtensionsEnabledWithAutoUpdates": [],
+	"sessionsWindowAllowedExtensions": [],
+	"voiceWsUrl": ""
+}
