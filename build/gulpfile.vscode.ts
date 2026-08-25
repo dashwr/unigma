@@ -48,6 +48,9 @@ const packageLock = JSON.parse(fs.readFileSync(path.join(root, 'package-lock.jso
 	readonly packages?: Readonly<Record<string, { readonly version?: string }>>;
 };
 
+// O produto só empacota extensões explicitamente declaradas em product.json.
+const hasBuiltInCopilot = product.builtInExtensions.some(({ name }) => name === 'copilot');
+
 function getLockedPackageVersion(packageName: string): string {
 	const version = packageLock.packages?.[`node_modules/${packageName}`]?.version;
 	if (!version) {
@@ -339,10 +342,14 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				json.date = readISODate(out);
 				json.checksums = checksums;
 				json.version = version;
-				json.copilotVersions = {
-					runtime: getLockedPackageVersion('@github/copilot'),
-					sdk: getLockedPackageVersion('@github/copilot-sdk'),
-				};
+				if (hasBuiltInCopilot) {
+					json.copilotVersions = {
+						runtime: getLockedPackageVersion('@github/copilot'),
+						sdk: getLockedPackageVersion('@github/copilot-sdk'),
+					};
+				} else {
+					delete json.copilotVersions;
+				}
 				// Stamp agentSdks from the per-platform results file produced
 				// by `build/agent-sdk/produce.ts` (an earlier pipeline step).
 				// Local dev: file absent → empty → not stamped.
@@ -385,8 +392,12 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			.pipe(filter(depFilterPattern))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, '.moduleignore')))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, `.moduleignore.${process.platform}`)));
-		ensureCopilotPlatformPackage(platform, arch);
-		const copilotRuntimePrebuilds = gulp.src(getCopilotRuntimePrebuildFiles(platform, arch), { base: '.', dot: true, allowEmpty: true });
+		if (hasBuiltInCopilot) {
+			ensureCopilotPlatformPackage(platform, arch);
+		}
+		const copilotRuntimePrebuilds = hasBuiltInCopilot
+			? gulp.src(getCopilotRuntimePrebuildFiles(platform, arch), { base: '.', dot: true, allowEmpty: true })
+			: es.readArray([]);
 		ensureOSProxyResolverPlatformPackage(platform, arch);
 		const osProxyResolverPlatformPackage = gulp.src(getOSProxyResolverPlatformFiles(platform, arch), { base: '.', dot: true, allowEmpty: true });
 		const deps = es.merge(cleanedDeps, copilotRuntimePrebuilds, osProxyResolverPlatformPackage)
@@ -678,6 +689,10 @@ function prepareCopilotRipgrepShimTask(platform: string, arch: string, destinati
 	const outputDir = path.join(path.dirname(root), destinationFolderName);
 
 	return async () => {
+		if (!hasBuiltInCopilot) {
+			return;
+		}
+
 		// On Windows with win32VersionedUpdate, app resources live under a
 		// commit-hash prefix: {output}/{commitHash}/resources/app/
 		const versionedResourcesFolder = util.getVersionedResourcesFolder(platform, commit!);
@@ -742,7 +757,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 				copyCodiconsTask,
 				cleanExtensionsBuildTask,
 				compileNonNativeExtensionsBuildTask,
-				compileCopilotExtensionBuildTask,
+				...(hasBuiltInCopilot ? [compileCopilotExtensionBuildTask] : []),
 				compileExtensionMediaBuildTask,
 				writeISODate('out-build'),
 				esbuildBundleTask,
@@ -753,7 +768,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 				minified ? compileBuildWithManglingTask : compileBuildWithoutManglingTask,
 				cleanExtensionsBuildTask,
 				compileNonNativeExtensionsBuildTask,
-				compileCopilotExtensionBuildTask,
+				...(hasBuiltInCopilot ? [compileCopilotExtensionBuildTask] : []),
 				compileExtensionMediaBuildTask,
 				minified ? minifyVSCodeTask : bundleVSCodeTask,
 				vscodeTaskCI
