@@ -1,0 +1,263 @@
+name: unigma Linux WSL validation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-x64-wsl-build:
+    name: Linux x64 build in Ubuntu WSL2
+    runs-on: self-hosted
+    timeout-minutes: 240
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: prepare WSL paths
+        run: |
+          $workspace = $env:GITHUB_WORKSPACE -replace '\\', '/'
+          if ($workspace -notmatch '^([A-Za-z]):/(.+)$') {
+            throw "Unsupported Windows workspace path: $env:GITHUB_WORKSPACE"
+          }
+          $drive = $matches[1].ToLowerInvariant()
+          $path = $matches[2]
+          $wslSource = "/mnt/$drive/$path"
+          [System.IO.File]::AppendAllText($env:GITHUB_ENV, "WSL_SOURCE=$wslSource`n")
+          [System.IO.File]::AppendAllText($env:GITHUB_ENV, "WSL_BUILD=/home/dasher/unigma-linux-build`n")
+          Write-Host "WSL source: $wslSource"
+
+      - name: install Linux dependencies and Node in WSL
+        run: |
+          $scriptPath = Join-Path $env:RUNNER_TEMP 'unigma-wsl-bootstrap.sh'
+          $script = @'
+          set -euo pipefail
+
+          source="$1"
+          build="$2"
+          sha="$3"
+          export DEBIAN_FRONTEND=noninteractive
+
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            build-essential \
+            ca-certificates \
+            curl \
+            dpkg-dev \
+            fakeroot \
+            git \
+            libasound2 \
+            libatk-bridge2.0-0 \
+            libatk1.0-0 \
+            libatspi2.0-0 \
+            libcairo2 \
+            libcups2 \
+            libdbus-1-3 \
+            libexpat1 \
+            libgbm1 \
+            libglib2.0-0 \
+            libgtk-3-0 \
+            libkrb5-dev \
+            libnotify-bin \
+            libnotify4 \
+            libnspr4 \
+            libnss3 \
+            libpango-1.0-0 \
+            libsecret-1-dev \
+            libudev1 \
+            libx11-dev \
+            libx11-6 \
+            libx11-xcb-dev \
+            libxcb1 \
+            libxcomposite1 \
+            libxdamage1 \
+            libxext6 \
+            libxfixes3 \
+            libxkbcommon0 \
+            libxkbfile-dev \
+            libxkbfile1 \
+            libxrandr2 \
+            libxss1 \
+            pkg-config \
+            python3 \
+            xdg-utils \
+            xvfb \
+            xz-utils
+
+          node_version="$(tr -d '[:space:]' < "$source/.nvmrc")"
+          node_prefix="/opt/node-v${node_version}-linux-x64"
+          if [ ! -x "$node_prefix/bin/node" ]; then
+            temporary="$(mktemp -d)"
+            trap 'rm -rf "$temporary"' EXIT
+            archive="node-v${node_version}-linux-x64.tar.xz"
+            curl --fail --location --retry 3 --silent --show-error \
+              "https://nodejs.org/dist/v${node_version}/${archive}" \
+              --output "$temporary/$archive"
+            curl --fail --location --retry 3 --silent --show-error \
+              "https://nodejs.org/dist/v${node_version}/SHASUMS256.txt" \
+              --output "$temporary/SHASUMS256.txt"
+            grep " ${archive}$" "$temporary/SHASUMS256.txt" > "$temporary/expected.sha256"
+            (cd "$temporary" && sha256sum -c expected.sha256)
+            tar -xJf "$temporary/$archive" -C /opt
+            rm -rf "$temporary"
+            trap - EXIT
+          fi
+          ln -sfn "$node_prefix" /opt/node-current
+
+          rm -rf "$build"
+          mkdir -p "$build"
+          tar --exclude=.git --exclude=node_modules --exclude=.build \
+            -C "$source" -cf - . | tar -C "$build" -xf -
+          chown -R dasher:dasher "$build"
+
+          printf 'node=%s\n' "$node_version"
+          printf 'kernel=%s\n' "$(uname -r)"
+          printf 'arch=%s\n' "$(uname -m)"
+          printf 'commit=%s\n' "$sha"
+          /opt/node-current/bin/node --version
+          /opt/node-current/bin/npm --version
+          '@
+          [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))
+          $scriptPathWsl = "/mnt/$($scriptPath.Substring(0, 1).ToLowerInvariant())/$($scriptPath.Substring(3).Replace('\', '/'))"
+          & wsl.exe -d Ubuntu --user root -- bash $scriptPathWsl $env:WSL_SOURCE $env:WSL_BUILD $env:GITHUB_SHA
+          $exitCode = $LASTEXITCODE
+          Remove-Item -Force $scriptPath -ErrorAction SilentlyContinue
+          if ($exitCode -ne 0) { exit $exitCode }
+
+      - name: install dependencies in WSL
+        run: |
+          $scriptPath = Join-Path $env:RUNNER_TEMP 'unigma-wsl-npm-ci.sh'
+          $script = @'
+          set -euo pipefail
+          build="$1"
+          export PATH="/opt/node-current/bin:$PATH"
+          export NODE_OPTIONS="--max-old-space-size=12288"
+          export UV_THREADPOOL_SIZE=12
+          export CMAKE_BUILD_PARALLEL_LEVEL=12
+          export MAKEFLAGS=-j12
+          cd "$build"
+          npm ci --no-audit --no-fund
+          '@
+          [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))
+          $scriptPathWsl = "/mnt/$($scriptPath.Substring(0, 1).ToLowerInvariant())/$($scriptPath.Substring(3).Replace('\', '/'))"
+          & wsl.exe -d Ubuntu --user dasher -- bash $scriptPathWsl $env:WSL_BUILD
+          $exitCode = $LASTEXITCODE
+          Remove-Item -Force $scriptPath -ErrorAction SilentlyContinue
+          if ($exitCode -ne 0) { exit $exitCode }
+
+      - name: compile unigma agent runtime in WSL
+        run: |
+          $scriptPath = Join-Path $env:RUNNER_TEMP 'unigma-wsl-runtime-test.sh'
+          $script = @'
+          set -euo pipefail
+          build="$1"
+          export PATH="/opt/node-current/bin:$PATH"
+          export NODE_OPTIONS="--max-old-space-size=12288"
+          export UV_THREADPOOL_SIZE=12
+          export CMAKE_BUILD_PARALLEL_LEVEL=12
+          export MAKEFLAGS=-j12
+          cd "$build"
+          node --experimental-strip-types --max-old-space-size=12288 ./node_modules/gulp/bin/gulp.js compile-extension:unigma-agent-runtime
+          npm --prefix extensions/unigma-agent-runtime test
+          '@
+          [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))
+          $scriptPathWsl = "/mnt/$($scriptPath.Substring(0, 1).ToLowerInvariant())/$($scriptPath.Substring(3).Replace('\', '/'))"
+          & wsl.exe -d Ubuntu --user dasher -- bash $scriptPathWsl $env:WSL_BUILD
+          $exitCode = $LASTEXITCODE
+          Remove-Item -Force $scriptPath -ErrorAction SilentlyContinue
+          if ($exitCode -ne 0) { exit $exitCode }
+
+      - name: build Linux x64 package in WSL
+        run: |
+          $scriptPath = Join-Path $env:RUNNER_TEMP 'unigma-wsl-build.sh'
+          $script = @'
+          set -euo pipefail
+          build="$1"
+          export BUILD_SOURCEVERSION="$2"
+          export PATH="/opt/node-current/bin:$PATH"
+          export NODE_OPTIONS="--max-old-space-size=12288"
+          export UV_THREADPOOL_SIZE=12
+          export CMAKE_BUILD_PARALLEL_LEVEL=12
+          export MAKEFLAGS=-j12
+          cd "$build"
+          node --experimental-strip-types --max-old-space-size=12288 ./node_modules/gulp/bin/gulp.js vscode-linux-x64
+          '@
+          [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))
+          $scriptPathWsl = "/mnt/$($scriptPath.Substring(0, 1).ToLowerInvariant())/$($scriptPath.Substring(3).Replace('\', '/'))"
+          & wsl.exe -d Ubuntu --user dasher -- bash $scriptPathWsl $env:WSL_BUILD $env:GITHUB_SHA
+          $exitCode = $LASTEXITCODE
+          Remove-Item -Force $scriptPath -ErrorAction SilentlyContinue
+          if ($exitCode -ne 0) { exit $exitCode }
+
+      - name: run Linux desktop smoke test in WSL
+        run: |
+          $scriptPath = Join-Path $env:RUNNER_TEMP 'unigma-wsl-smoke.sh'
+          $script = @'
+          set -euo pipefail
+          build="$1"
+          export BUILD_SOURCEVERSION="$2"
+          export PATH="/opt/node-current/bin:$PATH"
+          export NODE_OPTIONS="--max-old-space-size=12288"
+          cd "$build"
+          xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' \
+            npm run smoketest -- --tracing --f '^(?!.*(?:Terminal Profiles|Chat|Agents Window)).*$'
+          '@
+          [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))
+          $scriptPathWsl = "/mnt/$($scriptPath.Substring(0, 1).ToLowerInvariant())/$($scriptPath.Substring(3).Replace('\', '/'))"
+          & wsl.exe -d Ubuntu --user dasher -- bash $scriptPathWsl $env:WSL_BUILD $env:GITHUB_SHA
+          $exitCode = $LASTEXITCODE
+          Remove-Item -Force $scriptPath -ErrorAction SilentlyContinue
+          if ($exitCode -ne 0) { exit $exitCode }
+
+      - name: write Linux artifact evidence
+        if: success()
+        run: |
+          $scriptPath = Join-Path $env:RUNNER_TEMP 'unigma-wsl-artifact.sh'
+          $script = @'
+          set -euo pipefail
+          source="$1"
+          build="$2"
+          sha="$3"
+          runner="$4"
+          artifact="$build/../VSCode-linux-x64"
+          test -d "$artifact"
+          mkdir -p "$source/.build/test-results" "$source/.build/logs"
+          if [ -d "$build/test/smoke/test-results" ]; then
+            cp -a "$build/test/smoke/test-results/." "$source/.build/test-results/"
+          fi
+          if [ -d "$build/.build/logs" ]; then
+            cp -a "$build/.build/logs/." "$source/.build/logs/"
+          fi
+          tar -C "$artifact" -cJf "$source/.build/unigma-linux-x64.tar.xz" .
+          cat > "$source/.build/unigma-linux-x64-evidence.txt" <<EOF
+          commit=$sha
+          target=linux-x64
+          build-host=$runner
+          build-environment=Ubuntu WSL2
+          package=$artifact
+          smoke=passed
+          runtime-tests=passed
+          EOF
+          '@
+          [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))
+          $scriptPathWsl = "/mnt/$($scriptPath.Substring(0, 1).ToLowerInvariant())/$($scriptPath.Substring(3).Replace('\', '/'))"
+          & wsl.exe -d Ubuntu --user dasher -- bash $scriptPathWsl $env:WSL_SOURCE $env:WSL_BUILD $env:GITHUB_SHA $env:RUNNER_NAME
+          $exitCode = $LASTEXITCODE
+          Remove-Item -Force $scriptPath -ErrorAction SilentlyContinue
+          if ($exitCode -ne 0) { exit $exitCode }
+
+      - name: upload Linux evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unigma-linux-x64-${{ github.run_id }}
+          if-no-files-found: warn
+          path: |
+            .build/unigma-linux-x64-evidence.txt
+            .build/unigma-linux-x64.tar.xz
+            .build/logs
+            .build/test-results
