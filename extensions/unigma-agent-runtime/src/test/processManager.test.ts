@@ -116,7 +116,7 @@ suite('Unigma agent process manager', () => {
 		const child = new FakeProcess();
 		const manager = new ChildProcessManager(optionsFor(() => child as unknown as ReturnType<NonNullable<ProcessManagerOptions['spawn']>>, 5));
 
-		await assert.rejects(manager.ensureStarted(workspace), /startup/);
+		await assert.rejects(manager.ensureStarted(workspace), /did not start before the timeout/);
 		assert.strictEqual(child.killCount, 1);
 	});
 
@@ -133,7 +133,7 @@ suite('Unigma agent process manager', () => {
 			return child as unknown as ReturnType<NonNullable<ProcessManagerOptions['spawn']>>;
 		}, 5));
 
-		await assert.rejects(manager.ensureStarted(workspace), /startup/);
+		await assert.rejects(manager.ensureStarted(workspace), /did not start before the timeout/);
 		await assert.rejects(manager.ensureStarted(workspace), /did not exit/);
 		assert.strictEqual(spawnCount, 1);
 

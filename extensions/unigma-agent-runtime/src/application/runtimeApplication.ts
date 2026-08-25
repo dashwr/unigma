@@ -75,13 +75,13 @@ export class AgentRuntimeApplication implements DisposableLike {
 	private async startConnection(workspace: WorkspaceReference, requestId?: string): Promise<void> {
 		try {
 			const process = await this._ports!.processManager.ensureStarted(workspace);
-			if (this._state === 'disposed') {
+			if (this.isDisposed()) {
 				await this.disposeRuntime();
 				return;
 			}
 
 			await this._ports!.openCodeClient.connect(process);
-			if (this._state === 'disposed') {
+			if (this.isDisposed()) {
 				await this.disposeRuntime();
 			}
 		} catch (error) {
@@ -95,6 +95,10 @@ export class AgentRuntimeApplication implements DisposableLike {
 			}
 			throw error;
 		}
+	}
+
+	private isDisposed(): boolean {
+		return this._state === 'disposed';
 	}
 
 	public dispose(): void {
