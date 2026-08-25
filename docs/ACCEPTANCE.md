@@ -89,7 +89,14 @@ em critérios aprovados:
   `Agents Window`, que dependem de extensões/superfícies Microsoft ausentes do
   produto (`builtInExtensions: []`); isso é escopo declarado de núcleo, não
   evidência dessas capacidades.
-- Linux x64 ainda não tem runner, artefato ou smoke executado.
+- foi tentado um cross-build Linux x64 no runner Windows `WIREDNEOMKII` pela
+  workflow `unigma-linux-cross-validation.yml`: no run `32901756829`, os
+  probes confirmaram WSL e Docker indisponíveis, enquanto `npm ci` e o compile
+  do runtime passaram; o bundle esbuild Linux terminou com `The service was
+  stopped`, sem artefato. O rerun do job foi cancelado durante `npm ci` e
+  também não produziu artefato. Cross-build em host Windows não é evidência de
+  build ou smoke Linux reproduzível.
+- Linux x64 ainda não tem runner Linux, artefato ou smoke executado.
 - a workflow manual `.github/workflows/unigma-self-hosted-validation.yml` foi publicada
   com `runs-on: self-hosted`; a execução `32841175404` não passou do bootstrap do
   Visual Studio (`setup.exe` retornou `-1`) e a execução diagnóstica

@@ -20,8 +20,8 @@
 
 Registro consolidado do trabalho executado no checkout local `E:\unigma`, nos
 clones temporários de validação e no runner self-hosted Windows. A execução
-`32896363977` criou evidência e artefato de teste Windows x64; Linux ainda está
-pendente.
+`32896363977` criou evidência e artefato de teste Windows x64; uma tentativa
+cross Linux `32901756829` não criou artefato, então Linux ainda está pendente.
 
 | frente | feito | ainda necessário |
 | --- | --- | --- |
@@ -57,6 +57,10 @@ pendente.
   `extensions/github-authentication` por tipos `mocha`/`node` ausentes;
 - após muitos ciclos limitados de dependência nested, a caça incremental foi
   encerrada para não transformar E-00 em manutenção especulativa do upstream;
+- no cross-build Linux `32901756829`, o runner confirmou WSL e Docker ausentes;
+  `npm ci` e o compile do runtime passaram, mas o bundle esbuild Linux falhou
+  com `The service was stopped`. O rerun foi cancelado durante `npm ci`; não
+  houve artefato nem smoke Linux. A tentativa não prova compatibilidade Linux.
 - `test-node` retornou código de processo 0, mas emitiu `ERR_MODULE_NOT_FOUND`
   para arquivos ausentes em `out/`; por isso não foi tratado como teste aprovado.
 - auditorias npm relataram vulnerabilidades herdadas das dependências; não
