@@ -246,6 +246,10 @@ class ConnectionState extends Disposable {
 	}
 }
 
+type RemoteAgentHostConnectionCustomizations = {
+	get(address: string): { readonly authenticate?: (request: AuthenticateParams) => Promise<AuthenticateParams> } | undefined;
+};
+
 /**
  * Discovers available agents from each connected remote agent host and
  * dynamically registers each one as a chat session type with its own
@@ -276,6 +280,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 
 	/** Per-host SSH auto-reconnect state (timer + attempts + paused). */
 	private readonly _sshReconnectStates = this._register(new DisposableMap<string, SSHReconnectState>());
+	private readonly _connectionCustomizations: RemoteAgentHostConnectionCustomizations = { get: () => undefined };
 
 	constructor(
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChildProcess, spawn, SpawnOptions, StdioOptions } from 'child_process';
+import { ChildProcess, spawn, SpawnOptions } from 'child_process';
 import { chmodSync, existsSync, readFileSync, statSync, truncateSync, unlinkSync } from 'fs';
 import { homedir, tmpdir } from 'os';
 import { startProfiling, ProfilingSession, Target } from '../../base/node/profiling.js';
@@ -25,7 +25,6 @@ import { CancellationTokenSource } from '../../base/common/cancellation.js';
 import { isUNC, randomPath } from '../../base/common/extpath.js';
 import { Utils } from '../../platform/profiling/common/profiling.js';
 import { FileAccess } from '../../base/common/network.js';
-import { cwd } from '../../base/common/process.js';
 import { addUNCHostToAllowlist } from '../../base/node/unc.js';
 import { URI } from '../../base/common/uri.js';
 import { DeferredPromise } from '../../base/common/async.js';
