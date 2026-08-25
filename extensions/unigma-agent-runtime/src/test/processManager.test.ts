@@ -12,20 +12,24 @@ const workspace = { uri: 'file:///tmp/unigma-workspace' };
 
 class FakeProcess extends EventEmitter {
 	public readonly pid: number | undefined;
+	private readonly autoExitOnKill: boolean;
 	public exitCode: number | null = null;
 	public killed = false;
 	public killCount = 0;
 
-	public constructor(pid = 1001) {
+	public constructor(pid = 1001, autoExitOnKill = true) {
 		super();
 		this.pid = pid;
+		this.autoExitOnKill = autoExitOnKill;
 	}
 
 	public kill(): boolean {
 		this.killCount++;
 		this.killed = true;
-		this.exitCode = 0;
-		queueMicrotask(() => this.emit('exit', 0, null));
+		if (this.autoExitOnKill) {
+			this.exitCode = 0;
+			queueMicrotask(() => this.emit('exit', 0, null));
+		}
 		return true;
 	}
 }
@@ -109,5 +113,29 @@ suite('Unigma agent process manager', () => {
 
 		await assert.rejects(manager.ensureStarted(workspace), /startup/);
 		assert.strictEqual(child.killCount, 1);
+	});
+
+	test('does not start another child while a timed-out child is still alive', async () => {
+		const first = new FakeProcess(1001, false);
+		const second = new FakeProcess(1002);
+		let spawnCount = 0;
+		const manager = new ChildProcessManager(optionsFor(() => {
+			spawnCount++;
+			const child = spawnCount === 1 ? first : second;
+			if (child === second) {
+				queueMicrotask(() => child.emit('spawn'));
+			}
+			return child as unknown as ReturnType<NonNullable<ProcessManagerOptions['spawn']>>;
+		}, 5));
+
+		await assert.rejects(manager.ensureStarted(workspace), /startup/);
+		await assert.rejects(manager.ensureStarted(workspace), /did not exit/);
+		assert.strictEqual(spawnCount, 1);
+
+		first.exitCode = 0;
+		first.emit('exit', 0, null);
+		await manager.ensureStarted(workspace);
+		assert.strictEqual(spawnCount, 2);
+		await manager.stopOwned();
 	});
 });

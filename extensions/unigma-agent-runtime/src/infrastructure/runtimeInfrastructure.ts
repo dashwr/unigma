@@ -23,18 +23,32 @@ export function createRuntimeInfrastructure(context: vscode.ExtensionContext): R
 	const processManager = new ChildProcessManager();
 	const openCodeClient = new OpenCodeHttpClient({ diagnostics });
 	const sessionReferenceStore = new WorkspaceStateSessionReferenceStore(context.workspaceState);
+	let disconnectPromise: Promise<void> | undefined;
+	let stopPromise: Promise<void> | undefined;
+	const disconnect = (): Promise<void> => disconnectPromise ??= openCodeClient.disconnect();
+	const stopOwned = (): Promise<void> => stopPromise ??= (async () => {
+		try {
+			await disconnect();
+		} finally {
+			await processManager.stopOwned();
+		}
+	})();
 
 	return {
 		ports: {
-			processManager,
-			openCodeClient,
+			processManager: {
+				ensureStarted: workspace => processManager.ensureStarted(workspace),
+				stopOwned,
+			},
+			openCodeClient: {
+				connect: process => openCodeClient.connect(process),
+				disconnect,
+			},
 			sessionReferenceStore,
 			diagnostics,
 		},
 		dispose: () => {
-			void openCodeClient.disconnect();
-			void processManager.stopOwned();
-			diagnostics.dispose();
+			void stopOwned().catch(() => undefined).then(() => diagnostics.dispose());
 		},
 	};
 }

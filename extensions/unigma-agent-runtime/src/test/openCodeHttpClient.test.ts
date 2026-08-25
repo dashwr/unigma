@@ -47,6 +47,7 @@ function documentFor(missingOperation?: readonly [string, string]): Record<strin
 
 interface FixtureOptions {
 	readonly document?: Record<string, unknown>;
+	readonly workspacePath?: string;
 	readonly onEvent?: (response: ServerResponse, index: number) => void;
 }
 
@@ -73,7 +74,7 @@ async function createFixture(options: FixtureOptions = {}): Promise<Fixture> {
 			return json(response, options.document ?? documentFor());
 		}
 		if (requestPath === '/path') {
-			return json(response, { path: workspacePath });
+			return json(response, { path: options.workspacePath ?? workspacePath });
 		}
 		if (requestPath === '/event') {
 			response.writeHead(200, { 'content-type': 'text/event-stream', connection: 'keep-alive' });
@@ -177,13 +178,33 @@ suite('Unigma OpenCode HTTP/SSE client', () => {
 		const captured = diagnostics();
 		const fixture = await createFixture();
 		const client = new OpenCodeHttpClient({ diagnostics: captured.sink, requestTimeoutMs: 500, startupTimeoutMs: 1000 });
+		const events: OpenCodeEvent[] = [];
+		client.onEvent(event => events.push(event));
 
 		try {
 			await client.connect(processFor(fixture.endpoint));
 			fixture.eventResponses[0].write('data: {"type":"future.event","properties":{"secret":"hidden"}}\n\n');
-			fixture.eventResponses[0].write('data: {"type":"server.connected"}\n\n');
+			fixture.eventResponses[0].write('data: {"type":"session.status","properties":[]}\n\n');
 			await waitFor(() => captured.records.some(record => record.code === 'opencode.event.unknown') && captured.records.some(record => record.code === 'opencode.event.invalid'));
 			assert.ok(captured.records.every(record => !JSON.stringify(record).includes('hidden')));
+			assert.strictEqual(events.filter(event => event.type === 'session.status').length, 0);
+		} finally {
+			await client.disconnect();
+			await fixture.close();
+		}
+	});
+
+	test('preserves case when validating workspace paths on case-sensitive platforms', async () => {
+		if (process.platform === 'win32') {
+			return;
+		}
+
+		const fixture = await createFixture({ workspacePath: '/tmp/Unigma-workspace' });
+		const client = new OpenCodeHttpClient({ requestTimeoutMs: 500, startupTimeoutMs: 1000 });
+
+		try {
+			await assert.rejects(client.connect(processFor(fixture.endpoint)), /does not match the authorized workspace/);
+			assert.ok(!fixture.requests.some(request => request.path === '/event'));
 		} finally {
 			await client.disconnect();
 			await fixture.close();

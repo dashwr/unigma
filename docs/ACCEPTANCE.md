@@ -15,18 +15,18 @@ exemplo numérico, inclusive `~49`, é um valor fixo ou normativo.
 | --- | --- | --- | --- |
 | AC-001 | RQ-001, RQ-102 | Para toda distribuição que incorpore código de Code - OSS, a revisão de entrega confirma a presença dos avisos, licenças e copyrights aplicáveis. | bloqueado: não há distribuição |
 | AC-002 | RQ-001, RQ-101 | A revisão de identidade e artefatos de distribuição não encontra marca, ícones, binários oficiais, endpoints/chaves Microsoft ou uso do Visual Studio Marketplace sem direito documentado. | bloqueado: não há artefato |
-| AC-003 | RQ-002 | Em um ambiente de teste, o IDE inicia uma interação com o CLI `opencode serve` por HTTP/SSE documentados e apresenta um resultado ou erro observável ao usuário. | bloqueado: T-011 é especificação documental condicional; não há implementação, fixture ou binário OpenCode fixado |
+| AC-003 | RQ-002 | Em um ambiente de teste, o IDE inicia uma interação com o CLI `opencode serve` por HTTP/SSE documentados e apresenta um resultado ou erro observável ao usuário. | bloqueado: há supervisor/cliente e fixture local provisórios, mas não há sessão integrada à UI nem binário OpenCode fixado |
 | AC-004 | RQ-003 | A especificação de implementação define e o teste demonstra: criação/retomada de sessão, apresentação de diff e uma ação explícita de aprovação ou rejeição. | bloqueado: contrato T-010 implementado e validado; UI/runtime e teste integrado ausentes |
 | AC-005 | RQ-004 | A especificação de implementação identifica as integrações MCP/plugin/regra aceitas e o teste demonstra carregamento ou recusa conforme essa política. | bloqueado: T-012 é especificação documental condicional; implementação e teste de carga/recusa ausentes |
 | AC-006 | RQ-005 | A especificação de implementação define e o teste demonstra o ciclo de vida de um subagente ou worktree suportado. | bloqueado: contrato T-010 cobre a mensagem; ciclo de vida e teste integrado ausentes |
 | AC-007 | RQ-006 | A especificação de implementação define o fluxo SSH suportado e um teste estabelece ou recusa a conexão conforme a política definida. | bloqueado: T-013 é especificação documental condicional; conexão, provisionamento e teste ausentes |
 | AC-008 | RQ-007 | A especificação de implementação enumera providers/modelos suportados e testes demonstram a seleção de ao menos uma integração aprovada. | bloqueado: T-011 não anuncia provider/modelo suportado; não há suporte funcional, seleção ou teste |
-| AC-009 | RQ-103, RQ-104 | Revisão de código, configuração e documentação não encontra coleta/extração de tokens ou caches OAuth, interceptação de tráfego nem bypass de entitlement; integrações apontam apenas a meios autorizados/documentados. | bloqueado: não há código |
+| AC-009 | RQ-103, RQ-104 | Revisão de código, configuração e documentação não encontra coleta/extração de tokens ou caches OAuth, interceptação de tráfego nem bypass de entitlement; integrações apontam apenas a meios autorizados/documentados. | bloqueado: o slice possui fronteiras/redaction estruturais, mas a revisão integrada e a evidência reproduzível ainda não foram executadas |
 | AC-010 | RQ-009 | Em uma distribuição de teste, a interface inicia em inglês e o pacote `pt-BR` pode ser instalado ou ativado pelo mecanismo documentado. | bloqueado: mecanismo pendente |
 | AC-011 | RQ-010 | A especificação de tokens define valores verificáveis para roxo, magenta, violeta e cada fundo declarado; a revisão visual de cada tema confirma o uso exclusivo desses tokens para a identidade. | bloqueado: tokens pendentes |
 | AC-012 | RQ-011 | Antes de publicar ativos de marca, a revisão documentada confirma que nenhum elemento identificável da identidade do OpenCode foi copiado. | bloqueado: não há ativos |
 | AC-013 | RQ-012 | A entrega do MVP fornece artefatos de teste ou distribuição para Windows x64 e Linux x64; a mesma suíte mínima de inicialização é executada com sucesso em ambas as plataformas. | bloqueado: não há implementação |
-| AC-014 | RQ-013 | Em ambiente de teste, o painel de agente é contribuição nativa do workbench e inicia/controla uma sessão OpenCode sem exigir que o usuário opere uma ferramenta de agente separada. | bloqueado: não há implementação |
+| AC-014 | RQ-013 | Em ambiente de teste, o painel de agente é contribuição nativa do workbench e inicia/controla uma sessão OpenCode sem exigir que o usuário opere uma ferramenta de agente separada. | bloqueado: contribuição nativa e conexão inicial existem, mas sessão/controle integrado ainda não estão implementados |
 | AC-015 | RQ-014 | O pipeline mede tempo de inicialização e RSS por processo em perfil limpo, idle e sessão ativa; cada regressão é comparada ao baseline versionado da mesma plataforma. | bloqueado: baseline e implementação ausentes |
 | AC-016 | RQ-015, RQ-016, RQ-017, RQ-018, RQ-020 | **Direção documental:** o contrato/configuração versionado do router separa Autopilot, modelo selecionado, `persistSelectedModel`, `routerModel`, `maxModel`, referências de índice/custo, bypass, timeout, fallback e privacidade. **Implementação real:** o runtime valida versão e campos, produz decisão/evento observável, respeita trust e política do OpenCode e não registra prompt, raciocínio ou segredo. | bloqueado: T-086 é frente futura; não há schema implementado, runtime ou teste executado |
 | AC-017 | RQ-015, RQ-016 | **Direção documental:** o `intelligence index` e o custo têm fonte, versão, proveniência, unidade, revisão e tratamento de ausência/ambiguidade; o índice é aproximado, não é ranking universal e não cria catálogo remoto. `~49` permanece ilustrativo. **Implementação real:** somente referência local explícita e compatível é carregada; dados insuficientes são recusados sem inventar ranking, sincronizar catálogo ou registrar prompt, raciocínio ou segredo. | bloqueado: T-087 é frente futura; não há índice/custo carregado nem evidência |
@@ -79,8 +79,15 @@ em critérios aprovados:
 - `test-node` emitiu erro de módulo ausente em `out/` e, portanto, não fornece
   evidência válida de aprovação;
 - build de cliente, artefato e smoke Windows/Linux continuam sem evidência.
+- a workflow manual `.github/workflows/unigma-self-hosted-validation.yml` foi publicada
+  com `runs-on: self-hosted`; a execução `32841175404` não passou do bootstrap do
+  Visual Studio (`setup.exe` retornou `-1`) e a execução diagnóstica
+  `32841731686` confirmou que o processo do runner não é elevado para instalar as
+  bibliotecas Spectre. Nenhum `npm ci`, build, artefato ou smoke foi executado;
+  o bloqueio foi mantido por decisão explícita.
 
-Portanto, a E-00 permanece parcialmente concluída, sem artefato ou smoke.
+Portanto, a E-00 permanece parcialmente concluída e bloqueada pelo pré-requisito
+do runner, sem artefato ou smoke.
 AC-001/AC-002 permanecem dependentes de revisão do artefato e
 do código final; AC-003 a AC-008 têm contratos operacionais documentados pela
 E-01, mas continuam bloqueados por implementação e evidência executada; AC-009
@@ -105,6 +112,11 @@ aceitos:
 - T-011 é especificação documental condicional: registra endpoints/eventos de
   referência e declara que não há versão, checksum ou binário OpenCode testado;
   nenhum provider/modelo é anunciado como suportado;
+- T-021/T-022/T-023 têm adapters e fixtures locais provisórios no checkout, com
+  testes fonte para processo, HTTP/SSE, persistência mínima, redaction e
+  composição; esses testes não foram executados nesta sessão por ausência de
+  dependências compiladas. A fixture não é evidência contra um binário OpenCode
+  real e não altera o estado condicional de T-011;
 - T-012 é especificação documental condicional: define fontes explícitas, gates
   de trust/aprovação, recusa e redaction, sem catálogo, instalação ou
   persistência própria;

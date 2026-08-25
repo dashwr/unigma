@@ -37,6 +37,11 @@ distribuível.
 - instalação completa encontrou `MSB8040` em `@vscode/native-watchdog`, pois o
   toolchain não possui bibliotecas Spectre do Visual Studio; não instalar esse
   componente sem autorização específica;
+- a workflow manual `.github/workflows/unigma-self-hosted-validation.yml`, com
+  `runs-on: self-hosted`, foi executada nos runs `32841175404` e `32841731686`;
+  o primeiro falhou no modificador do Visual Studio e o segundo confirmou que o
+  processo do runner não é elevado. O pré-requisito foi mantido bloqueado, sem
+  nova tentativa de instalação, `npm ci`, build ou artefato.
 - o upstream orquestra a árvore nested pelo `npm install` no root, usando os
   scripts `preinstall`/`postinstall` de `package.json`,
   `build/npm/dirs.ts` e `build/npm/postinstall.ts`; `--ignore-scripts` deixa a
@@ -310,6 +315,9 @@ permanece recusado por este contrato e não é suporte publicado.
 
 ### T-021 — supervisionar CLI `opencode serve`
 
+**status:** implementação inicial e testes fonte adicionados; execução e teste
+contra um binário OpenCode fixado permanecem pendentes.
+
 - **objetivo:** iniciar, aguardar, reutilizar e encerrar somente o processo
   criado pelo runtime, com uma instância por extension host.
 - **responsável lógico:** engenharia de runtime/processos.
@@ -328,6 +336,10 @@ permanece recusado por este contrato e não é suporte publicado.
 
 ### T-022 — implementar cliente HTTP/SSE OpenCode
 
+**status:** adapter e fixture estrutural local adicionados; compatibilidade real
+permanece condicional a T-011 e os testes ainda não foram executados neste
+checkout.
+
 - **objetivo:** encapsular os endpoints documentados e converter eventos SSE em
   tipos internos, sem vazar transporte para a UI.
 - **responsável lógico:** engenharia de integração OpenCode.
@@ -345,6 +357,9 @@ permanece recusado por este contrato e não é suporte publicado.
 - **bloqueia:** T-024, T-032, T-033, T-042 e AC-003.
 
 ### T-023 — implementar armazenamento mínimo e diagnóstico redigido
+
+**status:** armazenamento mínimo, redaction e testes fonte adicionados; execução
+e integração no fluxo de sessão permanecem pendentes.
 
 - **objetivo:** persistir somente referência de sessão/configuração permitida e
   produzir logs locais com correlação sem conteúdo sensível.

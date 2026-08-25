@@ -16,6 +16,7 @@ export class AgentRuntimeApplication implements DisposableLike {
 	private _connectionPromise: Promise<void> | undefined;
 	private _connectionWorkspaceUri: string | undefined;
 	private _disposePromise: Promise<void> | undefined;
+	private _runtimeTeardownPromise: Promise<void> | undefined;
 
 	public constructor(ports?: RuntimePorts) {
 		this._ports = ports;
@@ -70,15 +71,26 @@ export class AgentRuntimeApplication implements DisposableLike {
 	}
 
 	private async startConnection(workspace: WorkspaceReference, requestId?: string): Promise<void> {
-		const process = await this._ports!.processManager.ensureStarted(workspace);
 		try {
+			const process = await this._ports!.processManager.ensureStarted(workspace);
+			if (this._state === 'disposed') {
+				await this.disposeRuntime();
+				return;
+			}
+
 			await this._ports!.openCodeClient.connect(process);
 			if (this._state === 'disposed') {
 				await this.disposeRuntime();
 			}
 		} catch (error) {
-			this._ports!.diagnostics.record({ level: 'error', code: 'runtime.connection.failed', requestId });
-			await this.disposeRuntime();
+			if (this._state !== 'disposed') {
+				this._ports!.diagnostics.record({ level: 'error', code: 'runtime.connection.failed', requestId });
+			}
+			try {
+				await this.disposeRuntime();
+			} catch {
+				this._ports!.diagnostics.record({ level: 'error', code: 'runtime.teardown.failed', requestId });
+			}
 			throw error;
 		}
 	}
@@ -90,7 +102,9 @@ export class AgentRuntimeApplication implements DisposableLike {
 
 		this._state = 'disposed';
 		this._lastDemand = undefined;
-		this._disposePromise ??= this.disposeRuntime();
+		this._disposePromise ??= this.disposeRuntime().catch(() => {
+			this._ports?.diagnostics.record({ level: 'error', code: 'runtime.teardown.failed' });
+		});
 	}
 
 	private async disposeRuntime(): Promise<void> {
@@ -98,7 +112,30 @@ export class AgentRuntimeApplication implements DisposableLike {
 			return;
 		}
 
-		await this._ports.openCodeClient.disconnect();
-		await this._ports.processManager.stopOwned();
+		if (this._runtimeTeardownPromise) {
+			return this._runtimeTeardownPromise;
+		}
+
+		const teardown = (async () => {
+			try {
+				await this._ports!.openCodeClient.disconnect();
+			} finally {
+				await this._ports!.processManager.stopOwned();
+			}
+		})();
+		this._runtimeTeardownPromise = teardown;
+		teardown.then(
+			() => {
+				if (this._runtimeTeardownPromise === teardown) {
+					this._runtimeTeardownPromise = undefined;
+				}
+			},
+			() => {
+				if (this._runtimeTeardownPromise === teardown) {
+					this._runtimeTeardownPromise = undefined;
+				}
+			},
+		);
+		await teardown;
 	}
 }

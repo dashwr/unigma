@@ -274,7 +274,8 @@ export class OpenCodeHttpClient implements OpenCodeClient<OpenCodeRequest, OpenC
 
 	private normalizeFilesystemPath(value: string): string {
 		const normalized = path.normalize(value).replaceAll('\\', '/');
-		return normalized.length > 1 ? normalized.replace(/\/$/, '').toLowerCase() : normalized.toLowerCase();
+		const withoutTrailingSeparator = normalized.length > 1 ? normalized.replace(/\/$/, '') : normalized;
+		return process.platform === 'win32' ? withoutTrailingSeparator.toLowerCase() : withoutTrailingSeparator;
 	}
 
 	private waitForServerConnected(milliseconds: number): Promise<void> {

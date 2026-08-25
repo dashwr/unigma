@@ -84,6 +84,7 @@ export class ChildProcessManager implements ProcessManager {
 	private startPromise: Promise<OwnedProcessHandle> | undefined;
 	private stopPromise: Promise<void> | undefined;
 	private stopRequested = false;
+	private stopFailed = false;
 
 	public constructor(options: ProcessManagerOptions = {}) {
 		this.command = options.command ?? 'opencode';
@@ -94,6 +95,15 @@ export class ChildProcessManager implements ProcessManager {
 	}
 
 	public async ensureStarted(workspace: WorkspaceReference): Promise<OwnedProcessHandle> {
+		if (this.stopPromise) {
+			await this.stopPromise;
+			return this.ensureStarted(workspace);
+		}
+
+		if (this.stopFailed) {
+			throw new Error('The owned OpenCode process did not exit after stop; refusing to start another process.');
+		}
+
 		if (this.handle && this.child && this.child.exitCode === null) {
 			this.assertWorkspace(workspace, this.handle);
 			return this.handle;
@@ -103,11 +113,6 @@ export class ChildProcessManager implements ProcessManager {
 			const handle = await this.startPromise;
 			this.assertWorkspace(workspace, handle);
 			return handle;
-		}
-
-		if (this.stopPromise) {
-			await this.stopPromise;
-			return this.ensureStarted(workspace);
 		}
 
 		const startPromise = this.start(workspace);
@@ -148,24 +153,45 @@ export class ChildProcessManager implements ProcessManager {
 				return;
 			}
 
-			this.child = undefined;
-			this.handle = undefined;
-			await new Promise<void>(resolve => {
-				if (child.exitCode !== null) {
-					resolve();
-					return;
-				}
+			if (child.exitCode !== null) {
+				this.clearIfOwned(child, handle);
+				return;
+			}
 
-				const timeout = setTimeout(resolve, this.startupTimeoutMs);
-				child.once('exit', () => {
-					clearTimeout(timeout);
-					resolve();
-				});
+			const exited = await new Promise<boolean>(resolve => {
+				let settled = false;
+				let timeout: NodeJS.Timeout | undefined;
+				const finish = (value: boolean) => {
+					if (settled) {
+						return;
+					}
+					settled = true;
+					if (timeout) {
+						clearTimeout(timeout);
+					}
+					resolve(value);
+				};
+				timeout = setTimeout(() => finish(false), this.startupTimeoutMs);
 
+				child.once('exit', () => finish(true));
 				if (!child.killed) {
 					child.kill();
 				}
 			});
+
+			if (!exited && child.exitCode === null) {
+				this.stopFailed = true;
+				return;
+			}
+
+			this.clearIfOwned(child, handle);
+			/*
+			 * `exit` may have happened before the listener above was attached.
+			 * Keep the ownership fields consistent before allowing a new start.
+			 */
+			if (child.exitCode !== null) {
+				this.clearIfOwned(child, handle);
+			}
 		})().finally(() => {
 			this.stopRequested = false;
 			this.stopPromise = undefined;
@@ -210,7 +236,7 @@ export class ChildProcessManager implements ProcessManager {
 				}
 
 				settled = true;
-				this.clearIfOwned(child, handle);
+				this.stopFailed = true;
 				if (!child.killed) {
 					child.kill();
 				}
@@ -259,6 +285,7 @@ export class ChildProcessManager implements ProcessManager {
 		if (this.child === child && this.handle?.id === handle.id && handle.owner === PROCESS_OWNER) {
 			this.child = undefined;
 			this.handle = undefined;
+			this.stopFailed = false;
 		}
 	}
 }
