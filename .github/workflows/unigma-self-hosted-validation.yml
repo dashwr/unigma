@@ -24,6 +24,22 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
+      - name: install native build prerequisite
+        run: |
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          $setup = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\setup.exe'
+          if (-not (Test-Path $vswhere) -or -not (Test-Path $setup)) {
+            throw 'Visual Studio Installer was not found on the self-hosted runner.'
+          }
+          $installationPath = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -property installationPath | Select-Object -First 1
+          if ([string]::IsNullOrWhiteSpace($installationPath)) {
+            throw 'A Visual Studio Build Tools installation was not found.'
+          }
+          & $setup modify --installPath $installationPath --add Microsoft.VisualStudio.Component.VC.14.50.18.0.x86.x64.Spectre --quiet --norestart --wait
+          if ($LASTEXITCODE -ne 0) {
+            throw "Visual Studio prerequisite installation failed with exit code $LASTEXITCODE."
+          }
+
       - name: install dependencies
         run: npm ci --no-audit --no-fund
 
