@@ -52,7 +52,7 @@ jobs:
           add_apt_package() {
             local candidate version
             for candidate in "$@"; do
-              version="$(apt-cache policy "$candidate" 2>/dev/null | awk '/Candidate:/ { print $2; exit }')"
+              version="$(apt-cache policy "$candidate" 2>/dev/null | awk '/Candidate:/ { print $2; exit }' || true)"
               if [ -n "$version" ] && [ "$version" != "(none)" ]; then
                 packages+=("$candidate")
                 return
