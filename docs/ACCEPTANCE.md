@@ -13,8 +13,8 @@ exemplo numérico, inclusive `~49`, é um valor fixo ou normativo.
 
 | ID | Relacionado a | Critério objetivo e testável | Estado de execução |
 | --- | --- | --- | --- |
-| AC-001 | RQ-001, RQ-102 | Para toda distribuição que incorpore código de Code - OSS, a revisão de entrega confirma a presença dos avisos, licenças e copyrights aplicáveis. | bloqueado: não há distribuição |
-| AC-002 | RQ-001, RQ-101 | A revisão de identidade e artefatos de distribuição não encontra marca, ícones, binários oficiais, endpoints/chaves Microsoft ou uso do Visual Studio Marketplace sem direito documentado. | bloqueado: não há artefato |
+| AC-001 | RQ-001, RQ-102 | Para toda distribuição que incorpore código de Code - OSS, a revisão de entrega confirma a presença dos avisos, licenças e copyrights aplicáveis. | bloqueado: revisão final do artefato e notices pendente |
+| AC-002 | RQ-001, RQ-101 | A revisão de identidade e artefatos de distribuição não encontra marca, ícones, binários oficiais, endpoints/chaves Microsoft ou uso do Visual Studio Marketplace sem direito documentado. | bloqueado: revisão final de identidade e proveniência pendente |
 | AC-003 | RQ-002 | Em um ambiente de teste, o IDE inicia uma interação com o CLI `opencode serve` por HTTP/SSE documentados e apresenta um resultado ou erro observável ao usuário. | bloqueado: há supervisor/cliente e fixture local provisórios, mas não há sessão integrada à UI nem binário OpenCode fixado |
 | AC-004 | RQ-003 | A especificação de implementação define e o teste demonstra: criação/retomada de sessão, apresentação de diff e uma ação explícita de aprovação ou rejeição. | bloqueado: contrato T-010 implementado e validado; UI/runtime e teste integrado ausentes |
 | AC-005 | RQ-004 | A especificação de implementação identifica as integrações MCP/plugin/regra aceitas e o teste demonstra carregamento ou recusa conforme essa política. | bloqueado: T-012 é especificação documental condicional; implementação e teste de carga/recusa ausentes |
@@ -25,7 +25,7 @@ exemplo numérico, inclusive `~49`, é um valor fixo ou normativo.
 | AC-010 | RQ-009 | Em uma distribuição de teste, a interface inicia em inglês e o pacote `pt-BR` pode ser instalado ou ativado pelo mecanismo documentado. | bloqueado: mecanismo pendente |
 | AC-011 | RQ-010 | A especificação de tokens define valores verificáveis para roxo, magenta, violeta e cada fundo declarado; a revisão visual de cada tema confirma o uso exclusivo desses tokens para a identidade. | bloqueado: tokens pendentes |
 | AC-012 | RQ-011 | Antes de publicar ativos de marca, a revisão documentada confirma que nenhum elemento identificável da identidade do OpenCode foi copiado. | bloqueado: não há ativos |
-| AC-013 | RQ-012 | A entrega do MVP fornece artefatos de teste ou distribuição para Windows x64 e Linux x64; a mesma suíte mínima de inicialização é executada com sucesso em ambas as plataformas. | bloqueado: não há implementação |
+| AC-013 | RQ-012 | A entrega do MVP fornece artefatos de teste ou distribuição para Windows x64 e Linux x64; a mesma suíte mínima de inicialização é executada com sucesso em ambas as plataformas. | bloqueado: Windows x64 tem evidência; Linux x64 ainda não foi executado |
 | AC-014 | RQ-013 | Em ambiente de teste, o painel de agente é contribuição nativa do workbench e inicia/controla uma sessão OpenCode sem exigir que o usuário opere uma ferramenta de agente separada. | bloqueado: contribuição nativa e conexão inicial existem, mas sessão/controle integrado ainda não estão implementados |
 | AC-015 | RQ-014 | O pipeline mede tempo de inicialização e RSS por processo em perfil limpo, idle e sessão ativa; cada regressão é comparada ao baseline versionado da mesma plataforma. | bloqueado: baseline e implementação ausentes |
 | AC-016 | RQ-015, RQ-016, RQ-017, RQ-018, RQ-020 | **Direção documental:** o contrato/configuração versionado do router separa Autopilot, modelo selecionado, `persistSelectedModel`, `routerModel`, `maxModel`, referências de índice/custo, bypass, timeout, fallback e privacidade. **Implementação real:** o runtime valida versão e campos, produz decisão/evento observável, respeita trust e política do OpenCode e não registra prompt, raciocínio ou segredo. | bloqueado: T-086 é frente futura; não há schema implementado, runtime ou teste executado |
@@ -78,7 +78,18 @@ em critérios aprovados:
   encerrada;
 - `test-node` emitiu erro de módulo ausente em `out/` e, portanto, não fornece
   evidência válida de aprovação;
-- build de cliente, artefato e smoke Windows/Linux continuam sem evidência.
+- a execução `32896363977`, no commit `061fc48a`, executou no runner
+  `WIREDNEOMKII` o `npm ci`, compile da extensão própria, checks focados,
+  empacotamento Windows x64 e smoke do núcleo; todos passaram e o artefato foi
+  publicado como `unigma-windows-x64-32896363977`.
+- a evidência do artefato registra `platform=windows-x64`,
+  `smoke=passed` e `runtime-tests=passed`; o JUnit registra 93 testes, zero
+  falhas e 30 ignorados.
+- o smoke dessa execução excluiu explicitamente `Terminal Profiles`, `Chat` e
+  `Agents Window`, que dependem de extensões/superfícies Microsoft ausentes do
+  produto (`builtInExtensions: []`); isso é escopo declarado de núcleo, não
+  evidência dessas capacidades.
+- Linux x64 ainda não tem runner, artefato ou smoke executado.
 - a workflow manual `.github/workflows/unigma-self-hosted-validation.yml` foi publicada
   com `runs-on: self-hosted`; a execução `32841175404` não passou do bootstrap do
   Visual Studio (`setup.exe` retornou `-1`) e a execução diagnóstica
@@ -86,8 +97,9 @@ em critérios aprovados:
   bibliotecas Spectre. Nenhum `npm ci`, build, artefato ou smoke foi executado;
   o bloqueio foi mantido por decisão explícita.
 
-Portanto, a E-00 permanece parcialmente concluída e bloqueada pelo pré-requisito
-do runner, sem artefato ou smoke.
+Portanto, a E-00 permanece parcialmente concluída: o bloqueio anterior de
+toolchain Windows foi superado no runner e há evidência Windows x64, mas Linux
+x64 e a revisão final de distribuição ainda bloqueiam o aceite integral.
 AC-001/AC-002 permanecem dependentes de revisão do artefato e
 do código final; AC-003 a AC-008 têm contratos operacionais documentados pela
 E-01, mas continuam bloqueados por implementação e evidência executada; AC-009

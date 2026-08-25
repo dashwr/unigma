@@ -1,10 +1,9 @@
 # unigma — backlog implementável
 
 > **status:** backlog derivado da arquitetura aprovada em 2026-08-22. A E-00 permanece
-> parcialmente concluída: fundação, identidade e comandos foram documentados,
-> mas o build executável ainda está bloqueado por dependências/toolchain do
-> upstream. As demais tarefas continuam futuras. Este arquivo não autoriza
-> distribuição ou publicação.
+> parcialmente concluída: há build, artefato e smoke de núcleo Windows x64, mas
+> Linux x64 e a revisão final de distribuição continuam pendentes. As demais
+> tarefas continuam futuras. Este arquivo não autoriza distribuição ou publicação.
 
 ## como usar
 
@@ -19,15 +18,16 @@
 
 ## estado de execução da E-00
 
-Registro consolidado do trabalho executado no checkout local `E:\unigma` e nos
-clones temporários de validação. A execução não criou commit nem artefato
-distribuível.
+Registro consolidado do trabalho executado no checkout local `E:\unigma`, nos
+clones temporários de validação e no runner self-hosted Windows. A execução
+`32896363977` criou evidência e artefato de teste Windows x64; Linux ainda está
+pendente.
 
 | frente | feito | ainda necessário |
 | --- | --- | --- |
 | T-001 upstream | tag `1.134.0`, SHA, Node, Electron e alvos registrados em `docs/UPSTREAM.md` e `DECISIONS.md` | validar compatibilidade de build/artefato em ambiente suportado |
 | T-002 importação | snapshot importado; `upstream` configurado; licenças/notices preservados; método registrado | concluir build mínimo reproduzível; revisar a árvore upstream antes de distribuição |
-| T-003 harness | comandos reais registrados em `AGENTS.md`; `npm ci` root/build, typecheck, lint, stylelint e `test-build-scripts` passaram no checkout local | resolver ou delimitar dependências nested/native para compile/build; `test-node` depende de `out/`; validar por plataforma |
+| T-003 harness | comandos reais registrados em `AGENTS.md`; checks locais históricos e `npm ci`, compile, checks focados e empacotamento Windows x64 passaram no run `32896363977` | validar por plataforma Linux; `test-node` depende de `out/` |
 | T-004 identidade | `README.md`, `product.json`, `resources/unigma/` e revisão inicial de terceiros ajustados | auditoria legal/licenças completa, revisão de integrações upstream e artefatos finais |
 
 ### bloqueios ambientais registrados
@@ -37,11 +37,10 @@ distribuível.
 - instalação completa encontrou `MSB8040` em `@vscode/native-watchdog`, pois o
   toolchain não possui bibliotecas Spectre do Visual Studio; não instalar esse
   componente sem autorização específica;
-- a workflow manual `.github/workflows/unigma-self-hosted-validation.yml`, com
-  `runs-on: self-hosted`, foi executada nos runs `32841175404` e `32841731686`;
-  o primeiro falhou no modificador do Visual Studio e o segundo confirmou que o
-  processo do runner não é elevado. O pré-requisito foi mantido bloqueado, sem
-  nova tentativa de instalação, `npm ci`, build ou artefato.
+- as execuções históricas `32841175404` e `32841731686` falharam no bootstrap do
+  Visual Studio e confirmaram que o runner não era elevado para instalar o
+  componente; depois que o pré-requisito passou a estar disponível no runner,
+  `32896363977` concluiu `npm ci`, checks, build e smoke Windows x64 com sucesso.
 - o upstream orquestra a árvore nested pelo `npm install` no root, usando os
   scripts `preinstall`/`postinstall` de `package.json`,
   `build/npm/dirs.ts` e `build/npm/postinstall.ts`; `--ignore-scripts` deixa a
@@ -64,8 +63,9 @@ distribuível.
   executar `npm audit fix` automaticamente.
 
 Esses bloqueios não foram classificados como bugs do unigma. A E-00 só pode ser
-marcada integralmente concluída quando o build mínimo reproduzível e a evidência
-de artefato exigida por T-002 estiverem disponíveis.
+marcada integralmente concluída quando houver build mínimo reproduzível e
+evidência de artefato/smoke para Windows x64 e Linux x64, além da revisão de
+distribuição exigida por T-002/T-004.
 
 ## fontes e rastreabilidade
 
