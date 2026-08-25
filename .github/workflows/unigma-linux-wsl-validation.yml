@@ -121,6 +121,7 @@ jobs:
           /opt/node-current/bin/node --version
           /opt/node-current/bin/npm --version
           '@
+          $script = $script -replace "`r`n?", "`n"
           [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))
           $scriptPathWsl = "/mnt/$($scriptPath.Substring(0, 1).ToLowerInvariant())/$($scriptPath.Substring(3).Replace('\', '/'))"
           & wsl.exe -d Ubuntu --user root -- bash $scriptPathWsl $env:WSL_SOURCE $env:WSL_BUILD $env:GITHUB_SHA
@@ -142,6 +143,7 @@ jobs:
           cd "$build"
           npm ci --no-audit --no-fund
           '@
+          $script = $script -replace "`r`n?", "`n"
           [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))
           $scriptPathWsl = "/mnt/$($scriptPath.Substring(0, 1).ToLowerInvariant())/$($scriptPath.Substring(3).Replace('\', '/'))"
           & wsl.exe -d Ubuntu --user dasher -- bash $scriptPathWsl $env:WSL_BUILD
@@ -164,6 +166,7 @@ jobs:
           node --experimental-strip-types --max-old-space-size=12288 ./node_modules/gulp/bin/gulp.js compile-extension:unigma-agent-runtime
           npm --prefix extensions/unigma-agent-runtime test
           '@
+          $script = $script -replace "`r`n?", "`n"
           [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))
           $scriptPathWsl = "/mnt/$($scriptPath.Substring(0, 1).ToLowerInvariant())/$($scriptPath.Substring(3).Replace('\', '/'))"
           & wsl.exe -d Ubuntu --user dasher -- bash $scriptPathWsl $env:WSL_BUILD
@@ -186,6 +189,7 @@ jobs:
           cd "$build"
           node --experimental-strip-types --max-old-space-size=12288 ./node_modules/gulp/bin/gulp.js vscode-linux-x64
           '@
+          $script = $script -replace "`r`n?", "`n"
           [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))
           $scriptPathWsl = "/mnt/$($scriptPath.Substring(0, 1).ToLowerInvariant())/$($scriptPath.Substring(3).Replace('\', '/'))"
           & wsl.exe -d Ubuntu --user dasher -- bash $scriptPathWsl $env:WSL_BUILD $env:GITHUB_SHA
@@ -206,6 +210,7 @@ jobs:
           xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' \
             npm run smoketest -- --tracing --f '^(?!.*(?:Terminal Profiles|Chat|Agents Window)).*$'
           '@
+          $script = $script -replace "`r`n?", "`n"
           [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))
           $scriptPathWsl = "/mnt/$($scriptPath.Substring(0, 1).ToLowerInvariant())/$($scriptPath.Substring(3).Replace('\', '/'))"
           & wsl.exe -d Ubuntu --user dasher -- bash $scriptPathWsl $env:WSL_BUILD $env:GITHUB_SHA
@@ -243,6 +248,7 @@ jobs:
           runtime-tests=passed
           EOF
           '@
+          $script = $script -replace "`r`n?", "`n"
           [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))
           $scriptPathWsl = "/mnt/$($scriptPath.Substring(0, 1).ToLowerInvariant())/$($scriptPath.Substring(3).Replace('\', '/'))"
           & wsl.exe -d Ubuntu --user dasher -- bash $scriptPathWsl $env:WSL_SOURCE $env:WSL_BUILD $env:GITHUB_SHA $env:RUNNER_NAME
