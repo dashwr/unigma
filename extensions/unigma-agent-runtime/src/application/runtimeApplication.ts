@@ -3,16 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { DisposableLike, RuntimeDemand, RuntimeState } from '../domain/runtime';
+import type { DisposableLike, RuntimeDemand, RuntimeState, WorkspaceReference } from '../domain/runtime';
+import type { RuntimePorts } from './runtimePorts';
 
 export const RUNTIME_DEMAND_COMMAND = 'unigma.agent.runtime.activate';
 
-/**
- * T-020 records demand without constructing any process, transport, or storage adapter.
- */
+/** Coordinates one trusted workspace connection without exposing transport details. */
 export class AgentRuntimeApplication implements DisposableLike {
 	private _state: RuntimeState = 'idle';
 	private _lastDemand: RuntimeDemand | undefined;
+	private readonly _ports: RuntimePorts | undefined;
+	private _connectionPromise: Promise<void> | undefined;
+	private _connectionWorkspaceUri: string | undefined;
+	private _disposePromise: Promise<void> | undefined;
+
+	public constructor(ports?: RuntimePorts) {
+		this._ports = ports;
+	}
 
 	public get state(): RuntimeState {
 		return this._state;
@@ -31,8 +38,67 @@ export class AgentRuntimeApplication implements DisposableLike {
 		this._lastDemand = demand;
 	}
 
+	/**
+	 * Connects the runtime to one trusted workspace without creating a session or
+	 * copying input. Session operations are deliberately left to the next slice.
+	 */
+	public async connectWorkspace(workspace: WorkspaceReference, requestId?: string): Promise<void> {
+		if (this._state === 'disposed') {
+			return;
+		}
+
+		if (!this._ports) {
+			throw new Error('Unigma agent runtime ports are not configured.');
+		}
+
+		if (this._connectionPromise) {
+			if (this._connectionWorkspaceUri !== workspace.uri) {
+				throw new Error('The runtime is already connecting to a different workspace.');
+			}
+			return this._connectionPromise;
+		}
+
+		this.acceptDemand({ source: 'command', requestId });
+		this._connectionWorkspaceUri = workspace.uri;
+		this._connectionPromise = this.startConnection(workspace, requestId);
+		try {
+			await this._connectionPromise;
+		} finally {
+			this._connectionPromise = undefined;
+			this._connectionWorkspaceUri = undefined;
+		}
+	}
+
+	private async startConnection(workspace: WorkspaceReference, requestId?: string): Promise<void> {
+		const process = await this._ports!.processManager.ensureStarted(workspace);
+		try {
+			await this._ports!.openCodeClient.connect(process);
+			if (this._state === 'disposed') {
+				await this.disposeRuntime();
+			}
+		} catch (error) {
+			this._ports!.diagnostics.record({ level: 'error', code: 'runtime.connection.failed', requestId });
+			await this.disposeRuntime();
+			throw error;
+		}
+	}
+
 	public dispose(): void {
+		if (this._state === 'disposed') {
+			return;
+		}
+
 		this._state = 'disposed';
 		this._lastDemand = undefined;
+		this._disposePromise ??= this.disposeRuntime();
+	}
+
+	private async disposeRuntime(): Promise<void> {
+		if (!this._ports) {
+			return;
+		}
+
+		await this._ports.openCodeClient.disconnect();
+		await this._ports.processManager.stopOwned();
 	}
 }

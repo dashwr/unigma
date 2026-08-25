@@ -22,6 +22,9 @@ export type RuntimeResourceOwner = 'unigma-agent-runtime';
 export interface OwnedProcessHandle {
 	readonly owner: RuntimeResourceOwner;
 	readonly id: string;
+	readonly pid: number;
+	readonly endpoint: string;
+	readonly workspaceUri: string;
 }
 
 export interface WorkspaceReference {

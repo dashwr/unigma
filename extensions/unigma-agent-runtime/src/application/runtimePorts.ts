@@ -13,16 +13,20 @@ import type {
 
 /** Owns the single OpenCode process associated with this extension host. */
 export interface ProcessManager {
-	ensureStarted(): Promise<OwnedProcessHandle>;
+	ensureStarted(workspace: WorkspaceReference): Promise<OwnedProcessHandle>;
 	stopOwned(): Promise<void>;
 }
 
-/** Hides the OpenCode transport and its event stream from the application boundary. */
-export interface OpenCodeClient<TRequest = unknown, TEvent = unknown> {
+/** Lifecycle-only boundary used by the application composition. */
+export interface OpenCodeConnection {
 	connect(process: OwnedProcessHandle): Promise<void>;
+	disconnect(): Promise<void>;
+}
+
+/** Hides the OpenCode transport and its event stream from the infrastructure boundary. */
+export interface OpenCodeClient<TRequest = unknown, TEvent = unknown> extends OpenCodeConnection {
 	send(request: TRequest): Promise<unknown>;
 	onEvent(listener: (event: TEvent) => void): DisposableLike;
-	disconnect(): Promise<void>;
 }
 
 /** Stores only the session reference permitted by the local-first data model. */
@@ -40,7 +44,7 @@ export interface DiagnosticSink {
 /** Composition boundary for the future T-021/T-022/T-023 adapters. */
 export interface RuntimePorts {
 	readonly processManager: ProcessManager;
-	readonly openCodeClient: OpenCodeClient;
+	readonly openCodeClient: OpenCodeConnection;
 	readonly sessionReferenceStore: SessionReferenceStore;
 	readonly diagnostics: DiagnosticSink;
 }

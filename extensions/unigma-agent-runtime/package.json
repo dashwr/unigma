@@ -19,7 +19,7 @@
   "scripts": {
     "compile": "gulp compile-extension:unigma-agent-runtime",
     "watch": "gulp watch-extension:unigma-agent-runtime",
-    "test": "node ../../node_modules/mocha/bin/mocha --ui=tdd out/test/activation.test.js"
+    "test": "node ../../node_modules/mocha/bin/mocha --ui=tdd \"out/test/**/*.test.js\""
   },
   "capabilities": {
     "virtualWorkspaces": false,

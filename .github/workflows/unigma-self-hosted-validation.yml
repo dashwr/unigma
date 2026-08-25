@@ -1,0 +1,73 @@
+name: unigma self-hosted validation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-x64:
+    name: windows x64 build, smoke, and runtime contract
+    runs-on: self-hosted
+    timeout-minutes: 240
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: compile unigma agent runtime
+        run: |
+          npm run gulp compile-extension:unigma-agent-runtime
+          npm --prefix extensions/unigma-agent-runtime test
+
+      - name: run focused upstream checks
+        run: |
+          npm run typecheck-client
+          npm run test-build-scripts
+
+      - name: build windows x64 package
+        run: npm run gulp vscode-win32-x64
+
+      - name: run desktop smoke test
+        run: npm run smoketest -- --tracing
+
+      - name: write artifact evidence
+        run: |
+          $artifact = Join-Path (Split-Path $env:GITHUB_WORKSPACE -Parent) 'VSCode-win32-x64'
+          if (-not (Test-Path $artifact -PathType Container)) {
+            throw "Build output not found: $artifact"
+          }
+          New-Item -ItemType Directory -Force -Path (Join-Path $env:GITHUB_WORKSPACE '.build') | Out-Null
+          @(
+            "commit=$(git rev-parse HEAD)"
+            "platform=windows-x64"
+            "runner=$env:RUNNER_NAME"
+            "package=$artifact"
+            "smoke=passed"
+            "runtime-tests=passed"
+          ) | Set-Content -Encoding utf8 (Join-Path $env:GITHUB_WORKSPACE '.build/unigma-win32-x64-evidence.txt')
+          Compress-Archive -Path (Join-Path $artifact '*') -DestinationPath (Join-Path $env:GITHUB_WORKSPACE '.build/unigma-win32-x64.zip') -CompressionLevel Fastest
+
+      - name: upload windows evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unigma-windows-x64-${{ github.run_id }}
+          if-no-files-found: warn
+          path: |
+            .build/unigma-win32-x64-evidence.txt
+            .build/unigma-win32-x64.zip
+            .build/logs
+            test/smoke/test-results
