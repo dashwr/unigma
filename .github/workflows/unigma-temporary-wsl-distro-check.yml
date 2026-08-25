@@ -1,0 +1,35 @@
+name: temporary WSL distro check
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  check:
+    name: probe Linux distro on Windows runner
+    runs-on: self-hosted
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - name: probe WSL distro
+        run: |
+          $ErrorActionPreference = 'Continue'
+          Write-Host "runner=$env:RUNNER_NAME"
+
+          $status = @(wsl.exe --status 2>&1)
+          $status | ForEach-Object { Write-Host $_ }
+          Write-Host "status-exit=$LASTEXITCODE"
+
+          $distros = @(wsl.exe --list --verbose 2>&1)
+          $distros | ForEach-Object { Write-Host $_ }
+          Write-Host "distros-exit=$LASTEXITCODE"
+
+          $probe = @(wsl.exe -d Ubuntu -- bash -lc 'printf "distro=Ubuntu\n"; uname -a; id; command -v node || true; node --version 2>/dev/null || true' 2>&1)
+          $probeCode = $LASTEXITCODE
+          $probe | ForEach-Object { Write-Host $_ }
+          Write-Host "ubuntu-probe-exit=$probeCode"
+
+          exit 0
