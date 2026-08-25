@@ -6,11 +6,12 @@
 import 'mocha';
 import assert from 'assert';
 import { createServer, type Server, type ServerResponse } from 'node:http';
+import { pathToFileURL } from 'node:url';
 import { OpenCodeHttpClient, type OpenCodeEvent } from '../infrastructure/openCodeHttpClient';
 import type { DiagnosticRecord, OwnedProcessHandle } from '../domain/runtime';
 
-const workspaceUri = 'file:///tmp/unigma-workspace';
-const workspacePath = '/tmp/unigma-workspace';
+const workspacePath = process.platform === 'win32' ? 'C:\\unigma-workspace' : '/tmp/unigma-workspace';
+const workspaceUri = pathToFileURL(workspacePath).toString();
 
 const requiredOperations = [
 	['GET', '/global/health'],

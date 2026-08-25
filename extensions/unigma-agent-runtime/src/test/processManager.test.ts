@@ -6,9 +6,14 @@
 import 'mocha';
 import assert from 'assert';
 import { EventEmitter } from 'node:events';
+import { pathToFileURL } from 'node:url';
 import { ChildProcessManager, type ProcessManagerOptions } from '../infrastructure/processManager';
 
-const workspace = { uri: 'file:///tmp/unigma-workspace' };
+const workspacePath = process.platform === 'win32' ? 'C:\\unigma-workspace' : '/tmp/unigma-workspace';
+const workspace = { uri: pathToFileURL(workspacePath).toString() };
+const otherWorkspace = {
+	uri: pathToFileURL(process.platform === 'win32' ? 'C:\\other-workspace' : '/tmp/other-workspace').toString(),
+};
 
 class FakeProcess extends EventEmitter {
 	public readonly pid: number | undefined;
@@ -49,7 +54,7 @@ suite('Unigma agent process manager', () => {
 			assert.strictEqual(command, 'opencode');
 			assert.deepStrictEqual(args, ['serve', '--hostname', '127.0.0.1', '--port', '43123']);
 			assert.strictEqual(spawnOptions.shell, false);
-			assert.strictEqual(spawnOptions.cwd, '/tmp/unigma-workspace');
+			assert.strictEqual(spawnOptions.cwd, workspacePath);
 			const child = new FakeProcess();
 			children.push(child);
 			queueMicrotask(() => child.emit('spawn'));
@@ -78,7 +83,7 @@ suite('Unigma agent process manager', () => {
 		}));
 
 		const first = manager.ensureStarted(workspace);
-		const second = manager.ensureStarted({ uri: 'file:///tmp/other-workspace' });
+		const second = manager.ensureStarted(otherWorkspace);
 		releaseSpawn?.();
 
 		await first;

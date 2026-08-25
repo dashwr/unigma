@@ -5,12 +5,15 @@
 
 import 'mocha';
 import assert from 'assert';
+import { pathToFileURL } from 'node:url';
 import { AgentRuntimeApplication } from '../application/runtimeApplication';
 import type { RuntimePorts } from '../application/runtimePorts';
 import type { DiagnosticRecord, OwnedProcessHandle, SessionReference, WorkspaceReference } from '../domain/runtime';
 
-const workspace: WorkspaceReference = { uri: 'file:///tmp/unigma-workspace' };
-const process: OwnedProcessHandle = {
+const workspace: WorkspaceReference = {
+	uri: pathToFileURL(process.platform === 'win32' ? 'C:\\unigma-workspace' : '/tmp/unigma-workspace').toString(),
+};
+const processHandle: OwnedProcessHandle = {
 	owner: 'unigma-agent-runtime',
 	id: 'fixture-process',
 	pid: 1234,
@@ -29,7 +32,7 @@ function portsFor(options: {
 		processManager: {
 			ensureStarted: async () => {
 				order.push('start');
-				return process;
+				return processHandle;
 			},
 			stopOwned: async () => {
 				order.push('stop');

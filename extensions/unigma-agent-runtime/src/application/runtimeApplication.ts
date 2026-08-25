@@ -17,6 +17,7 @@ export class AgentRuntimeApplication implements DisposableLike {
 	private _connectionWorkspaceUri: string | undefined;
 	private _disposePromise: Promise<void> | undefined;
 	private _runtimeTeardownPromise: Promise<void> | undefined;
+	private _runtimeTeardownCompleted = false;
 
 	public constructor(ports?: RuntimePorts) {
 		this._ports = ports;
@@ -59,6 +60,7 @@ export class AgentRuntimeApplication implements DisposableLike {
 			return this._connectionPromise;
 		}
 
+		this._runtimeTeardownCompleted = false;
 		this.acceptDemand({ source: 'command', requestId });
 		this._connectionWorkspaceUri = workspace.uri;
 		this._connectionPromise = this.startConnection(workspace, requestId);
@@ -112,6 +114,10 @@ export class AgentRuntimeApplication implements DisposableLike {
 			return;
 		}
 
+		if (this._runtimeTeardownCompleted) {
+			return;
+		}
+
 		if (this._runtimeTeardownPromise) {
 			return this._runtimeTeardownPromise;
 		}
@@ -126,6 +132,7 @@ export class AgentRuntimeApplication implements DisposableLike {
 		this._runtimeTeardownPromise = teardown;
 		teardown.then(
 			() => {
+				this._runtimeTeardownCompleted = true;
 				if (this._runtimeTeardownPromise === teardown) {
 					this._runtimeTeardownPromise = undefined;
 				}
