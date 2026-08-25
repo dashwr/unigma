@@ -74,7 +74,10 @@ jobs:
         run: npm run gulp vscode-win32-x64
 
       - name: run desktop smoke test
-        run: npm run smoketest -- --tracing
+        # O produto não empacota Copilot/AgentHost nem a extensão js-debug que
+        # fornece o perfil de terminal contribuído. As suítes correspondentes
+        # ficam fora do smoke do núcleo; não são suporte declarado do unigma.
+        run: npm run smoketest -- --tracing --f '^(?!.*(?:Terminal Profiles|Chat|Agents Window)).*$'
 
       - name: write artifact evidence
         run: |
@@ -103,4 +106,5 @@ jobs:
             .build/unigma-win32-x64-evidence.txt
             .build/unigma-win32-x64.zip
             .build/logs
+            test-results
             test/smoke/test-results
