@@ -1,0 +1,91 @@
+name: unigma Linux cross validation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-x64-cross-build:
+    name: Linux x64 cross-build on Windows runner
+    runs-on: self-hosted
+    timeout-minutes: 240
+    env:
+      NODE_OPTIONS: --max-old-space-size=12288
+      npm_config_jobs: '12'
+      UV_THREADPOOL_SIZE: '12'
+      CMAKE_BUILD_PARALLEL_LEVEL: '12'
+      CL: /MP12
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: diagnose Linux build hosts
+        run: |
+          $ErrorActionPreference = 'Continue'
+          Write-Host "Runner OS: $env:RUNNER_OS"
+          Write-Host "Runner name: $env:RUNNER_NAME"
+          $wsl = Get-Command wsl.exe -ErrorAction SilentlyContinue
+          if ($null -eq $wsl) {
+            Write-Host 'WSL: unavailable'
+          } else {
+            Write-Host "WSL: $($wsl.Source)"
+            wsl.exe --status
+            wsl.exe --list --verbose
+          }
+          $docker = Get-Command docker.exe -ErrorAction SilentlyContinue
+          if ($null -eq $docker) {
+            Write-Host 'Docker: unavailable'
+          } else {
+            Write-Host "Docker: $($docker.Source)"
+            docker.exe version
+          }
+
+      - name: install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: compile unigma agent runtime
+        run: |
+          node --experimental-strip-types --max-old-space-size=12288 ./node_modules/gulp/bin/gulp.js compile-extension:unigma-agent-runtime
+          npm --prefix extensions/unigma-agent-runtime test
+
+      - name: build Linux x64 package
+        run: node --experimental-strip-types --max-old-space-size=12288 ./node_modules/gulp/bin/gulp.js vscode-linux-x64
+
+      - name: write cross-build evidence
+        run: |
+          $artifact = Join-Path (Split-Path $env:GITHUB_WORKSPACE -Parent) 'VSCode-linux-x64'
+          if (-not (Test-Path $artifact -PathType Container)) {
+            throw "Build output not found: $artifact"
+          }
+          New-Item -ItemType Directory -Force -Path (Join-Path $env:GITHUB_WORKSPACE '.build') | Out-Null
+          @(
+            "commit=$(git rev-parse HEAD)"
+            'target=linux-x64'
+            "build-host=$env:RUNNER_NAME"
+            "package=$artifact"
+            'smoke=not-run-cross-platform'
+            'runtime-tests=passed'
+          ) | Set-Content -Encoding utf8 (Join-Path $env:GITHUB_WORKSPACE '.build/unigma-linux-x64-cross-evidence.txt')
+          Compress-Archive -Path (Join-Path $artifact '*') -DestinationPath (Join-Path $env:GITHUB_WORKSPACE '.build/unigma-linux-x64-cross.zip') -CompressionLevel Fastest
+
+      - name: upload cross-build evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unigma-linux-x64-cross-${{ github.run_id }}
+          if-no-files-found: warn
+          path: |
+            .build/unigma-linux-x64-cross-evidence.txt
+            .build/unigma-linux-x64-cross.zip
+            .build/logs
