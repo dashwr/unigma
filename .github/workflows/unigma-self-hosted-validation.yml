@@ -26,10 +26,26 @@ jobs:
 
       - name: install native build prerequisite
         run: |
+          $ErrorActionPreference = 'Stop'
           $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
           $setup = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\setup.exe'
           if (-not (Test-Path $vswhere) -or -not (Test-Path $setup)) {
             throw 'Visual Studio Installer was not found on the self-hosted runner.'
+          }
+          $spectreComponent = 'Microsoft.VisualStudio.Component.VC.14.50.18.0.x86.x64.Spectre'
+          $latestSpectreComponent = 'Microsoft.VisualStudio.Component.VC.Runtimes.x86.x64.Spectre'
+          $spectreInstallation = & $vswhere -latest -products * -requires $spectreComponent -property installationPath 2>$null | Select-Object -First 1
+          if ([string]::IsNullOrWhiteSpace($spectreInstallation)) {
+            $spectreInstallation = & $vswhere -latest -products * -requires $latestSpectreComponent -property installationPath 2>$null | Select-Object -First 1
+          }
+          if (-not [string]::IsNullOrWhiteSpace($spectreInstallation)) {
+            Write-Host 'Visual Studio Spectre-mitigated libraries are already installed.'
+            return
+          }
+          $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+          $principal = New-Object -TypeName Security.Principal.WindowsPrincipal -ArgumentList $identity
+          if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+            throw 'The self-hosted runner process is not elevated; Visual Studio components cannot be modified.'
           }
           $installationPath = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -property installationPath | Select-Object -First 1
           $channelId = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -property channelId | Select-Object -First 1
@@ -40,17 +56,33 @@ jobs:
           if ([string]::IsNullOrWhiteSpace($channelId) -or [string]::IsNullOrWhiteSpace($productId)) {
             throw 'Visual Studio installation metadata is incomplete.'
           }
-          $spectreComponent = 'Microsoft.VisualStudio.Component.VC.14.50.18.0.x86.x64.Spectre'
-          $latestSpectreComponent = 'Microsoft.VisualStudio.Component.VC.Runtimes.x86.x64.Spectre'
-          & $setup modify --installPath $installationPath --channelId $channelId --productId $productId --add $spectreComponent --add $latestSpectreComponent --quiet --norestart
-          if ($LASTEXITCODE -notin @(0, 3010)) {
-            throw "Visual Studio prerequisite installation failed with exit code $LASTEXITCODE."
+          Push-Location $env:TEMP
+          try {
+            & $setup modify --installPath $installationPath --channelId $channelId --productId $productId --add $spectreComponent --add $latestSpectreComponent --quiet --norestart
+            $setupExitCode = $LASTEXITCODE
+          } finally {
+            Pop-Location
+          }
+          if ($setupExitCode -notin @(0, 3010)) {
+            $logDirectory = Join-Path $env:GITHUB_WORKSPACE '.build\vs-installer'
+            New-Item -ItemType Directory -Force -Path $logDirectory | Out-Null
+            Get-ChildItem -Path $env:TEMP -Filter 'dd_*.log' -File -ErrorAction SilentlyContinue |
+              Sort-Object LastWriteTime -Descending |
+              Select-Object -First 20 |
+              Copy-Item -Destination $logDirectory -Force -ErrorAction SilentlyContinue
+            throw "Visual Studio prerequisite installation failed with exit code $setupExitCode."
           }
           $spectreInstallation = & $vswhere -latest -products * -requires $spectreComponent -property installationPath
           if ([string]::IsNullOrWhiteSpace($spectreInstallation)) {
             $spectreInstallation = & $vswhere -latest -products * -requires $latestSpectreComponent -property installationPath
           }
           if ([string]::IsNullOrWhiteSpace($spectreInstallation)) {
+            $logDirectory = Join-Path $env:GITHUB_WORKSPACE '.build\vs-installer'
+            New-Item -ItemType Directory -Force -Path $logDirectory | Out-Null
+            Get-ChildItem -Path $env:TEMP -Filter 'dd_*.log' -File -ErrorAction SilentlyContinue |
+              Sort-Object LastWriteTime -Descending |
+              Select-Object -First 20 |
+              Copy-Item -Destination $logDirectory -Force -ErrorAction SilentlyContinue
             throw 'Visual Studio Spectre-mitigated libraries were not detected after installation.'
           }
 
@@ -99,5 +131,6 @@ jobs:
           path: |
             .build/unigma-win32-x64-evidence.txt
             .build/unigma-win32-x64.zip
+            .build/vs-installer
             .build/logs
             test/smoke/test-results
