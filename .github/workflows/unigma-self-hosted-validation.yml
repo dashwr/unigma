@@ -40,6 +40,9 @@ jobs:
           if ([string]::IsNullOrWhiteSpace($spectreInstallation)) {
             throw 'Runner prerequisite missing: install Visual Studio Spectre-mitigated libraries as an administrator before running this workflow.'
           }
+          $spectreInstallation = $spectreInstallation.Trim()
+          [System.IO.File]::AppendAllText($env:GITHUB_ENV, "vs2022_install=$spectreInstallation`n")
+          Write-Host "Using native toolchain at $spectreInstallation"
           Write-Host 'Visual Studio Spectre-mitigated libraries are installed.'
 
       - name: install dependencies
