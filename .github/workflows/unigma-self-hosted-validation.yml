@@ -35,8 +35,8 @@ jobs:
           if ([string]::IsNullOrWhiteSpace($installationPath)) {
             throw 'A Visual Studio Build Tools installation was not found.'
           }
-          & $setup modify --installPath $installationPath --add Microsoft.VisualStudio.Component.VC.14.50.18.0.x86.x64.Spectre --quiet --norestart --wait
-          if ($LASTEXITCODE -ne 0) {
+          & $setup modify --installPath $installationPath --add Microsoft.VisualStudio.Component.VC.14.50.18.0.x86.x64.Spectre --quiet --norestart
+          if ($LASTEXITCODE -notin @(0, 3010)) {
             throw "Visual Studio prerequisite installation failed with exit code $LASTEXITCODE."
           }
 
