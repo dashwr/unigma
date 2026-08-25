@@ -32,12 +32,17 @@ jobs:
             throw 'Visual Studio Installer was not found on the self-hosted runner.'
           }
           $installationPath = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -property installationPath | Select-Object -First 1
+          $channelId = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -property channelId | Select-Object -First 1
+          $productId = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -property productId | Select-Object -First 1
           if ([string]::IsNullOrWhiteSpace($installationPath)) {
             throw 'A Visual Studio Build Tools installation was not found.'
           }
+          if ([string]::IsNullOrWhiteSpace($channelId) -or [string]::IsNullOrWhiteSpace($productId)) {
+            throw 'Visual Studio installation metadata is incomplete.'
+          }
           $spectreComponent = 'Microsoft.VisualStudio.Component.VC.14.50.18.0.x86.x64.Spectre'
           $latestSpectreComponent = 'Microsoft.VisualStudio.Component.VC.Runtimes.x86.x64.Spectre'
-          & $setup modify --installPath $installationPath --add $spectreComponent --add $latestSpectreComponent --quiet --norestart
+          & $setup modify --installPath $installationPath --channelId $channelId --productId $productId --add $spectreComponent --add $latestSpectreComponent --quiet --norestart
           if ($LASTEXITCODE -notin @(0, 3010)) {
             throw "Visual Studio prerequisite installation failed with exit code $LASTEXITCODE."
           }
