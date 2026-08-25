@@ -104,6 +104,7 @@ jobs:
             trap - EXIT
           fi
           ln -sfn "$node_prefix" /opt/node-current
+          export PATH="/opt/node-current/bin:$PATH"
 
           rm -rf "$build"
           mkdir -p "$build"
