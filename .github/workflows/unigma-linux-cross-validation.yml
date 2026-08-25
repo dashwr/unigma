@@ -40,16 +40,26 @@ jobs:
             Write-Host 'WSL: unavailable'
           } else {
             Write-Host "WSL: $($wsl.Source)"
-            wsl.exe --status
-            wsl.exe --list --verbose
+            $statusOutput = @(wsl.exe --status 2>&1)
+            $statusCode = $LASTEXITCODE
+            $statusOutput | ForEach-Object { Write-Host $_ }
+            Write-Host "WSL status exit code: $statusCode"
+            $listOutput = @(wsl.exe --list --verbose 2>&1)
+            $listCode = $LASTEXITCODE
+            $listOutput | ForEach-Object { Write-Host $_ }
+            Write-Host "WSL list exit code: $listCode"
           }
           $docker = Get-Command docker.exe -ErrorAction SilentlyContinue
           if ($null -eq $docker) {
             Write-Host 'Docker: unavailable'
           } else {
             Write-Host "Docker: $($docker.Source)"
-            docker.exe version
+            $dockerOutput = @(docker.exe version 2>&1)
+            $dockerCode = $LASTEXITCODE
+            $dockerOutput | ForEach-Object { Write-Host $_ }
+            Write-Host "Docker version exit code: $dockerCode"
           }
+          exit 0
 
       - name: install dependencies
         run: npm ci --no-audit --no-fund
