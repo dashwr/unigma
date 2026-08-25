@@ -1,0 +1,67 @@
+name: temporary Windows virtualization check
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  check:
+    name: inspect Hyper-V, AMD virtualization and WSL
+    runs-on: self-hosted
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - name: inspect host capabilities
+        run: |
+          $ErrorActionPreference = 'Continue'
+          Write-Host "runner=$env:RUNNER_NAME"
+
+          $cpu = Get-CimInstance Win32_Processor | Select-Object -First 1 `
+            Name, VirtualizationFirmwareEnabled, VMMonitorModeExtensions, `
+            SecondLevelAddressTranslationExtensions, DataExecutionPreventionAvailable
+          Write-Host 'cpu capabilities:'
+          $cpu | Format-List | Out-String | Write-Host
+
+          $computer = Get-CimInstance Win32_ComputerSystem |
+            Select-Object HypervisorPresent
+          Write-Host 'hypervisor state:'
+          $computer | Format-List | Out-String | Write-Host
+
+          Write-Host 'Windows optional features:'
+          foreach ($featureName in @(
+            'Microsoft-Hyper-V-All',
+            'VirtualMachinePlatform',
+            'Microsoft-Windows-Subsystem-Linux'
+          )) {
+            $feature = Get-WindowsOptionalFeature -Online -FeatureName $featureName
+            if ($null -eq $feature) {
+              Write-Host "${featureName}: unavailable"
+            } else {
+              Write-Host "$($feature.FeatureName): $($feature.State)"
+            }
+          }
+
+          Write-Host 'boot configuration:'
+          $bcd = @(bcdedit.exe /enum '{current}' 2>&1)
+          $bcd | Select-String 'hypervisorlaunchtype' | ForEach-Object { Write-Host $_ }
+          Write-Host "bcdedit exit code: $LASTEXITCODE"
+
+          $wsl = Get-Command wsl.exe -ErrorAction SilentlyContinue
+          if ($null -eq $wsl) {
+            Write-Host 'WSL executable: unavailable'
+          } else {
+            Write-Host "WSL executable: $($wsl.Source)"
+            $status = @(wsl.exe --status 2>&1)
+            $statusCode = $LASTEXITCODE
+            $status | ForEach-Object { Write-Host $_ }
+            Write-Host "wsl --status exit code: $statusCode"
+            $distros = @(wsl.exe --list --verbose 2>&1)
+            $distrosCode = $LASTEXITCODE
+            $distros | ForEach-Object { Write-Host $_ }
+            Write-Host "wsl --list --verbose exit code: $distrosCode"
+          }
+
+          exit 0
