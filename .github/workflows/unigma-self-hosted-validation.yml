@@ -45,6 +45,18 @@ jobs:
           Write-Host "Using native toolchain at $spectreInstallation"
           Write-Host 'Visual Studio Spectre-mitigated libraries are installed.'
 
+          $windowsSdkBin = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'
+          $signtool = Get-ChildItem -Path $windowsSdkBin -Filter 'signtool.exe' -Recurse -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match '\\x64\\signtool\.exe$' } |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+          if ($null -eq $signtool) {
+            throw 'Runner prerequisite missing: Windows SDK x64 signtool.exe was not found.'
+          }
+          $signtoolDirectory = Split-Path $signtool.FullName -Parent
+          [System.IO.File]::AppendAllText($env:GITHUB_PATH, "$signtoolDirectory`n")
+          Write-Host "Using Windows SDK SignTool at $($signtool.FullName)"
+
       - name: install dependencies
         run: npm ci --no-audit --no-fund
 
