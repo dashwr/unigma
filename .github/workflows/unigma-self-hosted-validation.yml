@@ -35,9 +35,18 @@ jobs:
           if ([string]::IsNullOrWhiteSpace($installationPath)) {
             throw 'A Visual Studio Build Tools installation was not found.'
           }
-          & $setup modify --installPath $installationPath --add Microsoft.VisualStudio.Component.VC.14.50.18.0.x86.x64.Spectre --quiet --norestart
+          $spectreComponent = 'Microsoft.VisualStudio.Component.VC.14.50.18.0.x86.x64.Spectre'
+          $latestSpectreComponent = 'Microsoft.VisualStudio.Component.VC.Runtimes.x86.x64.Spectre'
+          & $setup modify --installPath $installationPath --add $spectreComponent --add $latestSpectreComponent --quiet --norestart
           if ($LASTEXITCODE -notin @(0, 3010)) {
             throw "Visual Studio prerequisite installation failed with exit code $LASTEXITCODE."
+          }
+          $spectreInstallation = & $vswhere -latest -products * -requires $spectreComponent -property installationPath
+          if ([string]::IsNullOrWhiteSpace($spectreInstallation)) {
+            $spectreInstallation = & $vswhere -latest -products * -requires $latestSpectreComponent -property installationPath
+          }
+          if ([string]::IsNullOrWhiteSpace($spectreInstallation)) {
+            throw 'Visual Studio Spectre-mitigated libraries were not detected after installation.'
           }
 
       - name: install dependencies
