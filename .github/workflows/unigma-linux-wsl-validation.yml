@@ -110,6 +110,7 @@ jobs:
           mkdir -p "$build"
           tar --exclude=.git --exclude=node_modules --exclude=.build \
             -C "$source" -cf - . | tar -C "$build" -xf -
+          git -C "$build" init --quiet
           chown -R dasher:dasher "$build"
 
           printf 'node=%s\n' "$node_version"
