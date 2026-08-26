@@ -1,8 +1,9 @@
 # unigma — backlog implementável
 
-> **status:** backlog derivado da arquitetura aprovada em 2026-08-22. A E-00 permanece
-> parcialmente concluída: há build, artefato e smoke de núcleo Windows x64 e Linux
-> x64; a revisão final de distribuição continua pendente. As demais
+> **status:** backlog derivado da arquitetura aprovada em 2026-08-22. A E-00 tem
+> build, artefato, auditoria técnica e smoke de núcleo Windows x64 e Linux x64
+> reproduzidos no head `838ca94e`; a revisão legal/third-party e os direitos de
+> branding continuam pendentes. As demais
 > tarefas continuam futuras. Este arquivo não autoriza distribuição ou publicação.
 
 ## como usar
@@ -20,15 +21,16 @@
 
 Registro consolidado do trabalho executado no checkout local `E:\unigma`, nos
 clones temporários de validação e no runner self-hosted Windows. As execuções
-`32896363977` e `32916035363` criaram evidência e artefatos de teste Windows x64
-e Linux x64; a revisão final de distribuição ainda está pendente.
+finais `32930950550` e `32929454545` criaram evidência, auditoria técnica e
+artefatos de teste Windows x64 e Linux x64; a revisão legal/third-party ainda
+está pendente.
 
 | frente | feito | ainda necessário |
 | --- | --- | --- |
 | T-001 upstream | tag `1.134.0`, SHA, Node, Electron e alvos registrados em `docs/UPSTREAM.md` e `DECISIONS.md` | validar compatibilidade de build/artefato em ambiente suportado |
 | T-002 importação | snapshot importado; `upstream` configurado; licenças/notices preservados; método registrado; builds/artefatos de teste Windows x64 e Linux x64 reproduzidos | revisar a árvore upstream e os metadados empacotados antes de distribuição |
-| T-003 harness | comandos reais registrados em `AGENTS.md`; `npm ci`, compile, empacotamento e smoke de núcleo passaram em Windows x64 (`32896363977`) e Linux x64 (`32916035363`) | revisão final; `test-node` depende de `out/` |
-| T-004 identidade | `README.md`, `product.json`, `resources/unigma/` e revisão inicial de terceiros ajustados; tar Linux inspecionado | corrigir/justificar autoria upstream no pacote, decidir extensões de autenticação, concluir auditoria legal/licenças e direitos dos ativos |
+| T-003 harness | comandos reais registrados em `AGENTS.md`; `npm ci`, compile, empacotamento, auditoria e smoke de núcleo passaram em Windows x64 (`32930950550`) e Linux x64 (`32929454545`) | revisão final; `test-node` depende de `out/` |
+| T-004 identidade | `README.md`, `product.json`, `resources/unigma/`, metadados próprios, filtros de extensões e auditor técnico ajustados; tar/ZIP finais inspecionados | concluir auditoria legal/licenças, inventário de terceiros e direitos dos ativos |
 
 ### bloqueios ambientais registrados
 
@@ -89,10 +91,25 @@ e Linux x64; a revisão final de distribuição ainda está pendente.
   Não instalar ferramenta nem executar o scanner de licenças com rede sem nova
   necessidade explícita.
 
-Esses bloqueios não foram classificados como bugs do unigma. A evidência de
-artefato/smoke para Windows x64 e Linux x64 está concluída; a E-00 só pode ser
-marcada integralmente concluída após a revisão de distribuição exigida por
-T-002/T-004.
+### resultado final da rodada 2026-08-26
+
+- `5efc250d` adicionou o auditor sem dependências aos dois workflows e
+  `838ca94e` corrigiu o último erro de tipo da view nativa;
+- `32929454545` (Linux WSL2) e `32930950550` (Windows x64), ambos no head
+  `838ca94e`, passaram `npm ci`, testes do runtime, compile/checks focados,
+  empacotamento, auditoria e smoke, com artefatos publicados;
+- a auditoria direta dos pacotes confirmou identidade própria, licença/notices
+  preservados, metadados próprios, gallery nula e ausência das quatro extensões
+  proibidas. Os ativos de plataforma empacotados coincidem com as fontes
+  versionadas;
+- esses resultados encerram o gate técnico de build/distribuição da E-00, mas
+  não substituem o inventário legal completo nem a revisão independente dos
+  direitos/originalidade da marca.
+
+Os bloqueios históricos acima não foram classificados como bugs do unigma. A
+evidência técnica de artefato/smoke para Windows x64 e Linux x64 está concluída;
+a E-00 só pode ser marcada integralmente concluída após a revisão de distribuição
+exigida por T-002/T-004.
 
 ## fontes e rastreabilidade
 

@@ -11,7 +11,7 @@ legal exigida antes de distribuição pública.
 | código próprio de unigma | `src/vs/workbench/contrib/unigmaAgent/common/agentProtocol.ts` e `src/vs/workbench/contrib/unigmaAgent/test/common/agentProtocol.test.ts` | separado da proveniência Code - OSS; atribuição própria compatível com MIT nos headers |
 | dependências do upstream | inventário gerado em `ThirdPartyNotices.txt` e manifests | não editar ou remover sem revisar a licença correspondente |
 | extensões de terceiros | fontes presentes no upstream | não são instaladas por catálogo nem baixadas pelo unigma nesta tarefa |
-| marca unigma | metadados em `product.json` e direção em `resources/unigma/` | identidade própria, sem ativo binário nesta tarefa |
+| marca unigma | metadados em `product.json`, `resources/unigma/` e fontes de branding autorizadas | identidade própria; logo/wordmark final e derivações de plataforma têm proveniência registrada, mas direitos independentes ainda não foram atestados |
 
 A separação acima é por arquivo: os dois arquivos próprios listados usam a
 atribuição de unigma, enquanto o código incorporado do snapshot Code - OSS e
@@ -36,7 +36,7 @@ triagem antes de qualquer distribuição.
 - o onboarding de keymaps foi reduzido ao keymap padrão; não há referências a
   extensões externas ou instalação via catálogo nesta configuração.
 
-## revisão do artefato Linux
+## revisão histórica do artefato Linux
 
 A revisão do artefato publicado no run `32916035363`, commit
 `2446405698011bef1fd1947f5459b1a64e79781e`, foi executada após download com
@@ -87,6 +87,46 @@ as extensões de autenticação, a conferência completa do inventário e a revi
 de direitos dos ativos precisam ocorrer em uma rodada própria, seguida de novo
 build/inspeção dos dois alvos.
 
+## revisão final dos artefatos — rodada 2026-08-26
+
+Os achados abaixo supersedem os bloqueadores de conteúdo do artefato histórico,
+sem eliminar a revisão legal pendente.
+
+### Linux
+
+- run `32929454545`, head `838ca94e`, publicou
+  `unigma-linux-x64-32929454545` (id `9593106630`, `183856993` bytes);
+- o tar tem `2598` membros, `LICENSE.txt` e `ThirdPartyNotices.txt` com hashes
+  iguais ao checkout, notices das extensões esperadas e nenhuma das extensões
+  `github`, `github-authentication`, `microsoft-authentication` ou
+  `tunnel-forwarding`;
+- a auditoria direta encontrou zero caminho de Copilot/MSAL/Azure/
+  `microsoft-authentication`; o ícone empacotado
+  `resources/app/resources/linux/code.png` coincide com
+  `resources/linux/code.png`.
+
+### Windows
+
+- run `32930950550`, head `838ca94e`, publicou
+  `unigma-windows-x64-32930950550` (id `9593599662`, `255329029` bytes);
+- o ZIP tem `2171` membros, `LICENSE.txt` e `ThirdPartyNotices.txt` com hashes
+  iguais ao checkout, e nenhuma das quatro extensões proibidas;
+- `resources/app/resources/win32/code.ico`, `code_70x70.png` e
+  `code_150x150.png` coincidem com os assets versionados;
+- nos dois pacotes, o auditor confirmou identidade `unigma`, MIT, URL pública,
+  `extensionsGallery=null`, autor/repositório/bugs próprios e notices esperados.
+
+### limites restantes
+
+- os wrappers dos artefatos incluem logs de smoke e não são candidatos a
+  distribuição; a inspeção de conteúdo acima considera somente tar/ZIP;
+- o auditor técnico não substitui a conferência completa do inventário de
+  terceiros nem a execução corrigida do scanner jurídico upstream;
+- `resources/unigma/BRANDING-PROVENANCE.md` registra a fonte externa,
+  derivações e hashes do lockup final, mas declara explicitamente que não é
+  licença pública nem atestação de autoria, cessão ou não colisão. AC-012 segue
+  bloqueada.
+
 ## estado da triagem
 
 ### concluído nesta fundação
@@ -106,14 +146,15 @@ build/inspeção dos dois alvos.
 - inventariar referências Microsoft/upstream e integrações de terceiros que
   permanecem no código, manifests e extensões, decidindo caso a caso o que pode
   compor uma distribuição unigma;
-- corrigir ou justificar os metadados de autor/repositório que ainda apontam para
-  Microsoft/VS Code no `package.json` empacotado;
-- decidir explicitamente se `github-authentication` e
-  `microsoft-authentication`/MSAL fazem parte do MVP local-first; a decisão deve
-  ser refletida no empacotamento e validada no tar, sem inferir ausência a partir
-  de `builtInExtensions=[]`;
-- conferir licenças e notices desse inventário contra o artefato final;
-- obter build e artefatos reais para revisar o conteúdo distribuído;
+- manter a revisão de referências Microsoft/upstream e integrações de terceiros
+  que permanecem no código, manifests e dependências;
+- os metadados de autor/repositório do pacote final agora apontam para unigma e
+  a decisão de excluir `github-authentication`,
+  `microsoft-authentication`/MSAL e `tunnel-forwarding` foi refletida nos dois
+  artefatos; repetir a checagem em cada futura distribuição;
+- conferir licenças e notices do inventário completo contra cada futuro artefato;
+- repetir build e inspeção real quando houver mudança de upstream, dependência ou
+  distribuição;
 - concluir auditoria jurídica da marca `unigma`/`unigma-code` e de qualquer
   ativo visual ou fonte, incluindo os PNGs presentes em `resources/unigma/`.
 

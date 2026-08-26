@@ -13,8 +13,8 @@ exemplo numérico, inclusive `~49`, é um valor fixo ou normativo.
 
 | ID | Relacionado a | Critério objetivo e testável | Estado de execução |
 | --- | --- | --- | --- |
-| AC-001 | RQ-001, RQ-102 | Para toda distribuição que incorpore código de Code - OSS, a revisão de entrega confirma a presença dos avisos, licenças e copyrights aplicáveis. | bloqueado: o tar Linux preserva `LICENSE.txt` e o notice raiz, mas a conferência completa do inventário de terceiros ainda está pendente |
-| AC-002 | RQ-001, RQ-101 | A revisão de identidade e artefatos de distribuição não encontra marca, ícones, binários oficiais, endpoints/chaves Microsoft ou uso do Visual Studio Marketplace sem direito documentado. | bloqueado: o `package.json` empacotado ainda declara autor/repositório upstream e o tar inclui extensões de autenticação GitHub/Microsoft; decisão e correção pendentes |
+| AC-001 | RQ-001, RQ-102 | Para toda distribuição que incorpore código de Code - OSS, a revisão de entrega confirma a presença dos avisos, licenças e copyrights aplicáveis. | bloqueado: os dois artefatos finais preservam `LICENSE.txt`, o notice raiz e os notices de extensão esperados, mas a conferência completa do inventário de terceiros ainda está pendente |
+| AC-002 | RQ-001, RQ-101 | A revisão de identidade e artefatos de distribuição não encontra marca, ícones, binários oficiais, endpoints/chaves Microsoft ou uso do Visual Studio Marketplace sem direito documentado. | parcial/bloqueado: os dois pacotes finais têm metadados próprios, gallery nula e não contêm as quatro extensões externas nem caminhos de Copilot/MSAL; a revisão ampla de referências upstream e direitos ainda não terminou |
 | AC-003 | RQ-002 | Em um ambiente de teste, o IDE inicia uma interação com o CLI `opencode serve` por HTTP/SSE documentados e apresenta um resultado ou erro observável ao usuário. | bloqueado: há supervisor/cliente e fixture local provisórios, mas não há sessão integrada à UI nem binário OpenCode fixado |
 | AC-004 | RQ-003 | A especificação de implementação define e o teste demonstra: criação/retomada de sessão, apresentação de diff e uma ação explícita de aprovação ou rejeição. | bloqueado: contrato T-010 implementado e validado; UI/runtime e teste integrado ausentes |
 | AC-005 | RQ-004 | A especificação de implementação identifica as integrações MCP/plugin/regra aceitas e o teste demonstra carregamento ou recusa conforme essa política. | bloqueado: T-012 é especificação documental condicional; implementação e teste de carga/recusa ausentes |
@@ -25,7 +25,7 @@ exemplo numérico, inclusive `~49`, é um valor fixo ou normativo.
 | AC-010 | RQ-009 | Em uma distribuição de teste, a interface inicia em inglês e o pacote `pt-BR` pode ser instalado ou ativado pelo mecanismo documentado. | bloqueado: mecanismo pendente |
 | AC-011 | RQ-010 | A especificação de tokens define valores verificáveis para roxo, magenta, violeta e cada fundo declarado; a revisão visual de cada tema confirma o uso exclusivo desses tokens para a identidade. | bloqueado: tokens pendentes |
 | AC-012 | RQ-011 | Antes de publicar ativos de marca, a revisão documentada confirma que nenhum elemento identificável da identidade do OpenCode foi copiado. | bloqueado: há ativos em `resources/unigma/`, mas originalidade, proveniência e direitos ainda não têm revisão independente registrada |
-| AC-013 | RQ-012 | A entrega do MVP fornece artefatos de teste ou distribuição para Windows x64 e Linux x64; a mesma suíte mínima de inicialização é executada com sucesso em ambas as plataformas. | passou no recorte de núcleo: os runs `32896363977` (Windows x64) e `32916035363` (Linux x64) publicaram artefatos e executaram a mesma suíte de smoke; o smoke exclui `Terminal Profiles`, `Chat` e `Agents Window` por escopo declarado |
+| AC-013 | RQ-012 | A entrega do MVP fornece artefatos de teste ou distribuição para Windows x64 e Linux x64; a mesma suíte mínima de inicialização é executada com sucesso em ambas as plataformas. | passou no recorte de núcleo: os runs finais `32930950550` (Windows x64) e `32929454545` (Linux x64), head `838ca94e`, publicaram artefatos e executaram a mesma suíte de smoke; o smoke exclui `Terminal Profiles`, `Chat` e `Agents Window` por escopo declarado |
 | AC-014 | RQ-013 | Em ambiente de teste, o painel de agente é contribuição nativa do workbench e inicia/controla uma sessão OpenCode sem exigir que o usuário opere uma ferramenta de agente separada. | bloqueado: contribuição nativa e conexão inicial existem, mas sessão/controle integrado ainda não estão implementados |
 | AC-015 | RQ-014 | O pipeline mede tempo de inicialização e RSS por processo em perfil limpo, idle e sessão ativa; cada regressão é comparada ao baseline versionado da mesma plataforma. | bloqueado: baseline e implementação ausentes |
 | AC-016 | RQ-015, RQ-016, RQ-017, RQ-018, RQ-020 | **Direção documental:** o contrato/configuração versionado do router separa Autopilot, modelo selecionado, `persistSelectedModel`, `routerModel`, `maxModel`, referências de índice/custo, bypass, timeout, fallback e privacidade. **Implementação real:** o runtime valida versão e campos, produz decisão/evento observável, respeita trust e política do OpenCode e não registra prompt, raciocínio ou segredo. | bloqueado: T-086 é frente futura; não há schema implementado, runtime ou teste executado |
@@ -111,7 +111,7 @@ saída reproduzível correspondente está registrada:
   `LICENSE.txt` =
   `cce33203a80863c22499035b1cfb6aba5df5f02e4ea2669cf5bc5730c1864236` e
   `ThirdPartyNotices.txt` =
-  `51b3fd6b279f33c32499035b1cfb6aba5df5f02e4ea2669cf5bc5730c1864236`.
+  `51b3fd6b279f33c324ba7d32ed9f8849bb51cc2d7c61eaf13c2e8eba5efdd523`.
   Há também três notices de extensões no tar.
 - o `product.json` empacotado mantém `unigma` como identidade, MIT, sem
   `extensionsGallery`, feeds, report URL ou voz; porém o `package.json`
@@ -149,15 +149,44 @@ saída reproduzível correspondente está registrada:
   bibliotecas Spectre. Nenhum `npm ci`, build, artefato ou smoke foi executado;
   o bloqueio foi mantido por decisão explícita.
 
-Portanto, a E-00 permanece parcialmente concluída: o bloqueio anterior de
-toolchain Windows foi superado no runner e há evidência reproduzível de Windows
-x64 e Linux x64. A revisão final de distribuição, identidade, licenças e notices
-ainda bloqueia o aceite integral.
-AC-001/AC-002 permanecem bloqueados pelos achados da revisão do artefato e
-do código final; AC-003 a AC-008 têm contratos operacionais documentados pela
-E-01, mas continuam bloqueados por implementação e evidência executada; AC-009
-a AC-012 e AC-014/AC-015 continuam bloqueados conforme cada linha acima; AC-013
-está atendido apenas no recorte de núcleo explicitado nesta evidência.
+### atualização final desta rodada
+
+- o commit `5efc250d` adicionou `build/unigma/audit-distribution.mjs`, auditor
+  sem dependências que valida layout, identidade, MIT, URL, metadados próprios,
+  gallery nula, hashes de licença/notices, notices de extensão e extensões
+  proibidas; o commit `838ca94e` corrigiu o último erro de tipo encontrado no
+  compile completo da view nativa;
+- o run Linux `32929454545`, head `838ca94e`, passou `npm ci`, compile do
+  runtime, testes do runtime, `vscode-linux-x64`, auditoria, smoke e upload.
+  O artefato `unigma-linux-x64-32929454545` (id `9593106630`) tem
+  `183856993` bytes;
+- o tar Linux final tem `2598` membros, nenhuma das quatro extensões proibidas,
+  zero caminhos de Copilot/MSAL/Azure/`microsoft-authentication`, e hashes
+  iguais ao checkout: `LICENSE.txt` =
+  `cce33203a80863c22499035b1cfb6aba5df5f02e4ea2669cf5bc5730c1864236` e
+  `ThirdPartyNotices.txt` =
+  `51b3fd6b279f33c324ba7d32ed9f8849bb51cc2d7c61eaf13c2e8eba5efdd523`;
+- o run Windows `32930950550`, head `838ca94e`, passou pré-requisitos,
+  `npm ci`, testes do runtime, `typecheck-client`, `test-build-scripts`,
+  `vscode-win32-x64`, auditoria, smoke e upload. O artefato
+  `unigma-windows-x64-32930950550` (id `9593599662`) tem `255329029` bytes;
+- o ZIP Windows final tem `2171` membros, nenhuma das quatro extensões
+  proibidas, hashes de licença/notices iguais ao checkout e os ativos
+  `code.ico`, `code_70x70.png` e `code_150x150.png` idênticos às fontes
+  versionadas;
+- os dois artefatos finais têm `product.json` com identidade `unigma`, MIT,
+  URL pública, `extensionsGallery=null`, e `package.json` com autor,
+  repositório e bugs próprios. Os logs publicados pelo wrapper não são pacote
+  de distribuição.
+
+Portanto, a E-00 tem o gate técnico de build, pacote, auditoria e smoke
+reproduzido nos dois alvos, mas permanece parcialmente concluída: AC-001 ainda
+exige inventário completo de terceiros/licenças e AC-012 exige revisão
+independente de autoria, direitos e não colisão da marca. AC-003 a AC-008 têm
+contratos operacionais documentados pela E-01, mas continuam bloqueados por
+implementação e evidência integrada; AC-009 a AC-012 e AC-014/AC-015 continuam
+bloqueados conforme cada linha acima; AC-013 está atendido apenas no recorte de
+núcleo explicitado nesta evidência.
 
 ## evidência pré-aceite da E-01
 
