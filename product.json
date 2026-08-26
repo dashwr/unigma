@@ -6,7 +6,7 @@
 	"sharedDataFolderName": ".unigma-shared",
 	"win32MutexName": "unigma",
 	"licenseName": "MIT",
-	"licenseUrl": "",
+	"licenseUrl": "https://github.com/dashwr/unigma/blob/main/LICENSE.txt",
 	"serverLicenseUrl": "",
 	"serverGreeting": [],
 	"serverLicense": [],

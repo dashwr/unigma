@@ -48,8 +48,13 @@ const packageLock = JSON.parse(fs.readFileSync(path.join(root, 'package-lock.jso
 	readonly packages?: Readonly<Record<string, { readonly version?: string }>>;
 };
 
-// O produto só empacota extensões explicitamente declaradas em product.json.
 const hasBuiltInCopilot = product.builtInExtensions.some(({ name }) => name === 'copilot');
+const distributionExcludedExtensions = [
+	'github',
+	'github-authentication',
+	'microsoft-authentication',
+	'tunnel-forwarding',
+];
 
 function getLockedPackageVersion(packageName: string): string {
 	const version = packageLock.packages?.[`node_modules/${packageName}`]?.version;
@@ -304,8 +309,12 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			const set = new Set((ext as { platforms?: string[] }).platforms);
 			return !set.has(platform);
 		}).map(ext => `!.build/extensions/${ext.name}/**`);
+		const distributionExtensionExclusions = [
+			...platformSpecificBuiltInExtensionsExclusions,
+			...distributionExcludedExtensions.map(name => `!.build/extensions/${name}/**`),
+		];
 
-		const extensions = gulp.src(['.build/extensions/**', ...platformSpecificBuiltInExtensionsExclusions], { base: '.build', dot: true });
+		const extensions = gulp.src(['.build/extensions/**', ...distributionExtensionExclusions], { base: '.build', dot: true });
 
 		const sourceFilterPattern = stripSourceMapsInPackagingTasks
 			? ['**', '!**/*.{js,css}.map']
@@ -321,7 +330,13 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 		}
 
 		const name = product.nameShort;
-		const packageJsonUpdates: Record<string, unknown> = { name, version };
+		const packageJsonUpdates: Record<string, unknown> = {
+			name,
+			version,
+			author: packageJson.author,
+			repository: packageJson.repository,
+			bugs: packageJson.bugs,
+		};
 
 		if (platform === 'linux') {
 			packageJsonUpdates.desktopName = `${product.applicationName}.desktop`;

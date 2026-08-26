@@ -1,9 +1,9 @@
 {
-  "name": "code-oss-dev",
+  "name": "unigma",
   "version": "1.135.0",
   "distro": "c842171bd42ca4aef20b0a186c94d99edd763842",
   "author": {
-    "name": "Microsoft Corporation"
+    "name": "Unigma contributors"
   },
   "license": "MIT",
   "main": "./out/main.js",
@@ -281,10 +281,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "url": "https://github.com/dashwr/unigma.git"
   },
   "bugs": {
-    "url": "https://github.com/microsoft/vscode/issues"
+    "url": "https://github.com/dashwr/unigma/issues"
   },
   "optionalDependencies": {
     "windows-foreground-love": "0.6.1"
