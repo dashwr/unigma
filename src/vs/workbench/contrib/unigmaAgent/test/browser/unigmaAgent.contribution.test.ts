@@ -74,7 +74,7 @@ suite('Unigma Agent contribution', () => {
 		const sent: unknown[] = [];
 		const transport: IUnigmaAgentRpcTransport = {
 			onDidReceiveEvent: received.event,
-			send: async command => sent.push(command),
+			send: async command => { sent.push(command); },
 		};
 		const runtime = new UnigmaAgentRuntime();
 		const events: unknown[] = [];

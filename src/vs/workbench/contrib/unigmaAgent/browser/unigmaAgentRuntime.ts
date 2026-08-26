@@ -11,6 +11,7 @@ import {
 	AgentCommand,
 	AgentCommandType,
 	AgentErrorCode,
+	type AgentErrorEvent,
 	AgentEvent,
 	AgentEventType,
 	validateAgentEvent,
@@ -151,7 +152,7 @@ export class UnigmaAgentRuntime extends Disposable implements IUnigmaAgentRuntim
 	}
 
 	private fireError(command: AgentCommand, error: { readonly code: AgentErrorCode; readonly message: string; readonly retryable: boolean }): void {
-		const event = {
+		const event: AgentErrorEvent = {
 			version: AGENT_PROTOCOL_VERSION,
 			type: AgentEventType.Error,
 			requestId: command.requestId,
