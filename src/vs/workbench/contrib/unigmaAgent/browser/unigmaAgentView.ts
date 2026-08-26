@@ -142,12 +142,20 @@ export class UnigmaAgentViewPane extends ViewPane {
 		DOM.clearNode(this.stateContainer);
 		this.agentProgressBar.stop().hide();
 		const accessibility = getUnigmaAgentStateAccessibility(this.model.state);
-		for (const [attribute, value] of [['role', accessibility.role], ['aria-live', accessibility.live], ['aria-busy', accessibility.busy === undefined ? undefined : String(accessibility.busy)]]) {
-			if (value === undefined) {
-				this.stateContainer.removeAttribute(attribute);
-			} else {
-				this.stateContainer.setAttribute(attribute, value);
-			}
+		if (accessibility.role === undefined) {
+			this.stateContainer.removeAttribute('role');
+		} else {
+			this.stateContainer.setAttribute('role', accessibility.role);
+		}
+		if (accessibility.live === undefined) {
+			this.stateContainer.removeAttribute('aria-live');
+		} else {
+			this.stateContainer.setAttribute('aria-live', accessibility.live);
+		}
+		if (accessibility.busy === undefined) {
+			this.stateContainer.removeAttribute('aria-busy');
+		} else {
+			this.stateContainer.setAttribute('aria-busy', String(accessibility.busy));
 		}
 		this.stateContainer.style.borderLeft = this.model.state === UNIGMA_AGENT_VIEW_STATES.Error
 			? '2px solid var(--vscode-inputValidation-errorBorder)'
