@@ -73,6 +73,12 @@ jobs:
       - name: build windows x64 package
         run: npm run gulp vscode-win32-x64
 
+      - name: audit windows x64 package
+        timeout-minutes: 2
+        run: |
+          $artifact = Join-Path (Split-Path $env:GITHUB_WORKSPACE -Parent) 'VSCode-win32-x64'
+          node build/unigma/audit-distribution.mjs $artifact $env:GITHUB_WORKSPACE
+
       - name: run desktop smoke test
         # O produto não empacota Copilot/AgentHost nem a extensão js-debug que
         # fornece o perfil de terminal contribuído. As suítes correspondentes

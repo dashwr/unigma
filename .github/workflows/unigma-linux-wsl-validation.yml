@@ -197,6 +197,25 @@ jobs:
           Remove-Item -Force $scriptPath -ErrorAction SilentlyContinue
           if ($exitCode -ne 0) { exit $exitCode }
 
+      - name: audit Linux x64 package in WSL
+        timeout-minutes: 2
+        run: |
+          $scriptPath = Join-Path $env:RUNNER_TEMP 'unigma-wsl-audit-distribution.sh'
+          $script = @'
+          set -euo pipefail
+          build="$1"
+          export PATH="/opt/node-current/bin:$PATH"
+          cd "$build"
+          node build/unigma/audit-distribution.mjs "$build/../VSCode-linux-x64" "$build"
+          '@
+          $script = $script -replace "`r`n?", "`n"
+          [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))
+          $scriptPathWsl = "/mnt/$($scriptPath.Substring(0, 1).ToLowerInvariant())/$($scriptPath.Substring(3).Replace('\', '/'))"
+          & wsl.exe -d Ubuntu --user dasher -- bash $scriptPathWsl $env:WSL_BUILD
+          $exitCode = $LASTEXITCODE
+          Remove-Item -Force $scriptPath -ErrorAction SilentlyContinue
+          if ($exitCode -ne 0) { exit $exitCode }
+
       - name: run Linux desktop smoke test in WSL
         run: |
           $scriptPath = Join-Path $env:RUNNER_TEMP 'unigma-wsl-smoke.sh'
