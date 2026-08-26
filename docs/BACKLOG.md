@@ -360,8 +360,9 @@ permanece recusado por este contrato e não é suporte publicado.
 
 ### T-021 — supervisionar CLI `opencode serve`
 
-**status:** implementação inicial e testes fonte adicionados; execução e teste
-contra um binário OpenCode fixado permanecem pendentes.
+**status:** implementação inicial, testes fonte e execução compilada do runtime
+passaram nos runs finais; teste contra um binário OpenCode fixado permanece
+pendente.
 
 - **objetivo:** iniciar, aguardar, reutilizar e encerrar somente o processo
   criado pelo runtime, com uma instância por extension host.
@@ -381,9 +382,8 @@ contra um binário OpenCode fixado permanecem pendentes.
 
 ### T-022 — implementar cliente HTTP/SSE OpenCode
 
-**status:** adapter e fixture estrutural local adicionados; compatibilidade real
-permanece condicional a T-011 e os testes ainda não foram executados neste
-checkout.
+**status:** adapter, fixture estrutural local e testes compilados executados nos
+runs finais; compatibilidade real permanece condicional a T-011.
 
 - **objetivo:** encapsular os endpoints documentados e converter eventos SSE em
   tipos internos, sem vazar transporte para a UI.
@@ -403,8 +403,8 @@ checkout.
 
 ### T-023 — implementar armazenamento mínimo e diagnóstico redigido
 
-**status:** armazenamento mínimo, redaction e testes fonte adicionados; execução
-e integração no fluxo de sessão permanecem pendentes.
+**status:** armazenamento mínimo, redaction e testes compilados executados nos
+runs finais; integração no fluxo de sessão permanece pendente.
 
 - **objetivo:** persistir somente referência de sessão/configuração permitida e
   produzir logs locais com correlação sem conteúdo sensível.

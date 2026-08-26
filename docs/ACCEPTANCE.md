@@ -209,9 +209,10 @@ aceitos:
   nenhum provider/modelo é anunciado como suportado;
 - T-021/T-022/T-023 têm adapters e fixtures locais provisórios no checkout, com
   testes fonte para processo, HTTP/SSE, persistência mínima, redaction e
-  composição; esses testes não foram executados nesta sessão por ausência de
-  dependências compiladas. A fixture não é evidência contra um binário OpenCode
-  real e não altera o estado condicional de T-011;
+  composição; o compile da extensão e o `npm --prefix
+  extensions/unigma-agent-runtime test` passaram nos dois runs finais. A fixture
+  não é evidência contra um binário OpenCode real e não altera o estado
+  condicional de T-011;
 - T-012 é especificação documental condicional: define fontes explícitas, gates
   de trust/aprovação, recusa e redaction, sem catálogo, instalação ou
   persistência própria;
@@ -222,11 +223,16 @@ aceitos:
   ESLint focado nos dois arquivos TypeScript e um smoke direto do protocolo
   passaram; o harness Mocha não foi executado porque os módulos compilados em
   `out/` não existem.
+- no runner self-hosted, o head `838ca94e` passou `typecheck-client`,
+  `test-build-scripts` e os testes compilados da extensão própria; isso valida o
+  harness do runtime, não integração com OpenCode, provider, MCP/plugin ou SSH
+  reais.
 
-Os contratos e documentos da E-01 continuam especificações; T-010 está validado
-somente estruturalmente. Teste contra OpenCode real, integração, produção dos
-erros na camada de aplicação, SSH e evidência de segurança permanecem obrigatórios
-nas tarefas posteriores.
+Os contratos e documentos da E-01 continuam especificações condicionais; T-010
+tem validação estrutural e código de aplicação compilado, mas a suíte dedicada
+da camada de workbench ainda não foi executada. Teste contra OpenCode real,
+integração, produção dos erros na camada de aplicação, SSH e evidência de
+segurança permanecem obrigatórios nas tarefas posteriores.
 
 ## pendências
 
