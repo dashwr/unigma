@@ -1,8 +1,8 @@
 # unigma — backlog implementável
 
 > **status:** backlog derivado da arquitetura aprovada em 2026-08-22. A E-00 permanece
-> parcialmente concluída: há build, artefato e smoke de núcleo Windows x64, mas
-> Linux x64 e a revisão final de distribuição continuam pendentes. As demais
+> parcialmente concluída: há build, artefato e smoke de núcleo Windows x64 e Linux
+> x64; a revisão final de distribuição continua pendente. As demais
 > tarefas continuam futuras. Este arquivo não autoriza distribuição ou publicação.
 
 ## como usar
@@ -19,16 +19,16 @@
 ## estado de execução da E-00
 
 Registro consolidado do trabalho executado no checkout local `E:\unigma`, nos
-clones temporários de validação e no runner self-hosted Windows. A execução
-`32896363977` criou evidência e artefato de teste Windows x64; uma tentativa
-cross Linux `32901756829` não criou artefato, então Linux ainda está pendente.
+clones temporários de validação e no runner self-hosted Windows. As execuções
+`32896363977` e `32916035363` criaram evidência e artefatos de teste Windows x64
+e Linux x64; a revisão final de distribuição ainda está pendente.
 
 | frente | feito | ainda necessário |
 | --- | --- | --- |
 | T-001 upstream | tag `1.134.0`, SHA, Node, Electron e alvos registrados em `docs/UPSTREAM.md` e `DECISIONS.md` | validar compatibilidade de build/artefato em ambiente suportado |
-| T-002 importação | snapshot importado; `upstream` configurado; licenças/notices preservados; método registrado | concluir build mínimo reproduzível; revisar a árvore upstream antes de distribuição |
-| T-003 harness | comandos reais registrados em `AGENTS.md`; checks locais históricos e `npm ci`, compile, checks focados e empacotamento Windows x64 passaram no run `32896363977` | validar por plataforma Linux; `test-node` depende de `out/` |
-| T-004 identidade | `README.md`, `product.json`, `resources/unigma/` e revisão inicial de terceiros ajustados | auditoria legal/licenças completa, revisão de integrações upstream e artefatos finais |
+| T-002 importação | snapshot importado; `upstream` configurado; licenças/notices preservados; método registrado; builds/artefatos de teste Windows x64 e Linux x64 reproduzidos | revisar a árvore upstream e os metadados empacotados antes de distribuição |
+| T-003 harness | comandos reais registrados em `AGENTS.md`; `npm ci`, compile, empacotamento e smoke de núcleo passaram em Windows x64 (`32896363977`) e Linux x64 (`32916035363`) | revisão final; `test-node` depende de `out/` |
+| T-004 identidade | `README.md`, `product.json`, `resources/unigma/` e revisão inicial de terceiros ajustados; tar Linux inspecionado | corrigir/justificar autoria upstream no pacote, decidir extensões de autenticação, concluir auditoria legal/licenças e direitos dos ativos |
 
 ### bloqueios ambientais registrados
 
@@ -61,15 +61,38 @@ cross Linux `32901756829` não criou artefato, então Linux ainda está pendente
   `npm ci` e o compile do runtime passaram, mas o bundle esbuild Linux falhou
   com `The service was stopped`. O rerun foi cancelado durante `npm ci`; não
   houve artefato nem smoke Linux. A tentativa não prova compatibilidade Linux.
+- a workflow manual `.github/workflows/unigma-linux-wsl-validation.yml` foi
+  executada no run `32916035363`, commit `24464056`, no runner `WIREDNEOMKII`.
+  Ubuntu WSL2 concluiu bootstrap de dependências/Node, `npm ci`, compile do
+  runtime próprio, `vscode-linux-x64`, smoke de núcleo e escrita/upload da
+  evidência; o artefato foi publicado como `unigma-linux-x64-32916035363`.
 - `test-node` retornou código de processo 0, mas emitiu `ERR_MODULE_NOT_FOUND`
   para arquivos ausentes em `out/`; por isso não foi tratado como teste aprovado.
 - auditorias npm relataram vulnerabilidades herdadas das dependências; não
   executar `npm audit fix` automaticamente.
+- a revisão do artefato `unigma-linux-x64-32916035363` confirmou a presença de
+  `LICENSE.txt` e do `ThirdPartyNotices.txt` raiz no tar, com hashes iguais aos
+  do checkout; três notices adicionais de extensões também foram incluídos.
+- o `product.json` do tar mantém identidade `unigma`, MIT, sem gallery/feed/report
+  ou voz, mas o `resources/app/package.json` ainda expõe
+  `Microsoft Corporation` e `https://github.com/microsoft/vscode.git` em autor e
+  repositório. Isso bloqueia a revisão de identidade até correção ou justificativa.
+- o tar não contém caminhos de Copilot, mas contém 27 caminhos GitHub, 13 de
+  `microsoft-authentication` e dois binários MSAL. `builtInExtensions: []` não
+  basta para afirmar que as superfícies upstream estão ausentes, pois o pacote
+  recebe os diretórios compilados de `.build/extensions/**`.
+- o wrapper do artefato inclui logs de smoke além do tar. A varredura local não
+  encontrou chaves de autorização, Bearer ou access/refresh token nesses logs,
+  mas o wrapper não é um pacote de release e não deve ser redistribuído.
+- `audit-notices.ts` continua sem relatório executável no checkout porque importa
+  `parse-notices.js`, inexistente ao lado de `parse-notices.ts`, e não há `tsx`.
+  Não instalar ferramenta nem executar o scanner de licenças com rede sem nova
+  necessidade explícita.
 
-Esses bloqueios não foram classificados como bugs do unigma. A E-00 só pode ser
-marcada integralmente concluída quando houver build mínimo reproduzível e
-evidência de artefato/smoke para Windows x64 e Linux x64, além da revisão de
-distribuição exigida por T-002/T-004.
+Esses bloqueios não foram classificados como bugs do unigma. A evidência de
+artefato/smoke para Windows x64 e Linux x64 está concluída; a E-00 só pode ser
+marcada integralmente concluída após a revisão de distribuição exigida por
+T-002/T-004.
 
 ## fontes e rastreabilidade
 
@@ -136,8 +159,8 @@ distribuição exigida por T-002/T-004.
 
 ### T-002 — importar fork e preservar proveniência
 
-**status:** concluída quanto à importação e proveniência; build de artefato ainda
-bloqueado por dependências/toolchain do ambiente.
+**status:** concluída quanto à importação, proveniência e build de teste
+multiplataforma; revisão final de distribuição ainda bloqueada.
 
 - **objetivo:** importar Code - OSS no repositório `unigma` e aplicar apenas a
   identidade/proveniência mínima aprovada.
@@ -158,8 +181,8 @@ bloqueado por dependências/toolchain do ambiente.
 
 ### T-003 — registrar comandos e harness do upstream
 
-**status:** concluída quanto ao registro do harness; validação parcial executada,
-com compile/build ainda bloqueado.
+**status:** concluída quanto ao registro do harness; validação de compile/build e
+smoke de núcleo executada em Windows x64 e Linux x64.
 
 - **objetivo:** descobrir e registrar comandos reais de desenvolvimento, teste,
   lint, typecheck, build e empacotamento, sem inventar um runner.
@@ -179,8 +202,9 @@ com compile/build ainda bloqueado.
 
 ### T-004 — definir identidade de distribuição e notices
 
-**status:** concluída para a fundação e identidade inicial; auditoria legal,
-triagem completa de terceiros e release continuam bloqueados.
+**status:** concluída para a fundação e identidade inicial; a inspeção do tar
+Linux foi executada, mas autoria empacotada, triagem de terceiros, direitos dos
+ativos e release continuam bloqueados.
 
 - **objetivo:** preparar branding original, metadados e inventário de licenças
   sem publicar nem incorporar a fonte Cinderblock sem verificação.

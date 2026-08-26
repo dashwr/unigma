@@ -36,6 +36,57 @@ triagem antes de qualquer distribuição.
 - o onboarding de keymaps foi reduzido ao keymap padrão; não há referências a
   extensões externas ou instalação via catálogo nesta configuração.
 
+## revisão do artefato Linux
+
+A revisão do artefato publicado no run `32916035363`, commit
+`2446405698011bef1fd1947f5459b1a64e79781e`, foi executada após download com
+timeout de 300 segundos. A API do GitHub identificou o artefato
+`unigma-linux-x64-32916035363` (id `9588657070`, 186066342 bytes); o download
+terminou com exit code `0`. O wrapper contém o tar, a evidência e logs de smoke;
+somente `unigma-linux-x64.tar.xz` é candidato a distribuição.
+
+### confirmado
+
+- a evidência do wrapper registra `target=linux-x64`, runner `WIREDNEOMKII`,
+  ambiente Ubuntu WSL2, `smoke=passed` e `runtime-tests=passed`;
+- o tar contém `./resources/app/LICENSE.txt` e o notice raiz. Os hashes
+  conferem com o checkout (`LICENSE.txt`:
+  `cce33203a80863c22499035b1cfb6aba5df5f02e4ea2669cf5bc5730c1864236`; notice:
+  `51b3fd6b279f33c32499035b1cfb6aba5df5f02e4ea2669cf5bc5730c1864236`), além
+  de três notices de extensões;
+- o `product.json` empacotado usa `unigma`, MIT, `builtInExtensions=[]` e não
+  configura gallery, feeds, report URL ou voz;
+- não há caminho de Copilot no tar. Uma varredura dos logs do wrapper também não
+  encontrou chaves de autorização, literais Bearer ou valores de access/refresh
+  token; os logs não são parte do pacote de distribuição.
+
+### bloqueadores encontrados
+
+- o `resources/app/package.json` empacotado ainda declara
+  `author.name=Microsoft Corporation` e o repositório
+  `https://github.com/microsoft/vscode.git`. A construção atual atualiza somente
+  `name` e `version`, não autoria/repositório;
+- fora dos logs, o tar contém 27 caminhos GitHub, 13 caminhos de
+  `microsoft-authentication` e dois binários MSAL. Isso não demonstra ativação,
+  mas demonstra que superfícies de autenticação upstream entram no artefato;
+  `builtInExtensions=[]` não as remove porque o empacotamento copia
+  `.build/extensions/**`;
+- os ativos PNG em `resources/unigma/` têm README e dimensões/fundo compatíveis
+  com a direção visual, mas não há nesta revisão evidência independente de
+  autoria, licença ou não colisão. As mudanças são alheias e continuam fora do
+  commit;
+- `licenseUrl` e `serverLicenseUrl` permanecem vazios em `product.json`. Isso não
+  invalida o MIT, mas deixa a distribuição sem URL pública de licença;
+- o auditor `audit-notices.ts` não foi executado: o import
+  `./parse-notices.js` não existe no checkout (há apenas `.ts`) e `tsx` não está
+  instalado. O scanner de licenças com download/rede permanece deliberadamente
+  não executado.
+
+O resultado não autoriza distribuição. A correção de metadados, a decisão sobre
+as extensões de autenticação, a conferência completa do inventário e a revisão
+de direitos dos ativos precisam ocorrer em uma rodada própria, seguida de novo
+build/inspeção dos dois alvos.
+
 ## estado da triagem
 
 ### concluído nesta fundação
@@ -55,10 +106,16 @@ triagem antes de qualquer distribuição.
 - inventariar referências Microsoft/upstream e integrações de terceiros que
   permanecem no código, manifests e extensões, decidindo caso a caso o que pode
   compor uma distribuição unigma;
+- corrigir ou justificar os metadados de autor/repositório que ainda apontam para
+  Microsoft/VS Code no `package.json` empacotado;
+- decidir explicitamente se `github-authentication` e
+  `microsoft-authentication`/MSAL fazem parte do MVP local-first; a decisão deve
+  ser refletida no empacotamento e validada no tar, sem inferir ausência a partir
+  de `builtInExtensions=[]`;
 - conferir licenças e notices desse inventário contra o artefato final;
 - obter build e artefatos reais para revisar o conteúdo distribuído;
 - concluir auditoria jurídica da marca `unigma`/`unigma-code` e de qualquer
-  ativo visual ou fonte.
+  ativo visual ou fonte, incluindo os PNGs presentes em `resources/unigma/`.
 
 As auditorias de dependências durante a validação registraram vulnerabilidades
 herdadas do upstream. Isso é um finding de supply chain a revisar antes de
