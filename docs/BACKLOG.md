@@ -149,6 +149,7 @@ exigida por T-002/T-004.
 | E-06 | segurança e performance | fronteiras testadas e baseline/regressões mensuráveis | artefato executável |
 | E-07 | qualidade e distribuição | testes, builds multiplataforma e gate de release | implementação integrada |
 | E-08 | Intelligence Index/Autopilot | roteamento local opt-in, versionado, mensurável e integrado à UI nativa | E-01, E-02, E-03 e gates de E-06 |
+| E-09 | perfil OpenCode service-only e bundle | decepador reproduzível, runtime bundled, atualização atômica e rollback | E-00/T-001 e E-01/T-011 |
 
 # TASKS
 
@@ -586,6 +587,60 @@ runs finais; integração no fluxo de sessão permanece pendente.
 - **paralelo:** pode rodar em paralelo com T-040 e T-041 após T-024.
 - **bloqueia:** AC-005, AC-008 e gate de segurança.
 
+### T-043 — integrar atalhos de ferramentas e skills
+
+- **objetivo:** oferecer `@` para ferramentas e `/` para skills na superfície
+  nativa do agente, encaminhando a seleção pelo contrato do OpenCode.
+- **responsável lógico:** workbench nativo + runtime OpenCode.
+- **dependências:** T-024, T-030, T-031 e T-012.
+- **arquivos/módulos prováveis:** `src/vs/workbench/contrib/unigmaAgent/`,
+  contrato RPC e adaptador OpenCode.
+- **critérios de aceite:** ferramentas/skills são resolvidos somente a partir de
+  fontes autorizadas; estados desconhecidos são observáveis; foco e teclado
+  funcionam; a UI não acessa processo, rede ou segredo diretamente.
+- **testes necessários:** resolução válida/inválida, trust, aprovação, teclado,
+  acessibilidade e sessão indisponível.
+- **riscos:** duplicar catálogo do OpenCode ou criar execução paralela;
+  mitigação: referências transitórias e OpenCode como fonte de verdade.
+- **paralelo:** pode rodar com T-044 após T-031, sem editar o mesmo contrato.
+- **bloqueia:** AC-027.
+
+### T-044 — integrar mensagens intersessão e chips de agentes
+
+- **objetivo:** expor mensagens entre sessões locais e chips de agente/subagente
+  com estados `thinking`, `typing` e `idle`.
+- **responsável lógico:** runtime + workbench nativo.
+- **dependências:** T-024, T-031, T-032 e T-041.
+- **arquivos/módulos prováveis:** `application/subagent/`, eventos RPC e
+  `unigmaAgent/browser/`.
+- **critérios de aceite:** a relação pai/filha usa IDs do OpenCode; mensagens
+  respeitam a sessão e a autoridade corretas; chips não inventam estado nem
+  persistem conteúdo; a UI permanece incremental e responsiva.
+- **testes necessários:** sessão pai/filha, mensagem entregue/recusada, mudança
+  de estado, encerramento, reconexão e ausência de duplicação de histórico.
+- **riscos:** criar um bus paralelo ou confundir colaboração com sincronização;
+  mitigação: transporte local, fonte OpenCode e estado transitório.
+- **paralelo:** pode rodar com T-043 após T-031; T-045 é independente no contrato.
+- **bloqueia:** AC-027.
+
+### T-045 — definir protocolo de controle remoto dormente
+
+- **objetivo:** definir tipos versionados para controle remoto futuro sem ativar
+  listener, cloud, colaboração em tempo real ou backend no MVP.
+- **responsável lógico:** arquitetura de runtime + segurança.
+- **dependências:** T-010, T-024 e T-061.
+- **arquivos/módulos prováveis:** contrato RPC, `domain/` e testes de schema;
+  nenhum servidor novo.
+- **critérios de aceite:** serialização, versão, capacidades e recusas são
+  testáveis; não há socket/listener, fila, sincronização ou persistência; o
+  protocolo não contorna trust, aprovação ou política do OpenCode.
+- **testes necessários:** payload válido/inválido, versão incompatível, ausência
+  de ativação e inspeção do artefato.
+- **riscos:** protocolo dormente virar API pública ou colaboração implícita;
+  mitigação: flag inexistente em runtime, sem endpoint e documentação explícita.
+- **paralelo:** pode rodar com T-043/T-044 sem editar a UI.
+- **bloqueia:** AC-028.
+
 ## E-05 — remoto SSH
 
 ### T-050 — criar/adaptar autoridade remota OpenSSH
@@ -889,18 +944,19 @@ runs finais; integração no fluxo de sessão permanece pendente.
 
 ### T-085 — gate de aceitação do MVP
 
-- **objetivo:** consolidar evidências de AC-001 a AC-015 e declarar o que passou,
-  falhou ou permanece fora da entrega, incluindo a frente E-08 quando ela fizer
+- **objetivo:** consolidar evidências de AC-001 a AC-029 e declarar o que passou,
+  falhou ou permanece fora da entrega, incluindo E-08 e E-09 quando fizerem
   parte da entrega integrada.
 - **responsável lógico:** release manager + QA principal.
 - **dependências:** T-034, T-041, T-042, T-053, T-062, T-074, T-081, T-083,
-  T-084 e T-094.
+  T-084, T-094 e T-099.
 - **arquivos/módulos prováveis:** `docs/ACCEPTANCE.md`, relatório de evidências,
   artefatos e changelog futuro.
-- **critérios de aceite:** AC-001 a AC-024 têm evidência reproduzível quando
+- **critérios de aceite:** AC-001 a AC-029 têm evidência reproduzível quando
   fizerem parte do escopo da entrega; falha ou lacuna bloqueia a declaração de
-  pronto; relatório referencia commit, plataforma, comando e artefato. Direção
-  documental de E-08 não é evidência de implementação.
+  pronto; relatório referencia commit, plataforma, comando, artefato, patchset e
+  versão do bundle. Direção documental de E-08/E-09 não é evidência de
+  implementação.
 - **testes necessários:** suíte completa unitária, contrato, integração, SSH,
   segurança, performance, visual, Autopilot/roteador e smoke multiplataforma.
 - **riscos:** aceitar por documentação sem execução ou esconder suporte parcial;
@@ -1167,6 +1223,120 @@ exemplos numéricos da direção, inclusive `~49`, não são valores normativos.
   evidências pode ser distribuída por critério depois que os testes terminarem.
 - **bloqueia:** T-085, AC-024 e declaração de suporte do E-08.
 
+## E-09 — perfil OpenCode service-only e bundle
+
+**status:** direção confirmada em 2026-08-26; o perfil bundled, o decepador e a
+atualização atômica ainda não foram implementados ou aceitos. Ver
+[`OPENCODE-SERVICE-ONLY.md`](OPENCODE-SERVICE-ONLY.md).
+
+### T-095 — inventariar superfícies e fixar a fronteira service-only
+
+- **objetivo:** mapear no upstream OpenCode o harness que deve permanecer e as
+  superfícies TUI/onboarding/interativas que serão removidas ou redirecionadas.
+- **estado factual em 2026-08-26:** além do inventário CLI de
+  `/usr/bin/opencode` `1.18.23`, o checkout upstream
+  `/home/dasher/projects/unigma/opencode` foi analisado em `dev`, HEAD
+  `c2eacd72afc4a4984564c393e15ab30011057269`, com árvore limpa. O mapa de
+  módulos, donos e decisões está em
+  [`OPENCODE-SERVICE-ONLY.md`](OPENCODE-SERVICE-ONLY.md). T-095 está concluída
+  no recorte estático pré-patch; o probe continua sendo do binário instalado,
+  não de um executável construído a partir desse commit. T-096 tem um rascunho
+  local não commitado no worktree candidato. O candidato passou typecheck,
+  build Linux service-only, smoke, dois testes in-process, probe loopback e
+  reaplicação em uma segunda árvore limpa; também passou os testes focados de
+  sessão/evento/diff/autorização e os modos `coverage`/`auth` do exercício HTTP.
+  O modo `effect` excedeu o timeout de 900 segundos. Segue sem patchset
+  versionado no unigma, manifesto, pipeline, validação Windows ou artefato
+  aceito.
+- **responsável lógico:** mantenedor OpenCode + arquitetura de produto.
+- **dependências:** T-001, T-003 e T-011.
+- **arquivos/módulos prováveis:** checkout upstream OpenCode, matriz de
+  compatibilidade e `docs/OPENCODE-SERVICE-ONLY.md`.
+- **critérios de aceite:** cada superfície tem decisão e evidência; sessões,
+  tool loop, permissões, compaction, limites, retries, plugins, MCP, skills,
+  streaming e subagentes têm dono explícito; nenhum código é removido por
+  varredura cega.
+- **testes necessários:** inventário repetível contra o commit fixado e probe
+  headless antes do patch.
+- **riscos:** confundir UI com harness ou assumir comportamento do SDK `dev`;
+  mitigação: `/doc`, commit e matriz versionados.
+- **paralelo:** pode rodar com T-043/T-044 depois que o contrato for registrado.
+- **bloqueia:** T-096 e AC-025/AC-026.
+
+### T-096 — aplicar patchset reproduzível do decepador
+
+- **objetivo:** produzir o perfil `service-only` a partir do upstream, com patch
+  pequeno, identificado, reaplicável e separado do código do unigma.
+- **responsável lógico:** mantenedor OpenCode/build.
+- **dependências:** T-095, T-003 e T-011.
+- **arquivos/módulos prováveis:** checkout/patches do OpenCode, `build/` e
+  documentação de proveniência.
+- **critérios de aceite:** o patch remove/redireciona apenas as superfícies
+  decididas; mantém o harness e o contrato HTTP/SSE; não altera instalação,
+  credencial ou dados do usuário; falha de aplicação interrompe o pipeline.
+- **testes necessários:** aplicação em checkout limpo, rebuild, health, `/doc`,
+  sessão, evento, permissão e ausência das entradas interativas previstas.
+- **riscos:** fork permanente ou regressão silenciosa do harness; mitigação:
+  patchset mínimo, revisão e teste contra upstream fixado.
+- **paralelo:** não pode compartilhar a mesma árvore de patch com outro trabalho.
+- **bloqueia:** T-097 e AC-025/AC-026.
+
+### T-097 — gerar bundle versionado com manifesto
+
+- **objetivo:** empacotar `unigma+opencode` por plataforma e registrar
+  proveniência, hashes, versão, patchset e resultados do pipeline.
+- **responsável lógico:** build/release + integração OpenCode.
+- **dependências:** T-096, T-003, T-062 e T-083.
+- **arquivos/módulos prováveis:** `build/`, workflows, manifesto de artefato e
+  `docs/OPENCODE-COMPATIBILITY.md`.
+- **critérios de aceite:** o artefato é determinístico dentro da matriz de
+  plataforma; binários não entram no repositório; auditoria preserva licenças e
+  notices; configuração/credenciais/sessões ficam fora do bundle.
+- **testes necessários:** build Windows/Linux x64, hash, layout, probe do
+  executável bundled e inspeção de separação de dados.
+- **riscos:** empacotar dados do usuário ou anunciar o probe errado como release;
+  mitigação: manifesto e auditoria bloqueantes.
+- **paralelo:** builds de plataformas diferentes seguem a regra do runner e não
+  rodam em paralelo no mesmo host.
+- **bloqueia:** T-098, T-099 e AC-026.
+
+### T-098 — implementar troca atômica e rollback do bundle
+
+- **objetivo:** definir e implementar a substituição do bundle somente com o
+  processo parado, preservando a versão corrente até a validação do candidato.
+- **responsável lógico:** build/release + runtime desktop.
+- **dependências:** T-097, T-023 e T-021.
+- **arquivos/módulos prováveis:** launcher/empacotamento, diretórios de aplicação
+  e testes de atualização; não criar serviço remoto.
+- **critérios de aceite:** candidato inválido não substitui a versão corrente;
+  troca válida é atômica; rollback restaura o bundle anterior; configuração,
+  credenciais, sessões e histórico permanecem intactos.
+- **testes necessários:** processo ativo, processo parado, interrupção durante a
+  troca, candidato inválido, rollback e reabertura de sessão.
+- **riscos:** corrupção do aplicativo ou migração acidental de dados; mitigação:
+  staging local, rename atômico e diretórios de dados separados.
+- **paralelo:** somente depois de T-097 e sem compartilhar o diretório de bundle.
+- **bloqueia:** T-099 e AC-026.
+
+### T-099 — fechar suporte do bundle por evidência
+
+- **objetivo:** validar a combinação upstream + patchset + executável + plataforma
+  e separar probe de desenvolvimento, candidato e suporte oficial.
+- **responsável lógico:** QA/release + revisão de segurança e produto.
+- **dependências:** T-097, T-098, T-011, T-062 e T-083.
+- **arquivos/módulos prováveis:** manifesto, artefatos, probes, auditoria e
+  `docs/ACCEPTANCE.md`.
+- **critérios de aceite:** health, `/doc`, `/path`, SSE, sessão, diff, permissão,
+  restart e fluxo `OpenCodeClient` passam no bundle; toda falha bloqueia suporte;
+  a matriz publica exatamente versão, hash, alvo e patchset testados.
+- **testes necessários:** processo real bundled, incompatibilidade, restart,
+  reconexão, logs redigidos e inspeção de artefato em Windows/Linux x64.
+- **riscos:** declarar compatibilidade sem testar o bundle ou provider/modelo;
+  mitigação: gate por combinação e nenhuma promessa além da evidência.
+- **paralelo:** pode revisar AC-025/AC-026 em paralelo com E-08 somente em
+  artefatos e fixtures separados.
+- **bloqueia:** T-085, AC-025 e AC-026.
+
 # SUBTASKS quando uma tarefa exigir decomposição
 
 As seguintes subtarefas tornam explícitas as partes que podem ser distribuídas
@@ -1241,6 +1411,11 @@ T-030 + T-034 + T-086 + T-090 -> T-091
 T-086/T-087/T-088/T-089/T-090 -> T-092
 T-024 + T-091 + T-092 -> T-093 -> T-094
 T-094 + T-085 -> gate final da frente E-08/MVP
+T-024 + T-030 + T-031 + T-012 -> T-043
+T-024 + T-031 + T-032 + T-041 -> T-044
+T-010 + T-024 + T-061 -> T-045
+T-001 + T-003 + T-011 -> T-095 -> T-096 -> T-097 -> T-098 -> T-099
+T-099 + T-085 -> gate final do bundle E-09/MVP
 ```
 
 ## PODE RODAR EM PARALELO
@@ -1254,6 +1429,8 @@ T-094 + T-085 -> gate final da frente E-08/MVP
 - dentro do workbench: T-031, T-032, T-033 e T-034 podem ser distribuídas por
   área após o esqueleto e o contrato;
 - capacidades T-040, T-041 e T-042 podem rodar em paralelo após T-024;
+- T-043 e T-044 podem rodar em paralelo após seus contratos e dependências;
+- T-045 pode rodar em paralelo com T-043/T-044, sem criar servidor ou listener;
 - remoto T-050/T-051 e a trilha local de UI/runtime podem avançar em paralelo;
 - T-061, T-070, T-080 e preparação de CI podem avançar assim que suas entradas
   existirem;
@@ -1265,6 +1442,8 @@ T-094 + T-085 -> gate final da frente E-08/MVP
   não editem os mesmos arquivos; T-093 só começa após ambos;
 - T-093 só pode compartilhar fixtures com T-081/T-074 mediante coordenação; caso
   contrário, as suítes permanecem separadas.
+- T-095 pode ser especificada em paralelo com E-04 após T-011; T-096/T-097/T-098
+  não devem compartilhar a árvore de patch com outra frente.
 
 ## PRECISA AGUARDAR
 
@@ -1285,6 +1464,12 @@ T-094 + T-085 -> gate final da frente E-08/MVP
 - T-091 precisa aguardar T-030/T-034 e os eventos de T-090;
 - T-092 precisa aguardar T-086 a T-090; T-093 precisa aguardar T-091/T-092;
 - T-094 precisa aguardar T-062 e T-093.
+- T-043 precisa aguardar T-024/T-030/T-031/T-012; T-044 precisa aguardar
+  T-024/T-031/T-032/T-041; T-045 precisa aguardar T-010/T-024/T-061.
+- T-096 precisa aguardar T-095; T-097 precisa aguardar T-096; T-098 precisa
+  aguardar T-097; T-099 precisa aguardar T-097/T-098 e as evidências de T-011.
+- T-085 precisa aguardar T-099 quando o bundle service-only fizer parte da
+  entrega.
 
 ## BLOQUEIA OUTRA TAREFA
 
@@ -1306,6 +1491,9 @@ T-094 + T-085 -> gate final da frente E-08/MVP
 - T-090 bloqueia a integração final da UI T-091;
 - T-091/T-092 bloqueiam a integração e as métricas T-093;
 - T-093 bloqueia a revisão final T-094, que bloqueia T-085 e AC-016 a AC-024.
+- T-043/T-044 bloqueiam AC-027; T-045 bloqueia AC-028;
+- T-095 bloqueia todo o pipeline service-only; T-096 bloqueia T-097;
+  T-097 bloqueia T-098/T-099; T-099 bloqueia T-085 e AC-025/AC-026.
 
 ## ordem de execução recomendada
 
@@ -1319,7 +1507,9 @@ T-094 + T-085 -> gate final da frente E-08/MVP
 8. T-072/T-073 → T-074, CI T-082 e empacotamento T-083;
 9. T-084;
 10. T-086 → (T-087 + T-088) → T-089 → T-090;
-11. T-091 + T-092 → T-093 → T-094 → T-085.
+11. T-091 + T-092 → T-093 → T-094;
+12. T-095 → T-096 → T-097 → T-098 → T-099;
+13. T-043 + T-044 + T-045 e T-099 → T-085.
 
 Esse particionamento maximiza paralelismo por fronteira: runtime, workbench,
 SSH, performance e CI têm responsáveis e diretórios distintos. Quando duas

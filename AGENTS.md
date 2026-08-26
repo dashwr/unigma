@@ -21,7 +21,7 @@ Referências externas autorizadas: [Code - OSS LICENSE](https://github.com/micro
 
 - Code - OSS/Electron e TypeScript;
 - `src/vs/workbench/contrib/unigmaAgent/`: UI nativa do workbench;
-- `extensions/unigma-agent-runtime/`: CLI `opencode serve`, HTTP/SSE, Git e estado mínimo;
+- `extensions/unigma-agent-runtime/`: perfil bundled service-only do CLI `opencode serve`, HTTP/SSE, Git e estado mínimo;
 - `extensions/unigma-remote-ssh/`: OpenSSH e host remoto;
 - `resources/unigma/`: branding e metadados de distribuição.
 - `product.json`, `LICENSE.txt`, `ThirdPartyNotices.txt`: identidade, licença e
@@ -31,6 +31,11 @@ OpenCode roda como processo filho reutilizável, no máximo um por extension
 host, e comunica por loopback HTTP/SSE. Não criar Webview para a superfície
 principal de agente.
 
+O bundle oficial é `unigma+opencode`. A transformação do upstream deve seguir
+`commit upstream → patch service-only → testes → artefato versionado`, conforme
+[`docs/OPENCODE-SERVICE-ONLY.md`](docs/OPENCODE-SERVICE-ONLY.md). Não mutar uma
+instalação do usuário nem tratar Codex/Claude Code como harness oficial.
+
 ## regras invariáveis
 
 - não há backend, banco central, conta, RBAC, cloud, telemetria, cache/fila
@@ -38,8 +43,10 @@ principal de agente.
 - Git, OpenSSH, OpenCode e o filesystem são fontes de verdade. Não duplicar
   prompts, diffs, workspace, tokens ou chaves em armazenamento próprio;
 - exigir workspace confiável e aprovação explícita para efeitos do agente;
-- providers, MCP e plugins são configurados localmente por fonte explícita;
-  sem catálogo, instalação silenciosa ou Visual Studio Marketplace;
+- providers, MCP e plugins nativos do OpenCode são configurados localmente por
+  fonte explícita; sem catálogo ou instalação silenciosa do unigma;
+- extensões externas de marketplace, inclusive Codex/Claude Code, ficam fora do
+  suporte oficial e não são parte do runtime do produto;
 - SSH usa OpenSSH, `known_hosts` e agente/chaves já administrados pelo usuário;
 - UI padrão em inglês, pacote `pt-BR`; marca original, sem ativos identificáveis
   da Microsoft ou do OpenCode.

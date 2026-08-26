@@ -32,8 +32,15 @@ Os principios sao:
 6. Nenhuma configuracao, credencial, prompt, diff, conteudo de arquivo ou
    aprovacao e duplicado para um catalogo ou banco unigma.
 
+O carregador e as fontes nativas do OpenCode sao a superficie oficial para
+plugins, MCP, rules e skills. O unigma nao cria um Marketplace ou um segundo
+carregador. Uma extensao externa de Code - OSS, inclusive Codex ou Claude Code,
+pode ser instalada diretamente pelo usuario, mas permanece fora do suporte
+oficial e nao altera o harness `unigma+opencode`.
+
 Esta politica nao amplia o escopo para backend, cloud, conta, RBAC, telemetria,
-Marketplace ou distribuicao de integracoes.
+Marketplace proprio ou distribuicao de integracoes. Uma extensao externa obtida
+por iniciativa do usuario continua fora do suporte do unigma.
 
 ## 2. Fontes explicitas
 
@@ -288,6 +295,8 @@ so. A implementacao futura deve fornecer evidencia reproduzivel de, no minimo:
 
 - [Arquitetura](ARCHITECTURE.md), especialmente as secoes de autorizacao,
   dados e observabilidade.
+- [Perfil OpenCode service-only](OPENCODE-SERVICE-ONLY.md), para a fronteira do
+  harness bundled e das extensoes externas.
 - [Fluxos](FLOWS.md), especialmente F-004.
 - [Modelo de dados](DATA-MODEL.md), especialmente fontes de verdade e dados
   deliberadamente ausentes.

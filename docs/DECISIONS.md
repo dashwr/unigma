@@ -26,6 +26,12 @@ trabalho.
 | D-014 | O fork Code - OSS será desmarcado e preservará avisos, licenças e copyrights aplicáveis em toda distribuição. | aprovado em 2026-08-22 | S-02, S-03, S-11 |
 | D-015 | O upstream inicial é `microsoft/vscode` na tag `1.134.0`, commit `474a349ad5b745e512ef86b864d1c74f7264dd7a`; a matriz declarada usa Node.js `24.18.0`, Electron `42.8.1`, Windows x64 e Linux x64. Atualizações acompanham releases/patches verificáveis do upstream. | aprovado em 2026-08-22 | S-12 |
 | D-016 | O produto adota classificação aproximada por `intelligence index` e roteamento local limitado a modelos configurados/autorizados pelo OpenCode, com `Autopilot!` opt-in, `persistSelectedModel`, fallback seguro e os limites de custo, privacidade e UI descritos abaixo. | direção de produto confirmada; detalhes operacionais e validação pendentes | S-17 |
+| D-017 | OpenCode é o único harness/backend local oficial do produto; a distribuição oficial é `unigma+opencode`. | confirmado em 2026-08-26 | S-18 |
+| D-018 | O bundle oficial usa um perfil `service-only`: preserva o harness de execução do OpenCode e remove/redireciona TUI, onboarding, prompts interativos, navegação e UI redundante para o unigma. | direção confirmada; patch e validação pendentes | S-18 |
+| D-019 | O “decepador” é uma cadeia reproduzível `commit upstream → patch service-only → testes → artefato versionado`; não muta instalações do usuário. | direção confirmada; pipeline pendente | S-18 |
+| D-020 | Atualizações autorizadas trocam o bundle atomicamente com o processo parado, mantendo rollback e os dados do usuário fora do artefato. | direção confirmada; implementação e evidência pendentes | S-18 |
+| D-021 | A direção do agente inclui `@` para ferramentas, `/` para skills, mensagens entre sessões locais e chips de estado; o protocolo de controle remoto é construído dormente, sem ativação no MVP. | direção confirmada; contratos e implementação pendentes | S-18 |
+| D-022 | Codex/Claude Code podem ser extensões externas instaladas pelo usuário, mas não têm suporte oficial nem são harness do unigma; `unigma+pi` é experimental e plugins/MCP/rules/skills oficiais usam os mecanismos nativos do OpenCode. | confirmado em 2026-08-26 | S-18 |
 
 ### D-016 — direção confirmada e limites
 
@@ -52,6 +58,23 @@ trabalho.
 
 Este registro confirma direção, não implementação ou suporte funcional.
 
+### D-017 a D-022 — harness, bundle e capacidades do agente
+
+- O OpenCode continua sendo a fonte de verdade do harness: sessões, tool loop,
+  permissões, compaction, limites, retries, plugins, MCP, skills, providers,
+  streaming e subagentes não devem ser reimplementados no workbench.
+- O unigma é dono da apresentação e da coordenação. O patch service-only retira
+  superfícies duplicadas, mas não apaga código upstream por varredura cega nem
+  transforma o runtime em um segundo harness.
+- O bundle contém somente o runtime versionado; configuração, credenciais,
+  sessões, histórico e demais dados do usuário permanecem fora dele. Não há
+  download automático, servidor central ou telemetria implícitos.
+- `@`, `/`, mensagens intersessão e chips pertencem à experiência nativa do
+  agente. O controle remoto dormente não reabre colaboração em tempo real,
+  cloud ou backend no MVP.
+- Extensão externa não é integração oficial. O unigma não cria catálogo,
+  carregador ou adaptador para transformar Codex/Claude Code em harness.
+
 ### detalhes de D-016 ainda abertos
 
 - fórmula, escala e estimativa do `intelligence index`, com sua comparação ao
@@ -68,9 +91,9 @@ Este registro confirma direção, não implementação ou suporte funcional.
 
 ## decisões que exigem intervenção
 
-Não há nova decisão arquitetural a confirmar. A direção de produto D-016 está
-confirmada; suas definições operacionais e validações externas permanecem
-abertas e não autorizam implementação por si só.
+Não há nova decisão arquitetural a confirmar. As direções D-016 a D-022 estão
+confirmadas; suas definições operacionais, patches, artefatos e validações
+permanecem abertas e não autorizam suporte por si só.
 
 ## validação de identificadores
 
@@ -84,9 +107,10 @@ abertas e não autorizam implementação por si só.
 ## questões técnicas adiadas
 
 As seguintes questões não alteram a arquitetura aprovada e serão determinadas
-ao detalhar o MVP: adaptação de build e release, contratos de comportamento da
-UI, provisionamento SSH, fontes/suportes concretos de MCP/plugin/provider,
-baselines numéricos de performance e os detalhes abertos de D-016. `Cinderblock`
+ao detalhar o MVP: patchset e pipeline do perfil service-only, manifesto e
+rollback do bundle, contratos de comportamento da UI, provisionamento SSH,
+fontes/suportes concretos de MCP/plugin/provider, baselines numéricos de
+performance e os detalhes abertos de D-016. `Cinderblock`
 permanece candidata não incorporada e exige verificação de disponibilidade,
 licença, pesos e direitos de uso antes de qualquer incorporação.
 

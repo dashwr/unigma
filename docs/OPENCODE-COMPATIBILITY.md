@@ -1,15 +1,25 @@
 # OpenCode: matriz de compatibilidade do MVP
 
 > **T-011 / E-01.** Matriz operacional para o CLI `opencode serve` via HTTP/SSE.
-> Revisada em 2026-08-23. Este documento e uma especificacao; nenhum binario
-> OpenCode, endpoint ou provider foi testado neste checkout.
+> Revisada em 2026-08-23 e atualizada com probe real em 2026-08-26. Este
+> documento é uma especificação; o probe de `/usr/bin/opencode` `1.18.23` não é
+> o bundle oficial service-only e nenhum provider/modelo é anunciado como
+> suportado.
+
+> **Atualizacao de fechamento em 2026-08-26:** a fixture matrix local agora
+> espelha os 15 pares metodo/path exigidos pelo cliente HTTP/SSE. Isso corrige a
+> cobertura do contrato interno, mas nao converte a matriz em teste de uma
+> release OpenCode nem altera o estado nao suportado abaixo.
 
 ## 1. Escopo
 
-Esta matriz cobre somente o processo headless `opencode serve` iniciado pelo
-runtime do unigma e acessado por HTTP/SSE no loopback do host do workspace. Nao
-define ACP, TUI, Webview, chamada direta a provider, autenticao propria do
-unigma, MCP, plugins ou provisionamento SSH.
+Esta matriz cobre somente o processo headless `opencode serve` do perfil
+service-only, iniciado pelo runtime do unigma e acessado por HTTP/SSE no
+loopback do host do workspace. O binário oficial deve vir do bundle
+`unigma+opencode`; um executável externo só serve para probe de desenvolvimento
+até que o decepador produza um artefato fixado. Não define ACP, TUI, Webview,
+chamada direta a provider, autenticação própria do unigma, MCP, plugins ou
+provisionamento SSH.
 
 Os estados abaixo evitam transformar documentacao em promessa de suporte:
 
@@ -41,8 +51,9 @@ documento e nao e uma versao do OpenCode.
 
 | Item | Regra do MVP |
 | --- | --- |
-| Versao OpenCode | **Nao fixada.** O repositorio nao contem uma versao, checksum ou binario OpenCode testado. Nao ha compatibilidade semver anunciada. |
-| Versao observada | O valor de `version` retornado por `GET /global/health` deve ser registrado como evidencia de cada teste; nao e uma allowlist por si so. |
+| Versao OpenCode | **Candidata de teste:** `1.18.23`, observada em `/usr/bin/opencode` e verificada pelo SHA-256 registrado na evidência. Ela ainda não é o binário bundled service-only de release. |
+| Versao observada | O valor de `version` retornado por `GET /global/health` deve ser registrado como evidência de cada teste; não é uma allowlist por si só. |
+| Checkout upstream candidato | `/home/dasher/projects/unigma/opencode`, branch `dev`, HEAD `c2eacd72afc4a4984564c393e15ab30011057269`, árvore limpa; `packages/opencode`, `core` e `server` declaram `1.18.23`. A revisão fonte ainda não é um patchset ou bundle aceito. |
 | Autoridade do contrato | A especificacao publicada por `GET /doc` do binario em teste e a autoridade para paths, metodos, schemas e respostas. O SDK `dev` e referencia publica de tipos, nao uma versao suportada. |
 | Combinacao upstream | Code - OSS `1.134.0`, commit `474a349ad5b745e512ef86b864d1c74f7264dd7a`, Node.js `24.18.0` e Electron `42.8.1` continuam sendo a matriz do upstream; isso nao prova compatibilidade com OpenCode. |
 | Processo | Um processo filho por extension host, reutilizado entre sessoes e encerrado somente quando foi criado pelo runtime. |
@@ -51,8 +62,30 @@ documento e nao e uma versao do OpenCode.
 | SSE | Nenhum cursor, replay ou semantica de `Last-Event-ID` e assumido; apos uma queda, o estado e reconsultado por HTTP. |
 | Credencial do servidor | O perfil padrao nao envia Basic Auth. Um `401` ou `403` causado por `OPENCODE_SERVER_PASSWORD` e uma falha observavel e nao um convite para pedir, ler ou persistir a senha. |
 
-Enquanto a versao exata e a combinacao de teste nao estiverem registradas,
-`opencode serve` esta documentado, mas nao suportado como binario de release.
+Enquanto a combinação entre release OpenCode, patchset service-only e alvo não
+estiver registrada, `opencode serve` está documentado, mas não suportado como
+binário bundled de release.
+
+### perfil de empacotamento service-only
+
+O perfil oficial preserva o harness de execução do OpenCode e redireciona TUI,
+onboarding, prompts interativos, navegação, todo/plan UI e comandos de uso direto
+para a superfície nativa do unigma. Não se deve inferir que um endpoint HTTP
+deixou de existir apenas porque uma superfície visual foi retirada; a matriz de
+transporte continua sendo definida pelo `/doc` do binário testado.
+
+O pipeline esperado é:
+
+```text
+commit upstream -> patch service-only -> testes -> auditoria -> bundle versionado
+```
+
+O patchset e o manifesto ainda não existem como artefato aceito. O checkout
+upstream candidato agora está registrado para o inventário de módulos, mas o
+processo de compatibilidade ainda valida somente o contrato do executável
+observado, sem confundi-lo com suporte de distribuição do
+`unigma+opencode`. A fronteira completa está em
+[OPENCODE-SERVICE-ONLY.md](OPENCODE-SERVICE-ONLY.md).
 
 ## 4. Endpoints do perfil minimo
 
@@ -203,9 +236,9 @@ replica credenciais, catalogos ou modelos em settings do unigma.
 
 | Provider/categoria | O que e verificavel publicamente | Estado de suporte unigma |
 | --- | --- | --- |
-| `ollama` local | A documentacao mostra configuracao local via provider OpenAI-compatible e `baseURL`. | Candidato documental; **nao suportado ainda**, pois nao ha binario/modelo testado. |
-| `lmstudio` local | A documentacao mostra configuracao local via provider OpenAI-compatible e `baseURL`. | Candidato documental; **nao suportado ainda**, pois nao ha binario/modelo testado. |
-| `llama.cpp` local | A documentacao mostra configuracao local via provider OpenAI-compatible e `baseURL`. | Candidato documental; **nao suportado ainda**, pois nao ha binario/modelo testado. |
+| `ollama` local | A documentacao mostra configuracao local via provider OpenAI-compatible e `baseURL`. | Candidato documental; **nao suportado ainda**, pois nao ha modelo testado no perfil bundled. |
+| `lmstudio` local | A documentacao mostra configuracao local via provider OpenAI-compatible e `baseURL`. | Candidato documental; **nao suportado ainda**, pois nao ha modelo testado no perfil bundled. |
+| `llama.cpp` local | A documentacao mostra configuracao local via provider OpenAI-compatible e `baseURL`. | Candidato documental; **nao suportado ainda**, pois nao ha modelo testado no perfil bundled. |
 | Provider customizado OpenAI-compatible | O schema e a documentacao permitem `npm`, `name`, `options.baseURL` e `models`. | Fixture de transporte apenas; nao e uma allowlist de provider. |
 | Providers remotos do diretorio OpenCode | A pagina de providers lista muitos providers, mas isso prova capacidade do OpenCode, nao teste do unigma, entitlement ou politica de dados. | **Nao suportado pelo perfil T-011**. Nenhum nome e anunciado como integrado. |
 
@@ -293,7 +326,7 @@ conteudo das mensagens ou dos headers de credencial.
 
 | Lacuna/risco | Tratamento atual |
 | --- | --- |
-| Versao OpenCode nao fixada nem testada | Nao anunciar compatibilidade de release; T-021/T-022 ficam bloqueadas ate a matriz real. |
+| Release/patchset bundled ainda nao fixados como artefato | O probe de `1.18.23` valida o contrato HTTP/SSE, mas T-021/T-022 e o suporte de release continuam condicionais ao bundle service-only. |
 | API publica pode evoluir | Probe `/doc`, adaptador unico e fixture versionado; nao usar fallback especulativo. |
 | Discrepancia `permission.asked` versus `permission.updated` | Usar o SDK/OpenAPI do binario testado; manter `permission.asked` nao suportado ate evidencia. |
 | Discrepancia `remember?` na prosa versus tipo gerado somente com `response` | Enviar somente `response`; revisar no `/doc` da versao fixada antes de ampliar. |
@@ -335,6 +368,8 @@ Fontes locais de escopo e aceite:
 
 - [ARCHITECTURE.md](ARCHITECTURE.md): fronteira do processo, HTTP/SSE, loopback,
   credenciais e fixture controlado.
+- [OPENCODE-SERVICE-ONLY.md](OPENCODE-SERVICE-ONLY.md): harness oficial,
+  patchset, bundle, atualização atômica e suporte.
 - [REQUIREMENTS.md](REQUIREMENTS.md): RQ-002, RQ-003, RQ-007, RQ-103 e RQ-104.
 - [ACCEPTANCE.md](ACCEPTANCE.md): AC-003, AC-008 e regra de evidencia.
 - [BACKLOG.md](BACKLOG.md): objetivo, criterios e testes de T-011.
@@ -349,5 +384,33 @@ git -C E:\unigma diff --check
 git -C E:\unigma diff -- docs/OPENCODE-COMPATIBILITY.md
 ```
 
-Nao foram executados `npm ci`, build, deploy ou um servidor OpenCode real. Nao
-ha commit nesta tarefa.
+No checkout principal do unigma não foram executados `npm ci`, build ou deploy.
+O candidato isolado foi instalado, construído e sondado em loopback, conforme a
+evidência de T-096 em [OPENCODE-SERVICE-ONLY.md](OPENCODE-SERVICE-ONLY.md); isso
+não equivale a teste do bundle service-only. O checkout fonte principal foi
+apenas inspecionado em leitura e não recebeu alterações; a revisão registrada é
+candidata de upstream, não commit de um artefato bundled.
+
+
+## evidência T-011 — probe real de 2026-08-26
+
+Foi executado um probe independente contra `/usr/bin/opencode` `1.18.23`,
+verificado localmente pelo SHA-256
+`f80650dcfc1308afaecc2d343c9a0a52fdc2dacd49150b7256a000acf068799f`. A
+instância foi iniciada com `--pure`, ambiente HOME/XDG temporário e loopback
+`127.0.0.1:4097`; nenhum provider ou credencial foi configurado.
+
+Resultado: health (`200`), OpenAPI `3.1.0`, os 14 pares declarados no
+`doc.paths`, `/path`, SSE com primeiro evento `server.connected`, listagem e
+criação de sessão, status, sessão, mensagens, diff, `prompt_async` (`204`),
+abort (`200`) e rota de permissões (`400` para payload sintético) responderam
+conforme o perfil. O `OpenCodeHttpClient.connect()` do checkout também
+passou contra a mesma instância real. O probe consultou `/provider` e
+`/config/providers`, mas não anunciou provider/modelo.
+
+Duas diferenças reais foram incorporadas ao adaptador e à fixture: `/doc` é
+consultado diretamente, mas não aparece como operação dentro do próprio
+OpenAPI; `/path` usa `worktree` e `directory` na release testada, além do campo
+`path` mantido para fixtures/compatibilidade. A suíte-fonte do cliente não foi
+executada porque `mocha` não está instalado; a checagem de sintaxe e o probe
+independente passaram.

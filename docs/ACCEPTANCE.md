@@ -11,6 +11,12 @@ Autopilot, não suporte implementado. As linhas AC-016 a AC-024 permanecem
 bloqueadas até haver implementação, testes e evidência reproduzível; nenhum
 exemplo numérico, inclusive `~49`, é um valor fixo ou normativo.
 
+RQ-022 a RQ-028, RQ-105 e D-017 a D-022 registram a direção de harness, bundle e
+capacidades do agente. As linhas AC-025 a AC-028 permanecem bloqueadas até haver
+artefato, implementação, testes e evidência reproduzível; o probe de OpenCode
+`1.18.23` não prova o bundle service-only. AC-029 registra uma fronteira de
+suporte, não uma capacidade adicional do runtime.
+
 | ID | Relacionado a | Critério objetivo e testável | Estado de execução |
 | --- | --- | --- | --- |
 | AC-001 | RQ-001, RQ-102 | Para toda distribuição que incorpore código de Code - OSS, a revisão de entrega confirma a presença dos avisos, licenças e copyrights aplicáveis. | bloqueado: os dois artefatos finais preservam `LICENSE.txt`, o notice raiz e os notices de extensão esperados, mas a conferência completa do inventário de terceiros ainda está pendente |
@@ -37,6 +43,11 @@ exemplo numérico, inclusive `~49`, é um valor fixo ou normativo.
 | AC-022 | RQ-015, RQ-016, RQ-018, RQ-019, RQ-020 | **Direção documental:** a matriz separa testes unitários, de contrato, recusas, redaction e limites de privacidade. **Implementação real:** o harness existente executa testes determinísticos para schema/versão, índice/custo, payload curto Luna, seleção, bypass, fallback e timeout, sem segundo runner e sem log de prompt, raciocínio ou segredo. | bloqueado: T-092 é frente futura; suíte e fixtures não foram executadas |
 | AC-023 | RQ-015, RQ-016, RQ-017, RQ-018, RQ-019, RQ-020, RQ-021 | **Direção documental:** a integração define cenários controlados e métrica versionada para custo/latência da chamada adicional e do modelo final, distinguindo estimativa local de cobrança e proibindo telemetria. **Implementação real:** IDE/runtime/OpenCode controlados demonstram bypass, roteamento, fallback e timeout, com métricas e referências permitidas, nenhum prompt/raciocínio/segredo em artefatos e evidência renderizada quando a UI existir. | bloqueado: T-093 é frente futura; não há integração, métricas ou evidência renderizada |
 | AC-024 | RQ-015, RQ-016, RQ-017, RQ-018, RQ-019, RQ-020, RQ-021, RQ-103, RQ-104 | **Direção documental:** a revisão final separa direção, implementação, suporte testado e lacunas. **Implementação real:** a revisão de código, configuração, logs, testes e artefatos confirma fallback seguro, privacidade explícita, nenhum bypass de autorização e nenhum log de prompt, raciocínio ou segredo; qualquer lacuna bloqueia a aceitação e exige evidência renderizada real quando houver UI. | bloqueado: T-094 é frente futura; nenhuma revisão ou evidência final foi executada |
+| AC-025 | RQ-022, RQ-023 | **Direção documental:** a matriz identifica `unigma+opencode` como único harness oficial, preserva o harness de execução do OpenCode e redireciona as superfícies service-only para o unigma. **Implementação real:** o artefato empacotado inicia o perfil service-only, sem TUI/onboarding/UI redundante no caminho oficial, e mantém o fluxo HTTP/SSE exigido. | bloqueado: o perfil bundled e sua validação ainda não existem |
+| AC-026 | RQ-024, RQ-025 | **Direção documental:** o decepador registra upstream, patchset, hashes, testes, auditoria e manifesto; a atualização troca o bundle atomicamente, permite rollback e não toca os dados do usuário. **Implementação real:** dois artefatos versionados demonstram build reproduzível, rejeição de candidato inválido, troca com processo parado, rollback e preservação de configuração/credenciais/sessões. | bloqueado: T-096 a T-099 são frentes futuras; não há pipeline de bundle aceito |
+| AC-027 | RQ-026, RQ-027 | **Direção documental:** o contrato nativo define `@` para ferramentas, `/` para skills, mensagens entre sessões locais e chips `thinking`/`typing`/`idle`, com OpenCode como fonte de verdade. **Implementação real:** testes de UI/runtime demonstram resolução, troca de mensagens, ciclo de vida e acessibilidade sem Webview, rede ou processo na UI. | bloqueado: T-043 e T-044 são frentes futuras |
+| AC-028 | RQ-028 | **Direção documental:** o protocolo remoto é versionado e explicitamente dormente. **Implementação real:** testes demonstram serialização/validação dos tipos e inspeção do artefato confirma ausência de listener, cloud, sincronização, colaboração ativa e backend próprio. | bloqueado: T-045 é frente futura |
+| AC-029 | RQ-105 | A revisão do core e do artefato confirma ausência de adaptador, catálogo ou carregador oficial para Codex/Claude Code; extensões externas instaladas pelo usuário são identificadas como fora do suporte, e `unigma+pi` como experimental. | direção confirmada; revisão de artefato ainda não executada |
 
 ## regra de aprovação
 
@@ -45,8 +56,8 @@ reprodução registrado ou revisão de artefato). A documentação isolada não 
 um critério; o estado aprovado de AC-013 depende dos runs e artefatos registrados
 abaixo.
 
-Para AC-016 a AC-024, direção documental é somente a especificação de T-086 a
-T-094 e nunca substitui execução. A evidência deve demonstrar fallback seguro,
+Para AC-016 a AC-029, direção documental é somente a especificação das tarefas
+correspondentes e nunca substitui execução. A evidência deve demonstrar fallback seguro,
 ausência de log de prompt, raciocínio e segredo e, quando houver UI, o estado
 renderizado no build/teste real; captura de uma especificação ou mock isolado não
 aprova a integração.
@@ -240,8 +251,9 @@ Os critérios AC-003 a AC-008 têm arquitetura e contratos operacionais aprovado
 mas requerem implementação e evidência reproduzível; AC-008 também requer uma
 combinação provider/modelo efetivamente testada.
 
-AC-016 a AC-024 correspondem à direção confirmada de RQ-015 a RQ-021, mas
-continuam bloqueados por T-086 a T-094, implementação, testes e evidência. A
-direção não fixa a fórmula ou os valores do índice/custo, não transforma `~49` em
-limite, não cria catálogo remoto e não autoriza telemetria ou persistência de
-prompt/raciocínio/segredo.
+AC-016 a AC-024 correspondem à direção confirmada de RQ-015 a RQ-021, e AC-025 a
+AC-029 à direção de RQ-022 a RQ-028/RQ-105. Todos continuam bloqueados pelas
+respectivas tarefas, implementação, testes e evidência. A direção não fixa a
+fórmula ou os valores do índice/custo, não transforma `~49` em limite, não cria
+catálogo remoto, não autoriza telemetria ou persistência de prompt/raciocínio/
+segredo e não transforma o probe OpenCode em suporte do bundle.
