@@ -7,20 +7,10 @@ import { request as httpRequest, type ClientRequest, type IncomingMessage } from
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { DisposableLike, OwnedProcessHandle, WorkspaceReference } from '../domain/runtime';
-import type { DiagnosticSink, OpenCodeClient } from '../application/runtimePorts';
+import type { DiagnosticSink, OpenCodeClient, OpenCodeEvent, OpenCodeRequest } from '../application/runtimePorts';
 
-export type OpenCodeHttpMethod = 'GET' | 'POST';
-
-export interface OpenCodeRequest {
-	readonly method: OpenCodeHttpMethod;
-	readonly path: string;
-	readonly body?: unknown;
-}
-
-export interface OpenCodeEvent {
-	readonly type: string;
-	readonly properties: Record<string, unknown>;
-}
+export type { OpenCodeEvent, OpenCodeRequest } from '../application/runtimePorts';
+export type OpenCodeHttpMethod = OpenCodeRequest['method'];
 
 export interface OpenCodeHttpClientOptions {
 	readonly requestTimeoutMs?: number;

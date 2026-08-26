@@ -36,6 +36,10 @@ export function createRuntimeInfrastructure(context: vscode.ExtensionContext): R
 
 	return {
 		ports: {
+			workspaceTrust: {
+				isTrusted: workspace => vscode.workspace.isTrusted
+					&& vscode.workspace.workspaceFolders?.some(folder => folder.uri.toString() === workspace.uri) === true,
+			},
 			processManager: {
 				ensureStarted: workspace => processManager.ensureStarted(workspace),
 				stopOwned,
@@ -43,6 +47,8 @@ export function createRuntimeInfrastructure(context: vscode.ExtensionContext): R
 			openCodeClient: {
 				connect: process => openCodeClient.connect(process),
 				disconnect,
+				send: request => openCodeClient.send(request),
+				onEvent: listener => openCodeClient.onEvent(listener),
 			},
 			sessionReferenceStore,
 			diagnostics,

@@ -20,16 +20,17 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
 import { IViewDescriptorService } from '../../../common/views.js';
-import { IUnigmaAgentRuntime } from './unigmaAgentRuntime.js';
 import { UNIGMA_AGENT_MANIFEST } from './unigmaAgentManifest.js';
+import { IUnigmaAgentRuntime } from './unigmaAgentRuntime.js';
+import {
+	EMPTY_UNIGMA_AGENT_SESSION,
+	reduceUnigmaAgentSessionEvent,
+	startUnigmaAgentSession,
+	UNIGMA_AGENT_VIEW_STATES,
+	UnigmaAgentSessionViewModel,
+} from './unigmaAgentSession.js';
 
-export const UNIGMA_AGENT_VIEW_STATES = {
-	Empty: 'empty',
-	Loading: 'loading',
-	Error: 'error',
-} as const;
-
-export type UnigmaAgentViewState = typeof UNIGMA_AGENT_VIEW_STATES[keyof typeof UNIGMA_AGENT_VIEW_STATES];
+export { UNIGMA_AGENT_VIEW_STATES } from './unigmaAgentSession.js';
 
 export class UnigmaAgentViewPane extends ViewPane {
 	static readonly ID = UNIGMA_AGENT_MANIFEST.viewId;
@@ -37,7 +38,7 @@ export class UnigmaAgentViewPane extends ViewPane {
 	private readonly renderDisposables = this._register(new DisposableStore());
 	private stateContainer: HTMLElement | undefined;
 	private agentProgressBar: ProgressBar | undefined;
-	private state: UnigmaAgentViewState = UNIGMA_AGENT_VIEW_STATES.Empty;
+	private model: UnigmaAgentSessionViewModel = EMPTY_UNIGMA_AGENT_SESSION;
 	private disposed = false;
 
 	constructor(
@@ -54,6 +55,10 @@ export class UnigmaAgentViewPane extends ViewPane {
 		@IUnigmaAgentRuntime private readonly runtime: IUnigmaAgentRuntime,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+		this._register(this.runtime.onDidReceiveEvent(event => {
+			this.model = reduceUnigmaAgentSessionEvent(this.model, event);
+			this.renderState();
+		}));
 	}
 
 	protected override renderBody(parent: HTMLElement): void {
@@ -83,18 +88,15 @@ export class UnigmaAgentViewPane extends ViewPane {
 	}
 
 	async start(): Promise<void> {
-		if (this.state === UNIGMA_AGENT_VIEW_STATES.Loading) {
+		if (this.model.state === UNIGMA_AGENT_VIEW_STATES.Loading) {
 			return;
 		}
 
-		this.setState(UNIGMA_AGENT_VIEW_STATES.Loading);
+		this.model = startUnigmaAgentSession();
+		this.renderState();
 
 		try {
 			await this.runtime.start();
-			if (!this.disposed) {
-				// T-030 has no session surface yet, so a successful seam call returns to empty.
-				this.setState(UNIGMA_AGENT_VIEW_STATES.Empty);
-			}
 		} catch {
 			if (!this.disposed) {
 				this.setState(UNIGMA_AGENT_VIEW_STATES.Error);
@@ -102,8 +104,8 @@ export class UnigmaAgentViewPane extends ViewPane {
 		}
 	}
 
-	private setState(state: UnigmaAgentViewState): void {
-		this.state = state;
+	private setState(state: UnigmaAgentSessionViewModel['state']): void {
+		this.model = { state, sessionId: this.model.sessionId };
 		if (!this.stateContainer || !this.agentProgressBar) {
 			return;
 		}
@@ -117,42 +119,77 @@ export class UnigmaAgentViewPane extends ViewPane {
 			return;
 		}
 
+		this.element.dataset['state'] = this.model.state;
 		this.renderDisposables.clear();
 		DOM.clearNode(this.stateContainer);
 		this.agentProgressBar.stop().hide();
-		this.stateContainer.setAttribute('role', this.state === UNIGMA_AGENT_VIEW_STATES.Error ? 'alert' : 'status');
+		this.stateContainer.setAttribute('role', this.model.state === UNIGMA_AGENT_VIEW_STATES.Error ? 'alert' : 'status');
 		this.stateContainer.setAttribute('aria-live', 'polite');
+		this.stateContainer.setAttribute('aria-busy', String(this.model.state === UNIGMA_AGENT_VIEW_STATES.Loading));
 
 		const title = DOM.append(this.stateContainer, DOM.$('h3'));
 		title.style.margin = '0';
-		title.textContent = this.state === UNIGMA_AGENT_VIEW_STATES.Empty
+		title.textContent = this.model.state === UNIGMA_AGENT_VIEW_STATES.Empty
 			? localize('unigmaAgent.emptyTitle', 'Ready when you are')
-			: this.state === UNIGMA_AGENT_VIEW_STATES.Loading
+			: this.model.state === UNIGMA_AGENT_VIEW_STATES.Loading
 				? localize('unigmaAgent.loadingTitle', 'Preparing the agent')
-				: localize('unigmaAgent.errorTitle', 'Agent unavailable');
+				: this.model.state === UNIGMA_AGENT_VIEW_STATES.Result
+					? localize('unigmaAgent.resultTitle', 'Agent result')
+					: localize('unigmaAgent.errorTitle', 'Agent unavailable');
 
 		const message = DOM.append(this.stateContainer, DOM.$('p'));
 		message.style.margin = '0';
 		message.style.color = 'var(--vscode-descriptionForeground)';
-		message.textContent = this.state === UNIGMA_AGENT_VIEW_STATES.Empty
+		message.textContent = this.model.state === UNIGMA_AGENT_VIEW_STATES.Empty
 			? localize('unigmaAgent.emptyMessage', 'No agent session is active.')
-			: this.state === UNIGMA_AGENT_VIEW_STATES.Loading
+			: this.model.state === UNIGMA_AGENT_VIEW_STATES.Loading
 				? localize('unigmaAgent.loadingMessage', 'Waiting for the agent runtime...')
-				: localize('unigmaAgent.errorMessage', 'The agent runtime is not connected yet.');
+				: this.model.state === UNIGMA_AGENT_VIEW_STATES.Result
+					? this.model.result || localize('unigmaAgent.resultEmpty', 'The agent completed without a message.')
+					: localize('unigmaAgent.errorMessage', 'The agent runtime is not connected yet.');
 
-		if (this.state === UNIGMA_AGENT_VIEW_STATES.Loading) {
+		if (this.model.state === UNIGMA_AGENT_VIEW_STATES.Loading) {
 			this.agentProgressBar.infinite().show();
+			return;
+		}
+
+		this.renderInput();
+		if (this.model.sessionId && this.model.state !== UNIGMA_AGENT_VIEW_STATES.Error) {
 			return;
 		}
 
 		const actionContainer = DOM.append(this.stateContainer, DOM.$('.unigma-agent-action'));
 		actionContainer.style.marginTop = '8px';
-		const actionLabel = this.state === UNIGMA_AGENT_VIEW_STATES.Error
+		const actionLabel = this.model.state === UNIGMA_AGENT_VIEW_STATES.Error
 			? localize('unigmaAgent.retry', 'Try again')
 			: localize('unigmaAgent.start', 'Start agent');
 		const action = this.renderDisposables.add(new Button(actionContainer, { ...defaultButtonStyles, ariaLabel: actionLabel }));
 		action.label = actionLabel;
 		this.renderDisposables.add(action.onDidClick(() => void this.start()));
+	}
+
+	private renderInput(): void {
+		const inputContainer = DOM.append(this.stateContainer!, DOM.$('.unigma-agent-input'));
+		inputContainer.style.width = '100%';
+		const input = DOM.append(inputContainer, DOM.$('textarea')) as HTMLTextAreaElement;
+		input.rows = 3;
+		input.placeholder = localize('unigmaAgent.inputPlaceholder', 'Ask the agent about this workspace');
+		input.setAttribute('aria-label', localize('unigmaAgent.inputLabel', 'Agent input'));
+		input.disabled = !this.model.sessionId;
+
+		const submit = (): void => {
+			const text = input.value.trim();
+			if (!text || !this.model.sessionId) {
+				return;
+			}
+			void this.runtime.sendInput(this.model.sessionId, text).then(() => input.value = '', () => this.setState(UNIGMA_AGENT_VIEW_STATES.Error));
+		};
+		this.renderDisposables.add(DOM.addDisposableListener(input, DOM.EventType.KEY_DOWN, (event: KeyboardEvent) => {
+			if (event.key === 'Enter' && !event.shiftKey) {
+				event.preventDefault();
+				submit();
+			}
+		}));
 	}
 
 	override dispose(): void {

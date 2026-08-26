@@ -11,10 +11,26 @@ import type {
 	WorkspaceReference,
 } from '../domain/runtime';
 
+export interface OpenCodeRequest {
+	readonly method: 'GET' | 'POST';
+	readonly path: string;
+	readonly body?: unknown;
+}
+
+export interface OpenCodeEvent {
+	readonly type: string;
+	readonly properties: Record<string, unknown>;
+}
+
 /** Owns the single OpenCode process associated with this extension host. */
 export interface ProcessManager {
 	ensureStarted(workspace: WorkspaceReference): Promise<OwnedProcessHandle>;
 	stopOwned(): Promise<void>;
+}
+
+/** Confirms that a command targets an open, trusted workspace. */
+export interface WorkspaceTrust {
+	isTrusted(workspace: WorkspaceReference): boolean;
 }
 
 /** Lifecycle-only boundary used by the application composition. */
@@ -43,8 +59,9 @@ export interface DiagnosticSink {
 
 /** Composition boundary for the future T-021/T-022/T-023 adapters. */
 export interface RuntimePorts {
+	readonly workspaceTrust: WorkspaceTrust;
 	readonly processManager: ProcessManager;
-	readonly openCodeClient: OpenCodeConnection;
+	readonly openCodeClient: OpenCodeClient<OpenCodeRequest, OpenCodeEvent>;
 	readonly sessionReferenceStore: SessionReferenceStore;
 	readonly diagnostics: DiagnosticSink;
 }

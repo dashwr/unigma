@@ -21,10 +21,10 @@ import {
 } from '../../../common/views.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { UNIGMA_AGENT_MANIFEST } from './unigmaAgentManifest.js';
-import { IUnigmaAgentRuntime, UnigmaAgentRuntimePlaceholder } from './unigmaAgentRuntime.js';
+import { IUnigmaAgentRuntime, UnigmaAgentRuntime } from './unigmaAgentRuntime.js';
 import { UnigmaAgentViewPane } from './unigmaAgentView.js';
 
-registerSingleton(IUnigmaAgentRuntime, UnigmaAgentRuntimePlaceholder, InstantiationType.Delayed);
+registerSingleton(IUnigmaAgentRuntime, UnigmaAgentRuntime, InstantiationType.Delayed);
 
 const unigmaAgentIcon = registerIcon(
 	'unigma-agent-view-icon',

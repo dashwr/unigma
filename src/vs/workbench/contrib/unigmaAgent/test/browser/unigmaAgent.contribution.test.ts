@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Emitter } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -14,8 +15,10 @@ import {
 	ViewContainerLocation,
 } from '../../../../common/views.js';
 import { UNIGMA_AGENT_MANIFEST } from '../../browser/unigmaAgentManifest.js';
-import { UnigmaAgentRuntimePlaceholder } from '../../browser/unigmaAgentRuntime.js';
+import { IUnigmaAgentRpcTransport, UnigmaAgentRuntime, UnigmaAgentRuntimeConnectionState } from '../../browser/unigmaAgentRuntime.js';
+import { EMPTY_UNIGMA_AGENT_SESSION, reduceUnigmaAgentSessionEvent, startUnigmaAgentSession } from '../../browser/unigmaAgentSession.js';
 import { UNIGMA_AGENT_VIEW_STATES, UnigmaAgentViewPane } from '../../browser/unigmaAgentView.js';
+import { AGENT_PROTOCOL_VERSION, AgentCommandType, AgentErrorCode, AgentEventType, AgentResultStatus, AgentSessionState } from '../../common/agentProtocol.js';
 
 import '../../browser/unigmaAgent.contribution.js';
 
@@ -40,13 +43,107 @@ suite('Unigma Agent contribution', () => {
 
 		assert.strictEqual(view.ctorDescriptor.ctor, UnigmaAgentViewPane);
 		assert.ok(CommandsRegistry.getCommand(UNIGMA_AGENT_MANIFEST.startCommandId));
-		assert.deepStrictEqual(Object.values(UNIGMA_AGENT_VIEW_STATES), ['empty', 'loading', 'error']);
+		assert.deepStrictEqual(Object.values(UNIGMA_AGENT_VIEW_STATES), ['empty', 'loading', 'error', 'result']);
 	});
 
-	test('placeholder reports unavailable without starting a runtime', async () => {
-		await assert.rejects(
-			() => new UnigmaAgentRuntimePlaceholder().start(),
-			/The unigma agent runtime is not available yet\./,
-		);
+	test('keeps an unregistered transport observably disconnected', async () => {
+		const runtime = new UnigmaAgentRuntime();
+		const events: unknown[] = [];
+		runtime.onDidReceiveEvent(event => events.push(event));
+
+		assert.strictEqual(runtime.connectionState, UnigmaAgentRuntimeConnectionState.Disconnected);
+		await runtime.start();
+		assert.deepStrictEqual(events, [{
+			version: AGENT_PROTOCOL_VERSION,
+			type: AgentEventType.Error,
+			requestId: 'unigma-agent-1',
+			error: { code: AgentErrorCode.RuntimeUnavailable, message: 'No unigma agent RPC transport is registered.', retryable: true },
+		}]);
+		runtime.dispose();
+	});
+
+	test('translates versioned transport events and propagates the created session to input', async () => {
+		const received = new Emitter<unknown>();
+		const sent: unknown[] = [];
+		const transport: IUnigmaAgentRpcTransport = {
+			onDidReceiveEvent: received.event,
+			send: async command => sent.push(command),
+		};
+		const runtime = new UnigmaAgentRuntime();
+		const events: unknown[] = [];
+		runtime.onDidReceiveEvent(event => events.push(event));
+		const registration = runtime.registerTransport(transport);
+
+		assert.strictEqual(runtime.connectionState, UnigmaAgentRuntimeConnectionState.Connected);
+		await runtime.start();
+		received.fire({ version: AGENT_PROTOCOL_VERSION, type: AgentEventType.State, sessionId: 'session-1', state: AgentSessionState.Starting });
+		await runtime.sendInput('session-1', 'Explain this change.');
+
+		assert.deepStrictEqual(events, [{ version: AGENT_PROTOCOL_VERSION, type: AgentEventType.State, sessionId: 'session-1', state: AgentSessionState.Starting }]);
+		assert.deepStrictEqual(sent, [
+			{ version: AGENT_PROTOCOL_VERSION, requestId: 'unigma-agent-1', type: AgentCommandType.StartSession },
+			{ version: AGENT_PROTOCOL_VERSION, requestId: 'unigma-agent-2', type: AgentCommandType.SendInput, sessionId: 'session-1', text: 'Explain this change.' },
+		]);
+
+		registration.dispose();
+		assert.strictEqual(runtime.connectionState, UnigmaAgentRuntimeConnectionState.Disconnected);
+		runtime.dispose();
+		received.dispose();
+	});
+
+	test('translates invalid transport events and send failures to protocol errors', async () => {
+		const received = new Emitter<unknown>();
+		const runtime = new UnigmaAgentRuntime();
+		const events: unknown[] = [];
+		runtime.onDidReceiveEvent(event => events.push(event));
+		const registration = runtime.registerTransport({
+			onDidReceiveEvent: received.event,
+			send: async () => { throw new Error('offline'); },
+		});
+
+		received.fire({ version: 2, type: AgentEventType.State, sessionId: 'session-1', state: AgentSessionState.Running });
+		await runtime.sendInput('session-1', 'hello');
+
+		assert.deepStrictEqual(events, [
+			{ version: AGENT_PROTOCOL_VERSION, type: AgentEventType.Error, sessionId: 'session-1', error: { code: AgentErrorCode.UnsupportedVersion, message: 'Unsupported agent protocol version.', retryable: false } },
+			{ version: AGENT_PROTOCOL_VERSION, type: AgentEventType.Error, requestId: 'unigma-agent-1', sessionId: 'session-1', error: { code: AgentErrorCode.ConnectionLost, message: 'The unigma agent RPC transport disconnected.', retryable: true } },
+		]);
+
+		registration.dispose();
+		runtime.dispose();
+		received.dispose();
+	});
+
+	test('reduces RPC session events without retaining another session', () => {
+		const loading = startUnigmaAgentSession();
+		const earlyResult = reduceUnigmaAgentSessionEvent(loading, {
+			version: AGENT_PROTOCOL_VERSION,
+			type: AgentEventType.Result,
+			sessionId: 'session-1',
+			result: { status: AgentResultStatus.Completed, content: 'Old result.' },
+		});
+		const starting = reduceUnigmaAgentSessionEvent(loading, {
+			version: AGENT_PROTOCOL_VERSION,
+			type: AgentEventType.State,
+			sessionId: 'session-1',
+			state: AgentSessionState.Starting,
+		});
+		const result = reduceUnigmaAgentSessionEvent(starting, {
+			version: AGENT_PROTOCOL_VERSION,
+			type: AgentEventType.Result,
+			sessionId: 'session-1',
+			result: { status: AgentResultStatus.Completed, content: 'Completed.' },
+		});
+		const ignored = reduceUnigmaAgentSessionEvent(result, {
+			version: AGENT_PROTOCOL_VERSION,
+			type: AgentEventType.Error,
+			sessionId: 'session-2',
+			error: { code: AgentErrorCode.ConnectionLost, message: 'Lost.', retryable: true },
+		});
+
+		assert.deepStrictEqual(EMPTY_UNIGMA_AGENT_SESSION, { state: UNIGMA_AGENT_VIEW_STATES.Empty });
+		assert.strictEqual(earlyResult, loading);
+		assert.deepStrictEqual(result, { state: UNIGMA_AGENT_VIEW_STATES.Result, sessionId: 'session-1', result: 'Completed.' });
+		assert.strictEqual(ignored, result);
 	});
 });
