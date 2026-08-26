@@ -135,7 +135,7 @@ export class UnigmaAgentRuntime extends Disposable implements IUnigmaAgentRuntim
 				message: 'No unigma agent RPC transport is registered.',
 				retryable: true,
 			});
-			return;
+			throw new Error('No unigma agent RPC transport is registered.');
 		}
 
 		try {
@@ -146,6 +146,7 @@ export class UnigmaAgentRuntime extends Disposable implements IUnigmaAgentRuntim
 				message: 'The unigma agent RPC transport disconnected.',
 				retryable: true,
 			});
+			throw new Error('The unigma agent RPC transport disconnected.');
 		}
 	}
 

@@ -17,7 +17,7 @@ import {
 import { UNIGMA_AGENT_MANIFEST } from '../../browser/unigmaAgentManifest.js';
 import { IUnigmaAgentRpcTransport, UnigmaAgentRuntime, UnigmaAgentRuntimeConnectionState } from '../../browser/unigmaAgentRuntime.js';
 import { EMPTY_UNIGMA_AGENT_SESSION, reduceUnigmaAgentSessionEvent, startUnigmaAgentSession } from '../../browser/unigmaAgentSession.js';
-import { UNIGMA_AGENT_VIEW_STATES, UnigmaAgentViewPane } from '../../browser/unigmaAgentView.js';
+import { getUnigmaAgentStateAccessibility, UNIGMA_AGENT_VIEW_STATES, UnigmaAgentViewPane } from '../../browser/unigmaAgentView.js';
 import { AGENT_PROTOCOL_VERSION, AgentCommandType, AgentErrorCode, AgentEventType, AgentResultStatus, AgentSessionState } from '../../common/agentProtocol.js';
 
 import '../../browser/unigmaAgent.contribution.js';
@@ -46,13 +46,20 @@ suite('Unigma Agent contribution', () => {
 		assert.deepStrictEqual(Object.values(UNIGMA_AGENT_VIEW_STATES), ['empty', 'loading', 'error', 'result']);
 	});
 
+	test('exposes coherent live-region semantics for agent states', () => {
+		assert.deepStrictEqual(getUnigmaAgentStateAccessibility(UNIGMA_AGENT_VIEW_STATES.Empty), {});
+		assert.deepStrictEqual(getUnigmaAgentStateAccessibility(UNIGMA_AGENT_VIEW_STATES.Loading), { role: 'status', live: 'polite', busy: true });
+		assert.deepStrictEqual(getUnigmaAgentStateAccessibility(UNIGMA_AGENT_VIEW_STATES.Error), { role: 'alert', live: 'assertive', busy: false });
+		assert.deepStrictEqual(getUnigmaAgentStateAccessibility(UNIGMA_AGENT_VIEW_STATES.Result), { role: 'status', live: 'polite', busy: false });
+	});
+
 	test('keeps an unregistered transport observably disconnected', async () => {
 		const runtime = new UnigmaAgentRuntime();
 		const events: unknown[] = [];
 		runtime.onDidReceiveEvent(event => events.push(event));
 
 		assert.strictEqual(runtime.connectionState, UnigmaAgentRuntimeConnectionState.Disconnected);
-		await runtime.start();
+		await assert.rejects(runtime.start(), /No unigma agent RPC transport is registered/);
 		assert.deepStrictEqual(events, [{
 			version: AGENT_PROTOCOL_VERSION,
 			type: AgentEventType.Error,

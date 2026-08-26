@@ -32,6 +32,19 @@ import {
 
 export { UNIGMA_AGENT_VIEW_STATES } from './unigmaAgentSession.js';
 
+export function getUnigmaAgentStateAccessibility(state: UnigmaAgentSessionViewModel['state']): { readonly role?: string; readonly live?: string; readonly busy?: boolean } {
+	switch (state) {
+		case UNIGMA_AGENT_VIEW_STATES.Loading:
+			return { role: 'status', live: 'polite', busy: true };
+		case UNIGMA_AGENT_VIEW_STATES.Error:
+			return { role: 'alert', live: 'assertive', busy: false };
+		case UNIGMA_AGENT_VIEW_STATES.Result:
+			return { role: 'status', live: 'polite', busy: false };
+		default:
+			return {};
+	}
+}
+
 export class UnigmaAgentViewPane extends ViewPane {
 	static readonly ID = UNIGMA_AGENT_MANIFEST.viewId;
 
@@ -39,6 +52,8 @@ export class UnigmaAgentViewPane extends ViewPane {
 	private stateContainer: HTMLElement | undefined;
 	private agentProgressBar: ProgressBar | undefined;
 	private model: UnigmaAgentSessionViewModel = EMPTY_UNIGMA_AGENT_SESSION;
+	private inputValue = '';
+	private isSubmitting = false;
 	private disposed = false;
 
 	constructor(
@@ -84,6 +99,7 @@ export class UnigmaAgentViewPane extends ViewPane {
 		this.stateContainer.style.alignItems = 'flex-start';
 		this.stateContainer.style.padding = '20px 0';
 		this.stateContainer.style.gap = '8px';
+		this.stateContainer.tabIndex = -1;
 		this.renderState();
 	}
 
@@ -94,12 +110,14 @@ export class UnigmaAgentViewPane extends ViewPane {
 
 		this.model = startUnigmaAgentSession();
 		this.renderState();
+		this.stateContainer?.focus();
 
 		try {
 			await this.runtime.start();
 		} catch {
 			if (!this.disposed) {
 				this.setState(UNIGMA_AGENT_VIEW_STATES.Error);
+				this.stateContainer?.focus();
 			}
 		}
 	}
@@ -123,12 +141,28 @@ export class UnigmaAgentViewPane extends ViewPane {
 		this.renderDisposables.clear();
 		DOM.clearNode(this.stateContainer);
 		this.agentProgressBar.stop().hide();
-		this.stateContainer.setAttribute('role', this.model.state === UNIGMA_AGENT_VIEW_STATES.Error ? 'alert' : 'status');
-		this.stateContainer.setAttribute('aria-live', 'polite');
-		this.stateContainer.setAttribute('aria-busy', String(this.model.state === UNIGMA_AGENT_VIEW_STATES.Loading));
+		const accessibility = getUnigmaAgentStateAccessibility(this.model.state);
+		for (const [attribute, value] of [['role', accessibility.role], ['aria-live', accessibility.live], ['aria-busy', accessibility.busy === undefined ? undefined : String(accessibility.busy)]]) {
+			if (value === undefined) {
+				this.stateContainer.removeAttribute(attribute);
+			} else {
+				this.stateContainer.setAttribute(attribute, value);
+			}
+		}
+		this.stateContainer.style.borderLeft = this.model.state === UNIGMA_AGENT_VIEW_STATES.Error
+			? '2px solid var(--vscode-inputValidation-errorBorder)'
+			: this.model.state === UNIGMA_AGENT_VIEW_STATES.Result
+				? '2px solid var(--vscode-testing-iconPassed)'
+				: '';
+		this.stateContainer.style.paddingLeft = this.model.state === UNIGMA_AGENT_VIEW_STATES.Error || this.model.state === UNIGMA_AGENT_VIEW_STATES.Result ? '8px' : '';
 
 		const title = DOM.append(this.stateContainer, DOM.$('h3'));
 		title.style.margin = '0';
+		title.style.color = this.model.state === UNIGMA_AGENT_VIEW_STATES.Error
+			? 'var(--vscode-errorForeground)'
+			: this.model.state === UNIGMA_AGENT_VIEW_STATES.Result
+				? 'var(--vscode-testing-iconPassed)'
+				: '';
 		title.textContent = this.model.state === UNIGMA_AGENT_VIEW_STATES.Empty
 			? localize('unigmaAgent.emptyTitle', 'Ready when you are')
 			: this.model.state === UNIGMA_AGENT_VIEW_STATES.Loading
@@ -171,21 +205,64 @@ export class UnigmaAgentViewPane extends ViewPane {
 	private renderInput(): void {
 		const inputContainer = DOM.append(this.stateContainer!, DOM.$('.unigma-agent-input'));
 		inputContainer.style.width = '100%';
+		inputContainer.style.display = 'flex';
+		inputContainer.style.flexDirection = 'column';
+		inputContainer.style.alignItems = 'flex-start';
+		inputContainer.style.gap = '8px';
+		inputContainer.setAttribute('aria-busy', String(this.isSubmitting));
 		const input = DOM.append(inputContainer, DOM.$('textarea')) as HTMLTextAreaElement;
 		input.rows = 3;
 		input.placeholder = localize('unigmaAgent.inputPlaceholder', 'Ask the agent about this workspace');
 		input.setAttribute('aria-label', localize('unigmaAgent.inputLabel', 'Agent input'));
-		input.disabled = !this.model.sessionId;
+		input.style.width = '100%';
+		input.style.boxSizing = 'border-box';
+		input.style.backgroundColor = 'var(--vscode-input-background)';
+		input.style.color = 'var(--vscode-input-foreground)';
+		input.style.borderColor = 'var(--vscode-input-border)';
+		input.value = this.inputValue;
+		input.disabled = !this.model.sessionId || this.isSubmitting;
+
+		const submitLabel = this.isSubmitting
+			? localize('unigmaAgent.sending', 'Sending...')
+			: localize('unigmaAgent.submit', 'Send');
+		const submitButton = this.renderDisposables.add(new Button(inputContainer, {
+			...defaultButtonStyles,
+			ariaLabel: submitLabel,
+			disabled: !this.model.sessionId || this.isSubmitting || !this.inputValue.trim(),
+		}));
+		submitButton.label = submitLabel;
 
 		const submit = (): void => {
 			const text = input.value.trim();
-			if (!text || !this.model.sessionId) {
+			if (!text || !this.model.sessionId || this.isSubmitting) {
 				return;
 			}
-			void this.runtime.sendInput(this.model.sessionId, text).then(() => input.value = '', () => this.setState(UNIGMA_AGENT_VIEW_STATES.Error));
+			this.inputValue = input.value;
+			this.isSubmitting = true;
+			input.disabled = true;
+			inputContainer.setAttribute('aria-busy', 'true');
+			submitButton.enabled = false;
+			submitButton.label = localize('unigmaAgent.sending', 'Sending...');
+			submitButton.setAriaLabel(localize('unigmaAgent.sending', 'Sending...'));
+			void this.runtime.sendInput(this.model.sessionId, text).then(() => {
+				this.inputValue = '';
+				this.isSubmitting = false;
+				input.value = '';
+				input.disabled = false;
+				inputContainer.setAttribute('aria-busy', 'false');
+			}, () => {
+				this.isSubmitting = false;
+				this.setState(UNIGMA_AGENT_VIEW_STATES.Error);
+				this.stateContainer?.focus();
+			});
 		};
+		this.renderDisposables.add(DOM.addDisposableListener(input, DOM.EventType.INPUT, () => {
+			this.inputValue = input.value;
+			submitButton.enabled = !!this.model.sessionId && !this.isSubmitting && !!this.inputValue.trim();
+		}));
+		this.renderDisposables.add(submitButton.onDidClick(submit));
 		this.renderDisposables.add(DOM.addDisposableListener(input, DOM.EventType.KEY_DOWN, (event: KeyboardEvent) => {
-			if (event.key === 'Enter' && !event.shiftKey) {
+			if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
 				event.preventDefault();
 				submit();
 			}
