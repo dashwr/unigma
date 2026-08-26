@@ -203,7 +203,6 @@ jobs:
           $script = @'
           set -euo pipefail
           build="$1"
-          export BUILD_SOURCEVERSION="$2"
           export PATH="/opt/node-current/bin:$PATH"
           export NODE_OPTIONS="--max-old-space-size=12288"
           cd "$build"
