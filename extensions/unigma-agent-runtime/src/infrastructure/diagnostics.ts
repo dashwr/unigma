@@ -11,8 +11,20 @@ export interface DiagnosticWriter {
 	dispose?(): void;
 }
 
-function safeIdentifier(value: string | undefined): string {
-	return value === undefined ? '' : value.replace(/[^a-zA-Z0-9._:-]/g, '_').slice(0, 128);
+function safeIdentifier(value: unknown): string {
+	return typeof value !== 'string' ? '' : value.replace(/[^a-zA-Z0-9._:-]/g, '_').slice(0, 128);
+}
+
+function safeLevel(value: DiagnosticRecord['level']): DiagnosticRecord['level'] {
+	switch (value) {
+		case 'debug':
+		case 'info':
+		case 'warn':
+		case 'error':
+			return value;
+		default:
+			return 'info';
+	}
 }
 
 /** Writes only the allowlisted diagnostic fields; payloads never reach this sink. */
@@ -24,11 +36,12 @@ export class RedactedDiagnosticSink implements DiagnosticSink, DisposableLike {
 	}
 
 	public record(diagnostic: DiagnosticRecord): void {
+		const level = safeLevel(diagnostic.level);
 		const code = safeIdentifier(diagnostic.code);
 		const request = safeIdentifier(diagnostic.requestId);
 		const session = safeIdentifier(diagnostic.sessionId);
 		const correlation = [request && `request=${request}`, session && `session=${session}`].filter(Boolean).join(' ');
-		this.writer.appendLine(`[${diagnostic.level}] ${code}${correlation ? ` ${correlation}` : ''}`);
+		this.writer.appendLine(`[${level}] ${code}${correlation ? ` ${correlation}` : ''}`);
 	}
 
 	public dispose(): void {

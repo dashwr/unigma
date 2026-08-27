@@ -29,12 +29,12 @@ export function startUnigmaAgentSession(): UnigmaAgentSessionViewModel {
 /** Reduces only events for the active session, keeping the UI independent from the RPC transport. */
 export function reduceUnigmaAgentSessionEvent(model: UnigmaAgentSessionViewModel, event: AgentEvent): UnigmaAgentSessionViewModel {
 	if (event.type === AgentEventType.Error) {
-		return !event.sessionId || !model.sessionId || event.sessionId === model.sessionId
-			? { state: UNIGMA_AGENT_VIEW_STATES.Error, sessionId: event.sessionId ?? model.sessionId }
-			: model;
+		return event.sessionId && (!model.sessionId || event.sessionId !== model.sessionId)
+			? model
+			: { state: UNIGMA_AGENT_VIEW_STATES.Error, sessionId: event.sessionId ?? model.sessionId };
 	}
 
-	if (!model.sessionId && model.state === UNIGMA_AGENT_VIEW_STATES.Loading && event.type !== AgentEventType.State) {
+	if (!model.sessionId && event.type !== AgentEventType.State) {
 		return model;
 	}
 

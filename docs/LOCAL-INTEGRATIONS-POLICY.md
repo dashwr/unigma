@@ -1,6 +1,8 @@
 # unigma - politica de integracoes locais
 
-> **status:** politica documental de T-012 da E-01, sem implementacao.
+> **status:** politica documental de T-012 da E-01 com camada de preflight e
+> bridge serializavel de startup implementadas. Ela ainda nao prova carregamento
+> ou recusa contra um processo OpenCode real.
 > Ela define o comportamento minimo para MCP, plugins e regras que venham a
 > ser encaminhados ao OpenCode. Nao cria catalogo, instalador, servico,
 > armazenamento ou mecanismo de autorizacao proprio.
@@ -108,6 +110,49 @@ Chaves, tipos, extensoes e campos adicionais que nao estejam documentados para
 a versao em uso nao sao aceitos.
 
 ## 3. Trust e carregamento
+
+### 3.0 Preflight implementado
+
+`src/vs/workbench/contrib/unigmaAgent/common/localIntegrationPolicy.ts` recebe
+somente classificacoes sanitizadas de tipo, origem, escopo de caminho, schema,
+comando, dependencia, URL, OAuth, precedencia e aprovacao. Nao recebe nem
+retorna configuracao bruta, caminho, argumento de comando, URL, regra, header,
+ambiente ou credencial. A decisao retorna apenas tipo, classificacao de origem,
+classificacao de caminho e estado de aprovacao, mais um codigo de recusa quando
+aplicavel.
+
+O preflight recusa deterministicamente workspace nao confiavel, origem remota
+ou desconhecida, precedencia ambigua, escape de caminho, symlink externo,
+caminho indisponivel, schema invalido, comando instalador (inclusive
+classificacoes para `npx -y` e `bun x`), plugin npm, dependencia que instale no
+startup, URL inseguro ou desconhecido, OAuth silencioso e aprovacao ausente.
+
+O runtime exige uma decisao sanitizada em
+`RuntimePorts.localIntegrationPreflight` imediatamente antes de
+`ProcessManager.ensureStarted()`. Uma recusa registra somente o codigo estatico
+`runtime.integration.refused.*`, nao inicia o processo e nao executa teardown de
+processo que ainda nao existe. A ausencia da decisao recusa a rota com
+`unknownOrigin`; nunca existe allow implicito. O extension host revalida a
+decisao recebida antes de iniciar o processo; como ainda nao possui um
+classificador proprio de plugin/regra, a composicao de producao recusa com
+`unknownOrigin` em vez de confiar cegamente no `{ accepted: true }` recebido.
+
+O workbench agora classifica MCPs instalados e permitidos, alem de aceitar fontes
+explicitamente classificadas de plugin e regra, usando somente categorias
+sanitizadas. O contrato de transporte aceita apenas `{ accepted }` ou
+`{ accepted, code }`. A bridge valida a decisao novamente antes do startup e as
+rotas sem decisao recusam. Plugin e regra ainda nao possuem descoberta conectada
+neste ciclo; portanto uma decisao aceita nao constitui clearance para esses tipos,
+e T-012 continua parcial ate que sejam enumerados ou explicitamente desabilitados.
+Enquanto esse inventario nao existe, a view marca a precondicao como incompleta e
+recusa o startup com `unknownOrigin`, inclusive quando a lista de MCP esta vazia.
+
+A ponte de producao entre `IUnigmaAgentRpcTransport` no workbench e
+`RuntimeTransportBridge` no extension host usa os comandos internos
+`unigma.agent.runtime.transport.send` e
+`unigma.agent.runtime.transport.event`. O primeiro recebe somente um envelope
+serializavel e retorna `void`; o segundo encaminha eventos validados para a UI.
+Nao existe retorno de objeto com metodos/eventos por `executeCommand`.
 
 ### 3.1 Gates
 

@@ -3,8 +3,32 @@
 > **status:** backlog derivado da arquitetura aprovada em 2026-08-22. A E-00 tem
 > build, artefato, auditoria técnica e smoke de núcleo Windows x64 e Linux x64
 > reproduzidos no head `838ca94e`; a revisão legal/third-party e os direitos de
-> branding continuam pendentes. As demais
-> tarefas continuam futuras. Este arquivo não autoriza distribuição ou publicação.
+> branding continuam pendentes. O plano de fechamento está em
+> [`planos/2026-08-26-e00-e01.md`](planos/2026-08-26-e00-e01.md).
+> As demais tarefas além dos recortes 2A/2B continuam futuras. Este arquivo não
+> autoriza distribuição ou publicação.
+
+> feito: overnight 2026-08-27 executou triagem E00–E03, aplicou correções locais
+> no bridge, auditor e recortes estruturalmente independentes, e registrou evidência/bloqueios em
+> [`status/2026-08-27-overnight.md`](status/2026-08-27-overnight.md); nenhum épico
+> foi promovido sem runner, bundle ou revisão independente.
+>
+> feito: `test-build-scripts` passou com 270 testes/40 suites e `compile-client`
+> passou em `2.47 min`; ambos são evidência local e não fecham os gates oficiais.
+>
+> feito: decisão `D-023` confirmou manter `service-only`; `opencode serve` já é
+> headless, então a próxima etapa é auditar superfícies e aplicar somente patch
+> mínimo comprovado.
+>
+> feito: plano de ondas E00–E03 criado em
+> [`planos/2026-08-27-e00-e03-ondas.md`](planos/2026-08-27-e00-e03-ondas.md) e
+> apontado pelo `AGENTS.md`; os recortes 2A/2B foram verificados e a onda 3 não
+> foi iniciada.
+>
+> feito: onda 1 executada nas lanes 1A–1F; evidências e bloqueios foram
+> consolidados em [`status/2026-08-27-overnight.md`](status/2026-08-27-overnight.md);
+> os recortes 2A/T-020 e 2B/T-030 da onda 2 foram verificados localmente, sem
+> promover E02/E03 a aceite.
 
 ## como usar
 
@@ -242,15 +266,17 @@ ativos e release continuam bloqueados.
 ## E-01 — contratos operacionais
 
 **status:** os quatro contratos da E-01 estão documentados no checkout. T-010
-tem contrato implementado e validado; T-011, T-012 e T-013 continuam
-especificações documentais condicionais, sem suporte funcional. A E-01 não
-declara suporte de OpenCode, providers, integrações locais ou SSH.
+tem implementação inicial e T-011/T-012/T-013 têm políticas/matrizes iniciais,
+mas o fechamento exige evidência executável fail-closed. O plano de fechamento
+separa o gate contratual do suporte funcional downstream; nenhum provider,
+integração local ou SSH é anunciado sem teste real.
 
 ### T-010 — especificar domínio e RPC UI↔runtime
 
-**status:** contrato TypeScript implementado e validado, com validação estrutural
-e teste de contrato; runtime e integração funcional permanecem nas tarefas
-posteriores.
+**status:** contrato TypeScript e handler RPC do runtime têm implementação
+inicial, com testes-fonte para duplicidade, sessão ausente, concorrência,
+rollback e redaction. A suíte compilada do working tree atual ainda precisa ser
+executada no runner.
 
 - **objetivo:** transformar `AgentCommand`/`AgentEvent` em contrato TypeScript
   versionado, com estados, erros, `requestId` e validação de fronteira.
@@ -275,9 +301,11 @@ posteriores.
 
 ### T-011 — definir compatibilidade OpenCode e providers
 
-**status:** especificação documental condicional; versão, checksum e binário
-OpenCode não foram fixados nem testados, portanto nenhum suporte funcional ou de
-release é declarado.
+**status:** matriz documental e fixture interna alinhadas aos 15 pares
+método/path consultados pelo cliente; `/usr/bin/opencode` `1.18.23` foi
+verificado por SHA-256 e passou no probe real isolado de health, OpenAPI,
+workspace, SSE, sessão e operações mínimas. Nenhum provider/modelo é anunciado
+como suportado; a suíte-fonte ainda depende de `mocha`, ausente no checkout.
 
 - **objetivo:** enumerar versão/protocolo HTTP/SSE, endpoints usados, eventos,
   tratamento de reinício e conjunto inicial de providers/modelos permitido.
@@ -298,9 +326,10 @@ release é declarado.
 
 ### T-012 — definir política local de MCP, plugins e regras
 
-**status:** especificação documental condicional, sem suporte funcional;
-implementação e evidências de carregamento, recusa, trust e redaction continuam
-pendentes.
+**status:** preflight sanitizado, revalidação no extension host, bridge
+serializável workbench↔extension host e testes-fonte de recusa implementados. O
+inventário conectado de plugin/regra, a suíte compilada e a evidência contra
+OpenCode real continuam pendentes; não há suporte funcional anunciado.
 
 - **objetivo:** definir fontes, formato, confiança, carregamento, recusa e
   isolamento das integrações locais encaminhadas ao OpenCode.
@@ -320,9 +349,10 @@ pendentes.
 
 ### T-013 — definir contrato de SSH remoto
 
-**status:** especificação documental condicional, sem suporte funcional; conexão,
-provisionamento e execução da matriz continuam pendentes. Host remoto Windows
-permanece recusado por este contrato e não é suporte publicado.
+**status:** política pura e matriz fail-closed implementadas, com smoke local das
+recusas. Transporte, provisionamento, `known_hosts` e conexão real continuam
+pendentes. Host remoto Windows permanece recusado por este contrato e não é
+suporte publicado.
 
 - **objetivo:** fixar matriz de host/cliente, provisionamento permitido,
   `known_hosts`, agente SSH, falhas e versão do servidor remoto.
@@ -343,6 +373,10 @@ permanece recusado por este contrato e não é suporte publicado.
 ## E-02 — runtime OpenCode
 
 ### T-020 — criar esqueleto de `unigma-agent-runtime`
+
+**status:** recorte 2A verificado em Node `24.18.0`/npm `11.16.0`; compile e a
+suíte oficial do runtime passaram com 59 testes. Runner multiplataforma e
+integração E02/E03 ainda estão pendentes.
 
 - **objetivo:** criar a extensão interna com camadas `application`, `domain` e
   `infrastructure`, ativação preguiçosa e ponto de RPC.
@@ -444,6 +478,10 @@ runs finais; integração no fluxo de sessão permanece pendente.
 ## E-03 — workbench nativo
 
 ### T-030 — criar contribuição nativa `unigmaAgent`
+
+**status:** recorte 2B verificado localmente; compile do cliente e teste browser
+focado passaram. Integração de sessão/controle, matriz oficial e runner ainda
+estão pendentes.
 
 - **objetivo:** registrar contribuição de workbench, comandos, painel e ciclo de
   vida sem criar Webview ou acesso direto à rede/processo.
@@ -1225,8 +1263,10 @@ exemplos numéricos da direção, inclusive `~49`, não são valores normativos.
 
 ## E-09 — perfil OpenCode service-only e bundle
 
-**status:** direção confirmada em 2026-08-26; o perfil bundled, o decepador e a
-atualização atômica ainda não foram implementados ou aceitos. Ver
+**status:** direção confirmada em 2026-08-26 e refinada em 2026-08-27; `opencode
+serve` já é headless, mas o perfil bundled, o decepador e a atualização atômica
+ainda não foram implementados ou aceitos. Não fazer poda ampla sem auditoria de
+superfícies alcançáveis/empacotadas. Ver
 [`OPENCODE-SERVICE-ONLY.md`](OPENCODE-SERVICE-ONLY.md).
 
 ### T-095 — inventariar superfícies e fixar a fronteira service-only
@@ -1515,3 +1555,130 @@ Esse particionamento maximiza paralelismo por fronteira: runtime, workbench,
 SSH, performance e CI têm responsáveis e diretórios distintos. Quando duas
 tarefas precisarem editar o mesmo arquivo, a dependência deve ser explicitada ou
 o trabalho deve ser dividido em subtarefas por módulo.
+
+## registro da rodada — 2026-08-26
+
+- foi criado `docs/planos/2026-08-26-e00-e01.md` com três barreiras rígidas para o
+  fechamento atual de E-00/E-01;
+- a onda 1 reúne E00-A, E01-A/T-010, E01-B/T-011 e E01-D/T-013, que não
+  compartilham arquivos de implementação; E00-B ficou na onda 2 por compartilhar
+  `docs/status/THIRD-PARTY-REVIEW.md` com E00-A;
+- a onda 2 contém E00-B e E01-C/T-012, sendo que T-012 depende da versão e da
+  configuração observadas em T-011;
+- a onda 3 é E01-E: evidência final, testes, validação Linux/Windows sequencial
+  e atualização dos documentos de aceite;
+- nenhuma tarefa técnica foi marcada como concluída por esta reorganização;
+  permanecem válidos os estados, bloqueios e evidências registrados acima.
+
+## resultado da onda 1 — 2026-08-26
+
+Execução da onda 1 encerrada com os estados abaixo. A onda 2 foi iniciada
+parcialmente em E01-C/T-012; a onda 3 não foi iniciada. Nenhum item foi
+promovido a concluído quando o teste exigido ficou bloqueado.
+
+### E00-A — parcial/bloqueada
+
+- o auditor de notices passou a executar diretamente com Node, sem `tsx` global;
+- a execução encontrou 79 notices, 1.393 nomes em manifests, 72 sobrepostos,
+  7 `notice-only`, 1.321 `manifest-only`, 7 licenças não declaradas e 7
+  divergências notice/manifest; não encontrou duplicatas;
+- hashes de licença/notices foram conferidos; `node --check` dos auditores passou;
+- `docs/status/THIRD-PARTY-REVIEW.md` e
+  `docs/status/2026-08-26-third-party-inventory.md` receberam a evidência e as
+  limitações observadas;
+- a frente permanece bloqueada por lacunas de classificação, ausência local dos
+  tar/ZIP finais e falta de dependências para `test-build-scripts`.
+
+### E01-A / T-010 — parcial
+
+- o handler RPC passou a rejeitar `sessionId` cuja referência pertence a outro
+  workspace;
+- foram adicionados casos para workspace divergente, duplicidade concorrente,
+  retry após rollback e dispose;
+- `npm test` não carregou a suíte compilada porque `mocha` está ausente e `tsc`
+  também não está disponível localmente; não houve instalação de dependências;
+- `git diff --check` passou. A suíte compilada exigida continua pendente.
+
+### E01-B / T-011 — parcial
+
+- `/usr/bin/opencode` `1.18.23` foi sondado em loopback; o SHA-256 Linux
+  registrado foi `f80650dcfc1308afaecc2d343c9a0a52fdc2dacd49150b7256a000acf068799f`;
+- passaram health, OpenAPI, `/doc`, `/path`, `/event`, `server.connected`,
+  sessão, status, detalhe, mensagens, diff, `prompt_async`, abort, permissão
+  sintética, providers/configuração sem credencial, restart e nova assinatura
+  SSE;
+- o adaptador passou a usar `/path.directory` como autoridade quando presente,
+  com `worktree` como possível raiz Git pai; a política padrão de restart ficou
+  limitada a uma tentativa;
+- a matriz e os adaptadores receberam as evidências. Nenhum provider/modelo foi
+  anunciado e o binário externo não foi tratado como bundle suportado;
+- a suíte compilada continua bloqueada por `mocha`; SHA Windows, manifesto que
+  prove a origem do binário Linux, SSE interrompido/reconexão do cliente, eventos
+  reais de prompt, diff não vazio e permissão real continuam pendentes.
+
+### E01-D / T-013 — parcial
+
+- a matriz/política SSH fail-closed foi validada para Windows/Linux x64 → host
+  Linux x64 e recusas de host Windows, arquitetura fora da matriz, trust,
+  chaves/hosts inválidos, OpenSSH ausente, destino inválido, transporte perdido
+  e gates ausentes;
+- foram adicionados testes para gate ausente e para garantir saída declarativa
+  sem instruções de credencial, fallback ou replay;
+- o teste-fonte foi bloqueado pela ausência do artefato compilado
+  `remoteSshPolicy.js`; `tsc` não está disponível localmente;
+- não houve conexão SSH, alteração de `known_hosts` ou uso de credenciais.
+
+### nota operacional
+
+`sudo` pode ser executado quando indispensável **somente mediante autorização
+explícita pelo askpass/interação do usuário**. Isso não autoriza execução
+automática, armazenamento de senha ou contorno das regras de privilégio; não foi
+usado nesta onda.
+
+## resultado parcial da onda 2 — 2026-08-26
+
+### E01-C / T-012 — parcial
+
+- o contrato privado de transporte foi versionado e validado na fronteira, com
+  comandos/eventos serializáveis, versão, `requestId`, erros sanitizados e sem
+  configuração bruta ou segredo;
+- o bridge passou a encaminhar comandos por
+  `unigma.agent.runtime.transport.send` e eventos por
+  `unigma.agent.runtime.transport.event`; o retorno de objeto com métodos/eventos
+  por `executeCommand` foi removido;
+- o runtime revalida trust e preflight imediatamente antes de
+  `ProcessManager.ensureStarted()`, recusa `unknownOrigin` na composição de
+  produção sem classificador de plugin/regra, rejeita request duplicado e sessão
+  desconhecida, valida eventos e encerra conexão/processo de forma assíncrona;
+- o workbench classifica MCP e aceita somente classificações sanitizadas para
+  plugin/regra. Como o inventário de plugin/regra ainda não está conectado, a
+  view mantém `sourceInventoryComplete: false` e recusa o startup;
+- foram adicionados/ajustados testes-fonte para contrato, bridge, ativação,
+  eventos inválidos, duplicidade, sessão ausente e inventário incompleto;
+- uma revisão independente somente de leitura confirmou as correções de
+  revalidação, duplicidade, sessão, eventos e teardown, sem findings novos
+  altos/médios;
+- passaram checagens de sintaxe TypeScript, smoke puro da política, parsing dos
+  manifestos e `git diff --check`;
+- a suíte oficial ainda não foi executada: `node_modules` não existe e
+  `npm ci --no-audit --no-fund` exige Node `24.18.0`, enquanto o ambiente usa
+  `v26.7.0`; por isso `mocha`, `gulp` e `tsc` continuam ausentes;
+- a instalação de dependências foi autorizada pelo responsável, mas ainda não
+  foi concluída. O próximo comando autorizado é `npm ci --no-audit --no-fund`
+  neste checkout, após disponibilizar o Node fixado; nenhum `sudo`, instalação
+  global ou `--ignore-scripts` deve ser usado.
+
+### E00-B / AC-012
+
+- continua bloqueada: a cadeia técnica de branding está documentada, mas faltam
+  atestação independente de autoria, direitos, autorização e não colisão.
+
+### estado operacional
+
+- branch `work/2026-08-26-e00-e03`, HEAD observado `709cccdb`;
+- alterações permanecem sem commit e misturadas ao working tree compartilhado da
+  onda 1; nenhum reset, push ou artefato novo foi produzido;
+- após a instalação, executar compile/testes do runtime e `npm run
+  typecheck-client`, registrar a saída e só então decidir se T-012 permanece
+  parcial ou pode avançar para E01-E.
+- feito: instruções operacionais do repositório consolidadas em `AGENTS.md`.

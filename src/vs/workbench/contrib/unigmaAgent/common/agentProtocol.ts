@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) 2026 unigma contributors
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
@@ -17,6 +17,26 @@ export const enum AgentCommandType {
 	ListWorktrees = 'worktrees',
 	ApplyConfiguration = 'configure',
 }
+
+/** Sanitized result from the local integration preflight. */
+export type AgentLocalIntegrationPreflightCode =
+	| 'workspaceUntrusted'
+	| 'unknownOrigin'
+	| 'ambiguousPrecedence'
+	| 'pathOutsideApprovedScope'
+	| 'externalSymlink'
+	| 'pathUnavailable'
+	| 'configurationInvalid'
+	| 'installerCommand'
+	| 'npmPlugin'
+	| 'startupInstallation'
+	| 'insecureUrl'
+	| 'silentOAuth'
+	| 'permissionDenied';
+
+export type AgentLocalIntegrationPreflight =
+	| { readonly accepted: true }
+	| { readonly accepted: false; readonly code: AgentLocalIntegrationPreflightCode };
 
 export const enum AgentEventType {
 	State = 'state',
@@ -81,6 +101,8 @@ export interface AgentStartSessionCommand extends AgentCommandBase {
 	readonly sessionId?: string;
 	/** Workspace reference only. The runtime resolves files and processes. */
 	readonly workspaceUri?: string;
+	/** No raw integration configuration or credentials cross this boundary. */
+	readonly localIntegrationPreflight: AgentLocalIntegrationPreflight;
 }
 
 export interface AgentStopSessionCommand extends AgentSessionCommandBase {
@@ -257,6 +279,39 @@ function isOptionalString(value: unknown): value is string | undefined {
 	return value === undefined || isNonEmptyString(value);
 }
 
+function isAgentLocalIntegrationPreflightCode(value: unknown): value is AgentLocalIntegrationPreflightCode {
+	switch (value) {
+		case 'workspaceUntrusted':
+		case 'unknownOrigin':
+		case 'ambiguousPrecedence':
+		case 'pathOutsideApprovedScope':
+		case 'externalSymlink':
+		case 'pathUnavailable':
+		case 'configurationInvalid':
+		case 'installerCommand':
+		case 'npmPlugin':
+		case 'startupInstallation':
+		case 'insecureUrl':
+		case 'silentOAuth':
+		case 'permissionDenied':
+			return true;
+		default:
+			return false;
+	}
+}
+
+function isAgentLocalIntegrationPreflight(value: unknown): value is AgentLocalIntegrationPreflight {
+	if (!isRecord(value) || !('accepted' in value)) {
+		return false;
+	}
+	if (value.accepted === true) {
+		return Object.keys(value).length === 1;
+	}
+	return value.accepted === false
+		&& Object.keys(value).length === 2
+		&& isAgentLocalIntegrationPreflightCode(value.code);
+}
+
 function hasOnlyKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
 	return Object.keys(value).every(key => keys.includes(key));
 }
@@ -423,11 +478,12 @@ function getAgentCommandError(value: unknown): AgentError | undefined {
 	const command = value as Record<string, unknown>;
 	switch (command.type) {
 		case AgentCommandType.StartSession:
-			return hasOnlyKeys(command, ['version', 'requestId', 'type', 'sessionId', 'workspaceUri'])
+			return hasOnlyKeys(command, ['version', 'requestId', 'type', 'sessionId', 'workspaceUri', 'localIntegrationPreflight'])
 				&& isOptionalString(command.sessionId)
 				&& isOptionalString(command.workspaceUri)
+				&& isAgentLocalIntegrationPreflight(command.localIntegrationPreflight)
 				? undefined
-				: invalidPayload('Start command has an invalid sessionId or workspaceUri.');
+				: invalidPayload('Start command has an invalid sessionId, workspaceUri, or local integration preflight.');
 		case AgentCommandType.StopSession:
 		case AgentCommandType.ListWorktrees:
 			return hasOnlyKeys(command, ['version', 'requestId', 'type', 'sessionId'])

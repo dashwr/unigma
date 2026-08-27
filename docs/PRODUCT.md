@@ -30,8 +30,8 @@ em aberto quando a arquitetura já a definiu.
 | S-17 | direção do responsável registrada em 2026-08-23 | roteamento local de modelos por `intelligence index`, `Autopilot!` opt-in e comportamento visual do toggle |
 | S-18 | direção do responsável registrada em 2026-08-26, recuperada da sessão de desenho do runtime | OpenCode como único harness oficial, perfil `service-only`, decepador, bundle atômico e capacidades intersessão do agente |
 
-`docs/fontes/` não existe na cópia atual do repositório. Nenhuma fonte local
-foi modificada.
+`docs/fontes/` contém a fonte local `MODELO-DE-TAREFAS.pdf`, preservada durante a
+reorganização documental de 2026-08-27. Nenhuma fonte externa foi modificada.
 
 ## visão
 
@@ -232,8 +232,9 @@ nested e a caça incremental foi encerrada. Nenhum artefato ou smoke
 multiplataforma foi produzido.
 
 **Registro de contratos (S-15):** T-010 tem contrato implementado e validado.
-T-011, T-012 e T-013 permanecem especificações documentais condicionais, sem
-suporte funcional.
+T-012 tem preflight sanitizado e bridge serializável parciais, sem suporte
+funcional anunciado; T-011 e T-013 permanecem especificações/matrizes
+condicionais.
 
 **Restrição confirmada (S-01):** não usar nem extrair tokens, caches OAuth,
 tráfego interceptado ou meios de contornar entitlement. Integrações devem usar

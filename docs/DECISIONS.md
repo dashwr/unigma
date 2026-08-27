@@ -32,6 +32,7 @@ trabalho.
 | D-020 | Atualizações autorizadas trocam o bundle atomicamente com o processo parado, mantendo rollback e os dados do usuário fora do artefato. | direção confirmada; implementação e evidência pendentes | S-18 |
 | D-021 | A direção do agente inclui `@` para ferramentas, `/` para skills, mensagens entre sessões locais e chips de estado; o protocolo de controle remoto é construído dormente, sem ativação no MVP. | direção confirmada; contratos e implementação pendentes | S-18 |
 | D-022 | Codex/Claude Code podem ser extensões externas instaladas pelo usuário, mas não têm suporte oficial nem são harness do unigma; `unigma+pi` é experimental e plugins/MCP/rules/skills oficiais usam os mecanismos nativos do OpenCode. | confirmado em 2026-08-26 | S-18 |
+| D-023 | `opencode serve` já é o entrypoint headless; isso não equivale ao perfil de distribuição `service-only`. Não haverá poda ampla por inferência: primeiro auditar superfícies alcançáveis e aplicar somente o patch mínimo comprovado, mantendo `unigma+opencode` como alvo oficial. | confirmado em 2026-08-27 | resposta do responsável nesta rodada |
 
 ### D-016 — direção confirmada e limites
 
@@ -74,6 +75,10 @@ Este registro confirma direção, não implementação ou suporte funcional.
   cloud ou backend no MVP.
 - Extensão externa não é integração oficial. O unigma não cria catálogo,
   carregador ou adaptador para transformar Codex/Claude Code em harness.
+- `opencode serve` headless resolve a ausência de TUI durante a execução, mas não
+  prova sozinho a fronteira de distribuição: o bundle ainda precisa de
+  proveniência, allowlist de superfícies, auditoria e separação de UI/CLI
+  redundante. A poda deve ser mínima e baseada em evidência.
 
 ### detalhes de D-016 ainda abertos
 

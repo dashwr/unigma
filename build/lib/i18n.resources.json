@@ -639,6 +639,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/unigmaAgent",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/accounts",
 			"project": "vscode-workbench"
 		},

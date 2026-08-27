@@ -7,9 +7,10 @@ primário de agente.
 ## estado do projeto
 
 O snapshot de fundação foi fixado em Code - OSS `1.134.0`. A arquitetura está
-aprovada, mas as features próprias do agente ainda estão em implementação.
-Consulte o [backlog](docs/BACKLOG.md) para o trabalho planejado e o
-[guia operacional](AGENTS.md) antes de alterar o código.
+aprovada e as features próprias do agente seguem em implementação.
+Consulte o [quadro de trabalho](docs/status/WORKBENCH.md), o
+[mapa da documentação](docs/README.md) e o [backlog](docs/BACKLOG.md) antes de
+alterar o código; as regras persistentes estão no [guia operacional](AGENTS.md).
 
 ## direção técnica
 
@@ -36,7 +37,7 @@ em [`LICENSE.txt`](LICENSE.txt) e [`ThirdPartyNotices.txt`](ThirdPartyNotices.tx
 unigma não é a distribuição comercial do upstream nem um produto da
 Microsoft. A identidade, os ativos e a configuração de distribuição próprios
 devem permanecer separados da marca do upstream; a revisão inicial está em
-[`docs/THIRD-PARTY-REVIEW.md`](docs/THIRD-PARTY-REVIEW.md).
+[`docs/status/THIRD-PARTY-REVIEW.md`](docs/status/THIRD-PARTY-REVIEW.md).
 
 ## identidade
 

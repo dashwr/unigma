@@ -21,4 +21,13 @@ suite('Unigma redacted diagnostics', () => {
 
 		assert.deepStrictEqual(lines, ['[error] runtime.failed_with_secret request=request_with_secret session=session_with_secret']);
 	});
+
+	test('does not write an unallowlisted diagnostic level', () => {
+		const lines: string[] = [];
+		const sink = new RedactedDiagnosticSink({ appendLine: line => lines.push(line) });
+
+		sink.record({ level: 'error\nsecret' as never, code: 'runtime.failed' });
+
+		assert.deepStrictEqual(lines, ['[info] runtime.failed']);
+	});
 });

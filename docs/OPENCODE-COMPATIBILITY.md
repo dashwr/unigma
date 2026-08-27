@@ -6,10 +6,10 @@
 > o bundle oficial service-only e nenhum provider/modelo é anunciado como
 > suportado.
 
-> **Atualizacao de fechamento em 2026-08-26:** a fixture matrix local agora
-> espelha os 15 pares metodo/path exigidos pelo cliente HTTP/SSE. Isso corrige a
-> cobertura do contrato interno, mas nao converte a matriz em teste de uma
-> release OpenCode nem altera o estado nao suportado abaixo.
+> **Atualizacao de fechamento em 2026-08-26:** a fixture matrix local separa o
+> probe direto `GET /doc` das 14 operacoes que a especificacao publicada declara
+> em `paths`. Isso evita exigir que o OpenAPI liste a rota que o serve para o
+> cliente, mas nao converte a matriz em suporte de bundle de release.
 
 ## 1. Escopo
 
@@ -51,14 +51,14 @@ documento e nao e uma versao do OpenCode.
 
 | Item | Regra do MVP |
 | --- | --- |
-| Versao OpenCode | **Candidata de teste:** `1.18.23`, observada em `/usr/bin/opencode` e verificada pelo SHA-256 registrado na evidência. Ela ainda não é o binário bundled service-only de release. |
+| Versao OpenCode | **Candidata de teste:** release `v1.18.23`, cujo tag local aponta para `31c409a86510e80fd6f798da165c50a6a40fccba`. `/usr/bin/opencode --version` retorna `1.18.23`; SHA-256 Linux observado: `f80650dcfc1308afaecc2d343c9a0a52fdc2dacd49150b7256a000acf068799f`. Sem manifesto de release local, esse hash não prova sozinho a relação binário→commit. Ela ainda não é o binário bundled service-only de release. |
 | Versao observada | O valor de `version` retornado por `GET /global/health` deve ser registrado como evidência de cada teste; não é uma allowlist por si só. |
 | Checkout upstream candidato | `/home/dasher/projects/unigma/opencode`, branch `dev`, HEAD `c2eacd72afc4a4984564c393e15ab30011057269`, árvore limpa; `packages/opencode`, `core` e `server` declaram `1.18.23`. A revisão fonte ainda não é um patchset ou bundle aceito. |
 | Autoridade do contrato | A especificacao publicada por `GET /doc` do binario em teste e a autoridade para paths, metodos, schemas e respostas. O SDK `dev` e referencia publica de tipos, nao uma versao suportada. |
 | Combinacao upstream | Code - OSS `1.134.0`, commit `474a349ad5b745e512ef86b864d1c74f7264dd7a`, Node.js `24.18.0` e Electron `42.8.1` continuam sendo a matriz do upstream; isso nao prova compatibilidade com OpenCode. |
 | Processo | Um processo filho por extension host, reutilizado entre sessoes e encerrado somente quando foi criado pelo runtime. |
 | Rede | Iniciar explicitamente com `--hostname 127.0.0.1`; nao habilitar mDNS, CORS ou exposicao LAN para o fluxo do MVP. |
-| Workspace | O processo deve iniciar no workspace autorizado. O adaptador valida o caminho retornado por `/path` antes de aceitar uma sessao. |
+| Workspace | O processo deve iniciar no workspace autorizado. O adaptador valida `directory` de `/path` quando presente; em versões sem ele, usa `path` e por último `worktree`. `worktree` é metadado de raiz Git e pode ser pai de `directory`, portanto não invalida sozinho um `directory` autorizado. |
 | SSE | Nenhum cursor, replay ou semantica de `Last-Event-ID` e assumido; apos uma queda, o estado e reconsultado por HTTP. |
 | Credencial do servidor | O perfil padrao nao envia Basic Auth. Um `401` ou `403` causado por `OPENCODE_SERVER_PASSWORD` e uma falha observavel e nao um convite para pedir, ler ou persistir a senha. |
 
@@ -97,7 +97,7 @@ fixado. Nenhum path e inferido a partir de outro produto.
 | --- | --- | --- | --- |
 | `GET /global/health` | Prontidao e versao | documentado / requerido | Exigir HTTP 200, `healthy: true` e `version` string antes de usar sessoes. |
 | `GET /doc` | Probe de contrato OpenAPI | documentado / requerido | Exigir OpenAPI 3.1 e a presenca dos endpoints requeridos antes de marcar o runtime como pronto. |
-| `GET /path` | Autoridade de caminho | documentado / requerido | Comparar o diretorio/worktree retornado ao workspace autorizado; divergencia bloqueia a sessao. |
+| `GET /path` | Autoridade de caminho | documentado / requerido | Comparar `directory` ao workspace autorizado quando presente; em sua ausência, usar `path` e depois `worktree`. Divergência do campo autoritativo bloqueia a sessão. |
 | `GET /event` | Eventos SSE da instancia | documentado / requerido | Assinar uma vez por processo; validar `type` e `properties`; o primeiro evento esperado e `server.connected`. |
 | `GET /session` | Listar sessoes e retomar referencia | documentado / requerido | Usar como fonte de verdade apos start, restart e reconexao. |
 | `POST /session` | Criar sessao | documentado / requerido | Enviar somente campos documentados pelo `/doc`; `parentID` e permitido apenas no fluxo condicional de subagente. |
@@ -410,7 +410,54 @@ passou contra a mesma instância real. O probe consultou `/provider` e
 
 Duas diferenças reais foram incorporadas ao adaptador e à fixture: `/doc` é
 consultado diretamente, mas não aparece como operação dentro do próprio
-OpenAPI; `/path` usa `worktree` e `directory` na release testada, além do campo
-`path` mantido para fixtures/compatibilidade. A suíte-fonte do cliente não foi
-executada porque `mocha` não está instalado; a checagem de sintaxe e o probe
-independente passaram.
+OpenAPI; `/path` usa `directory` e `worktree` na release testada, e este último
+é a raiz Git, não necessariamente o diretório autorizado. A suíte-fonte do
+cliente não foi executada porque `mocha` não está instalado; a checagem de
+sintaxe e o probe independente passaram.
+
+## evidência T-011 — reavaliação da release fixada em 2026-08-26
+
+O tag local `v1.18.23` resolve para
+`31c409a86510e80fd6f798da165c50a6a40fccba` (2026-08-25). O executável externo
+`/usr/bin/opencode` retornou `1.18.23`; seu SHA-256 Linux é
+`f80650dcfc1308afaecc2d343c9a0a52fdc2dacd49150b7256a000acf068799f`. Não havia
+artefato Windows local nem manifesto local que associasse esse SHA ao commit,
+portanto SHA Windows e proveniência binário→commit permanecem não verificados.
+
+O processo foi iniciado em workspace, `HOME` e diretórios XDG temporários, com
+`/usr/bin/opencode --pure serve --hostname 127.0.0.1 --port <porta>`. Não foram
+fornecidas credenciais, configuração de provider, plugin externo ou prompt
+real; cada chamada loopback usou `curl --connect-timeout 2 --max-time 5` (SSE:
+`--max-time 2`). A release respondeu `healthy: true`, `version: "1.18.23"`,
+OpenAPI `3.1.0` com 162 paths e os 14 pares requeridos. Após a resposta estar
+disponível, o SHA-256 de `/doc` foi
+`dfb7d42a555389f0c662fa2b4a8af1d61633c96710cf54bce3ff2404e2e7d896`; uma
+primeira leitura durante o startup retornou corpo vazio e não é evidência de
+contrato.
+
+No workspace temporário, `/path` retornou `directory` igual ao diretório de
+trabalho e `worktree: "/"`; isso confirmou que `worktree` não pode ser exigido
+como igualdade ao workspace. `/event` iniciou com `server.connected`. A sessão
+criada respondeu `200` para listagem, status, detalhe, mensagens e diff;
+`prompt_async` com `parts: []` respondeu `204`, `abort` respondeu `200`, e a
+resposta `once` para uma permissão sintética respondeu `400`, sem
+autoaprovação. O processo foi encerrado e iniciado de novo na mesma porta,
+repetindo health, `/doc` com o mesmo hash, `/path` (`200`), SSE
+`server.connected` e listagem de sessões (`200`).
+
+`GET /provider` (`200`, 5 626 569 bytes) e `GET /config/providers` (`200`,
+4 970 bytes) foram consultados apenas como descoberta sem credencial. Nenhuma
+resposta foi promovida a provider/modelo suportado, e não houve inferência. A
+execução das suítes compiladas permanece bloqueada pela ausência de
+`node_modules`/`mocha`; o comando falha com `Cannot find module
+'/home/dasher/projects/unigma/unigma/node_modules/mocha/bin/mocha'`. Não se
+instala dependência para este gate.
+
+**Estado da reavaliação: parcial.** O transporte real, a versão, o SHA Linux,
+health, `/doc`, `/path`, SSE inicial, sessão, endpoints de diff/permissão,
+restart e descoberta sem credencial foram observados. Permanecem sem execução
+contra o cliente compilado: fixture de incompatibilidade, SSE interrompido e
+reconectado pelo adaptador, eventos de prompt/streaming, diff não vazio e uma
+permissão pendente real. Esses cenários exigem a suíte local compilada ou um
+provider local explicitamente autorizado; não devem ser simulados como suporte
+de provider nem avançam T-012.

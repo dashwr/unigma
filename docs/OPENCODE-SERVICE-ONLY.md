@@ -4,6 +4,12 @@
 > ainda não implementados. Este documento define o alvo do backend local do
 > agente, não declara suporte de uma release empacotada.
 
+> **esclarecimento em 2026-08-27:** `opencode serve` já é um servidor headless.
+> Portanto, o decepador não é necessário para “tirar a UI” do processo em tempo
+> de execução. Ele continua sendo a cadeia de distribuição que prova a fronteira
+> `service-only`; nenhuma poda ampla deve ser feita sem evidência de uma superfície
+> redundante realmente alcançável ou empacotada.
+
 ## 1. fronteira
 
 O OpenCode é o único harness/backend local oficial do unigma. O produto oficial

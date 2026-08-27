@@ -19,20 +19,20 @@ suporte, não uma capacidade adicional do runtime.
 
 | ID | Relacionado a | Critério objetivo e testável | Estado de execução |
 | --- | --- | --- | --- |
-| AC-001 | RQ-001, RQ-102 | Para toda distribuição que incorpore código de Code - OSS, a revisão de entrega confirma a presença dos avisos, licenças e copyrights aplicáveis. | bloqueado: os dois artefatos finais preservam `LICENSE.txt`, o notice raiz e os notices de extensão esperados, mas a conferência completa do inventário de terceiros ainda está pendente |
+| AC-001 | RQ-001, RQ-102 | Para toda distribuição que incorpore código de Code - OSS, a revisão de entrega confirma a presença dos avisos, licenças e copyrights aplicáveis. | bloqueado: o auditor encontrou 1.321 entradas `manifest-only` e sete notices sem licença declarada; os artefatos finais preservam os notices conhecidos, mas a classificação completa ainda está pendente |
 | AC-002 | RQ-001, RQ-101 | A revisão de identidade e artefatos de distribuição não encontra marca, ícones, binários oficiais, endpoints/chaves Microsoft ou uso do Visual Studio Marketplace sem direito documentado. | parcial/bloqueado: os dois pacotes finais têm metadados próprios, gallery nula e não contêm as quatro extensões externas nem caminhos de Copilot/MSAL; a revisão ampla de referências upstream e direitos ainda não terminou |
 | AC-003 | RQ-002 | Em um ambiente de teste, o IDE inicia uma interação com o CLI `opencode serve` por HTTP/SSE documentados e apresenta um resultado ou erro observável ao usuário. | bloqueado: há supervisor/cliente e fixture local provisórios, mas não há sessão integrada à UI nem binário OpenCode fixado |
 | AC-004 | RQ-003 | A especificação de implementação define e o teste demonstra: criação/retomada de sessão, apresentação de diff e uma ação explícita de aprovação ou rejeição. | bloqueado: contrato T-010 implementado e validado; UI/runtime e teste integrado ausentes |
-| AC-005 | RQ-004 | A especificação de implementação identifica as integrações MCP/plugin/regra aceitas e o teste demonstra carregamento ou recusa conforme essa política. | bloqueado: T-012 é especificação documental condicional; implementação e teste de carga/recusa ausentes |
+| AC-005 | RQ-004 | A especificação de implementação identifica as integrações MCP/plugin/regra aceitas e o teste demonstra carregamento ou recusa conforme essa política. | parcial/bloqueado: workbench classifica MCP instalado/permitido, a bridge de produção workbench↔extension host é serializável e os smokes confirmam gate obrigatório antes de `ProcessManager.ensureStarted()`; plugin/regra ainda não têm fonte conectada, não há evidência contra OpenCode real e a suíte compilada continua bloqueada |
 | AC-006 | RQ-005 | A especificação de implementação define e o teste demonstra o ciclo de vida de um subagente ou worktree suportado. | bloqueado: contrato T-010 cobre a mensagem; ciclo de vida e teste integrado ausentes |
-| AC-007 | RQ-006 | A especificação de implementação define o fluxo SSH suportado e um teste estabelece ou recusa a conexão conforme a política definida. | bloqueado: T-013 é especificação documental condicional; conexão, provisionamento e teste ausentes |
+| AC-007 | RQ-006 | A especificação de implementação define o fluxo SSH suportado e um teste estabelece ou recusa a conexão conforme a política definida. | parcial/bloqueado: matriz contratual e recusas fail-closed têm política e smoke; transporte, provisionamento e conexão real continuam ausentes |
 | AC-008 | RQ-007 | A especificação de implementação enumera providers/modelos suportados e testes demonstram a seleção de ao menos uma integração aprovada. | bloqueado: T-011 não anuncia provider/modelo suportado; não há suporte funcional, seleção ou teste |
 | AC-009 | RQ-103, RQ-104 | Revisão de código, configuração e documentação não encontra coleta/extração de tokens ou caches OAuth, interceptação de tráfego nem bypass de entitlement; integrações apontam apenas a meios autorizados/documentados. | bloqueado: o slice possui fronteiras/redaction estruturais, mas a revisão integrada e a evidência reproduzível ainda não foram executadas |
 | AC-010 | RQ-009 | Em uma distribuição de teste, a interface inicia em inglês e o pacote `pt-BR` pode ser instalado ou ativado pelo mecanismo documentado. | bloqueado: mecanismo pendente |
 | AC-011 | RQ-010 | A especificação de tokens define valores verificáveis para roxo, magenta, violeta e cada fundo declarado; a revisão visual de cada tema confirma o uso exclusivo desses tokens para a identidade. | bloqueado: tokens pendentes |
-| AC-012 | RQ-011 | Antes de publicar ativos de marca, a revisão documentada confirma que nenhum elemento identificável da identidade do OpenCode foi copiado. | bloqueado: há ativos em `resources/unigma/`, mas originalidade, proveniência e direitos ainda não têm revisão independente registrada |
+| AC-012 | RQ-011 | Antes de publicar ativos de marca, a revisão documentada confirma que nenhum elemento identificável da identidade do OpenCode foi copiado. | bloqueado: a cadeia técnica e as lacunas estão documentadas em `docs/status/BRANDING-CLEARANCE.md`, mas originalidade, direitos, autorização e revisão independente ainda não foram comprovados |
 | AC-013 | RQ-012 | A entrega do MVP fornece artefatos de teste ou distribuição para Windows x64 e Linux x64; a mesma suíte mínima de inicialização é executada com sucesso em ambas as plataformas. | passou no recorte de núcleo: os runs finais `32930950550` (Windows x64) e `32929454545` (Linux x64), head `838ca94e`, publicaram artefatos e executaram a mesma suíte de smoke; o smoke exclui `Terminal Profiles`, `Chat` e `Agents Window` por escopo declarado |
-| AC-014 | RQ-013 | Em ambiente de teste, o painel de agente é contribuição nativa do workbench e inicia/controla uma sessão OpenCode sem exigir que o usuário opere uma ferramenta de agente separada. | bloqueado: contribuição nativa e conexão inicial existem, mas sessão/controle integrado ainda não estão implementados |
+| AC-014 | RQ-013 | Em ambiente de teste, o painel de agente é contribuição nativa do workbench e inicia/controla uma sessão OpenCode sem exigir que o usuário opere uma ferramenta de agente separada. | bloqueado: a contribuição nativa (recorte T-030) compila e o teste browser focado passou localmente, mas sessão/controle integrado, matriz oficial e runner ainda não estão comprovados |
 | AC-015 | RQ-014 | O pipeline mede tempo de inicialização e RSS por processo em perfil limpo, idle e sessão ativa; cada regressão é comparada ao baseline versionado da mesma plataforma. | bloqueado: baseline e implementação ausentes |
 | AC-016 | RQ-015, RQ-016, RQ-017, RQ-018, RQ-020 | **Direção documental:** o contrato/configuração versionado do router separa Autopilot, modelo selecionado, `persistSelectedModel`, `routerModel`, `maxModel`, referências de índice/custo, bypass, timeout, fallback e privacidade. **Implementação real:** o runtime valida versão e campos, produz decisão/evento observável, respeita trust e política do OpenCode e não registra prompt, raciocínio ou segredo. | bloqueado: T-086 é frente futura; não há schema implementado, runtime ou teste executado |
 | AC-017 | RQ-015, RQ-016 | **Direção documental:** o `intelligence index` e o custo têm fonte, versão, proveniência, unidade, revisão e tratamento de ausência/ambiguidade; o índice é aproximado, não é ranking universal e não cria catálogo remoto. `~49` permanece ilustrativo. **Implementação real:** somente referência local explícita e compatível é carregada; dados insuficientes são recusados sem inventar ranking, sincronizar catálogo ou registrar prompt, raciocínio ou segredo. | bloqueado: T-087 é frente futura; não há índice/custo carregado nem evidência |
@@ -61,6 +61,54 @@ correspondentes e nunca substitui execução. A evidência deve demonstrar fallb
 ausência de log de prompt, raciocínio e segredo e, quando houver UI, o estado
 renderizado no build/teste real; captura de uma especificação ou mock isolado não
 aprova a integração.
+
+## plano de fechamento de E-00/E-01
+
+O gate técnico de E-00 já passou nos runs Linux/Windows registrados abaixo. A
+próxima rodada não deve repetir smoke sem causa: deve fechar os bloqueios
+restantes com evidência específica.
+
+### E-00
+
+- `AC-001`: executar o auditor completo de notices e publicar inventário de
+  terceiros sem lacunas não decididas;
+- `AC-002`: classificar referências upstream residuais, metadados e superfícies
+  excluídas nos artefatos finais;
+- `AC-012`: registrar titularidade/autorização e revisão de originalidade e não
+  colisão dos ativos finais;
+- `AC-013`: manter a aprovação técnica já registrada após o último commit de
+  código.
+
+### E-01
+
+- `T-010`: produzir `DuplicateRequestId`/`SessionNotFound` no handler RPC real e
+  executar a suíte compilada;
+- `T-011`: fixar uma release OpenCode, verificar binários por SHA-256 e testar
+  health, `/doc`, `/path`, SSE, sessão, incompatibilidade e provider sem
+  credencial;
+- `T-012`: integrar preflight de trust/origem/configuração/aprovação para MCP,
+  plugin e regra, com decisão sanitizada obrigatória nas duas rotas de startup,
+  bridge serializável e recusas de instalação automática, path escape e segredo;
+  MCP está conectado no workbench; plugin/regra, suíte compilada e evidência real
+  permanecem pendentes;
+- `T-013`: executar a matriz SSH contratual e manter transporte remoto em E-05,
+  salvo ambiente remoto autorizado para o gate funcional.
+
+O fechamento contratual de E-01 libera o avanço de E-02/E-03 sem converter
+fixture em suporte publicado. O plano completo está em
+[`planos/2026-08-26-e00-e01.md`](planos/2026-08-26-e00-e01.md).
+
+### barreiras rígidas da rodada 2026-08-26
+
+O plano operacional em [`planos/2026-08-26-e00-e01.md`](planos/2026-08-26-e00-e01.md) substitui
+paralelismo implícito por barreiras explícitas:
+
+1. E00-A, E01-A/T-010, E01-B/T-011 e E01-D/T-013;
+2. E00-B e E01-C/T-012, somente após a conclusão da onda 1;
+3. E01-E, com a consolidação da evidência e builds Linux/Windows sequenciais.
+
+Nenhum critério passa por causa do plano; cada aceite continua exigindo evidência
+reproduzível.
 
 ## evidência pré-aceite da E-00
 
@@ -162,7 +210,7 @@ saída reproduzível correspondente está registrada:
 
 ### atualização final desta rodada
 
-- o commit `5efc250d` adicionou `build/unigma/audit-distribution.mjs`, auditor
+- o commit `5efc250d` adicionou o auditor `build/unigma/audit-distribution.ts`,
   sem dependências que valida layout, identidade, MIT, URL, metadados próprios,
   gallery nula, hashes de licença/notices, notices de extensão e extensões
   proibidas; o commit `838ca94e` corrigiu o último erro de tipo encontrado no
@@ -215,18 +263,22 @@ aceitos:
 - a produção semântica de `DuplicateRequestId` e `SessionNotFound`, com os testes
   correspondentes da camada de aplicação, permanece pendente em E-02, em
   especial T-024;
-- T-011 é especificação documental condicional: registra endpoints/eventos de
-  referência e declara que não há versão, checksum ou binário OpenCode testado;
-  nenhum provider/modelo é anunciado como suportado;
+- T-011 tem evidência de probe real contra `/usr/bin/opencode` `1.18.23`
+  (SHA-256 `f80650dcfc1308afaecc2d343c9a0a52fdc2dacd49150b7256a000acf068799f`):
+  health, OpenAPI 3.1, `/path`, SSE, sessão, prompt e abort passaram;
+  `OpenCodeHttpClient.connect()` real também passou; nenhum provider/modelo é
+  anunciado como suportado; a suíte-fonte ainda está
+  bloqueada pela ausência de `mocha`;
 - T-021/T-022/T-023 têm adapters e fixtures locais provisórios no checkout, com
   testes fonte para processo, HTTP/SSE, persistência mínima, redaction e
   composição; o compile da extensão e o `npm --prefix
   extensions/unigma-agent-runtime test` passaram nos dois runs finais. A fixture
   não é evidência contra um binário OpenCode real e não altera o estado
   condicional de T-011;
-- T-012 é especificação documental condicional: define fontes explícitas, gates
-  de trust/aprovação, recusa e redaction, sem catálogo, instalação ou
-  persistência própria;
+- T-012 define fontes explícitas, gates de trust/aprovação, recusa e redaction,
+  sem catálogo, instalação ou persistência própria; o workbench classifica MCP e
+  as rotas de runtime exigem decisão sanitizada antes de `ProcessManager.ensureStarted()`;
+  plugin/regra ainda não têm fontes conectadas;
 - T-013 é especificação documental condicional: define a matriz contratual,
   OpenSSH/`known_hosts`, limites de provisionamento, falhas e reconexão, sem
   executar conexão ou bootstrap remoto.

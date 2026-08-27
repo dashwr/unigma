@@ -1,6 +1,11 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { basename, join, resolve } from 'node:path';
+import { basename, join, relative, resolve } from 'node:path';
 
 const expected = {
 	licenseUrl: 'https://github.com/dashwr/unigma/blob/main/LICENSE.txt',
@@ -13,6 +18,20 @@ const prohibitedExtensions = new Set([
 	'microsoft-authentication',
 	'tunnel-forwarding',
 ]);
+const prohibitedPackagePaths = new Set([
+	'.git',
+	'cache',
+	'cacheddata',
+	'code cache',
+	'gpucache',
+	'logs',
+]);
+const prohibitedProductEndpoints = [
+	'nodejsArtifactFeed',
+	'electronArtifactFeed',
+	'reportIssueUrl',
+	'voiceWsUrl',
+];
 
 const results = [];
 function check(name, passed) {
@@ -57,6 +76,26 @@ function extensionNotices(sourceDirectory) {
 		.sort();
 }
 
+function packagePaths(packageDirectory) {
+	const paths = [];
+	function walk(directory) {
+		for (const entry of readdirSync(directory, { withFileTypes: true })) {
+			const entryPath = join(directory, entry.name);
+			if (entry.isDirectory()) {
+				if (prohibitedPackagePaths.has(entry.name.toLowerCase())) {
+					paths.push(relative(packageDirectory, entryPath).replace(/\\/g, '/'));
+					continue;
+				}
+				walk(entryPath);
+			} else if (entry.isFile() && entry.name === '.git') {
+				paths.push(relative(packageDirectory, entryPath).replace(/\\/g, '/'));
+			}
+		}
+	}
+	walk(packageDirectory);
+	return paths.sort();
+}
+
 const [packageArgument, sourceArgument, ...extraArguments] = process.argv.slice(2);
 if (!packageArgument || extraArguments.length > 0) {
 	console.log('audit=fail');
@@ -79,8 +118,11 @@ if (!packageArgument || extraArguments.length > 0) {
 			check('product.licenseFileName', product.licenseFileName === 'LICENSE.txt');
 			check('product.licenseUrl', product.licenseUrl === expected.licenseUrl);
 			check('product.extensionsGallery', product.extensionsGallery === undefined || product.extensionsGallery === null);
+			check('product.builtInExtensions', Array.isArray(product.builtInExtensions) && product.builtInExtensions.length === 0);
+			check('product.autoUpdateExtensions', Array.isArray(product.builtInExtensionsEnabledWithAutoUpdates) && product.builtInExtensionsEnabledWithAutoUpdates.length === 0);
+			check('product.endpoints', prohibitedProductEndpoints.every(name => product[name] === ''));
 		} else {
-			for (const name of ['product.identity', 'product.license', 'product.licenseFileName', 'product.licenseUrl', 'product.extensionsGallery']) {
+			for (const name of ['product.identity', 'product.license', 'product.licenseFileName', 'product.licenseUrl', 'product.extensionsGallery', 'product.builtInExtensions', 'product.autoUpdateExtensions', 'product.endpoints']) {
 				check(name, false);
 			}
 		}
@@ -104,6 +146,10 @@ if (!packageArgument || extraArguments.length > 0) {
 		const prohibited = extensionNames.filter(name => prohibitedExtensions.has(name.toLowerCase()) || name.toLowerCase().includes('copilot'));
 		check('extensions.prohibited', prohibited.length === 0);
 		console.log(`extensions.prohibited.count=${prohibited.length}`);
+
+		const prohibitedPaths = packagePaths(packageDirectory);
+		check('package.transientContent', prohibitedPaths.length === 0);
+		console.log(`package.transientContent.count=${prohibitedPaths.length}`);
 
 		if (sourceArgument) {
 			const sourceDirectory = resolve(sourceArgument);

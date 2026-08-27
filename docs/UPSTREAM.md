@@ -42,7 +42,8 @@ O upstream orquestra dependências nested pelo `npm install` no root: os scripts
 - `npm run typecheck-client`;
 - `npm run eslint`;
 - `npm run stylelint` — sugestões de design token não bloquearam a execução;
-- `npm run test-build-scripts` — nenhum teste foi descoberto pelo script.
+- `npm run test-build-scripts` — nessa execução histórica do checkout `E:\unigma`,
+  nenhum teste foi descoberto pelo script.
 
 No checkout `E:\unigma`, os quatro últimos checks passaram com o Node portátil
 no `PATH`; o eslint verificou 11.448 arquivos, o stylelint verificou 446 CSS e
@@ -51,6 +52,20 @@ reportou 142 sugestões não bloqueantes.
 Os comandos acima passaram no clone de validação. As auditorias npm relataram
 vulnerabilidades nas dependências herdadas; elas não foram corrigidas
 automaticamente.
+
+### atualização local — 2026-08-27
+
+- no working tree atual, `npm run test-build-scripts` passou com 270 testes em 40
+  suites;
+- `npm run compile-client` passou em `2.47 min`, incluindo as extensões e
+  `src/tsconfig`; isso é diagnóstico local sob Node `v26.7.0`, não substitui o
+  runner oficial nem a matriz Node `24.18.0`/npm `<12`.
+- `npm run gulp compile-extension:unigma-agent-runtime` e
+  `npm --prefix extensions/unigma-agent-runtime test` passaram em Node
+  `24.18.0`/npm `11.16.0`, com 59 testes. A tentativa de `compile-client` na
+  mesma matriz avançou até `src/tsconfig` com 0 erros, mas terminou no worker
+  `tsgo` sem código após aproximadamente 13 minutos; o runner continua sendo o
+  alvo para essa validação pesada.
 
 ### verificações bloqueadas ou incompletas
 
@@ -91,4 +106,4 @@ suportado ou uma decisão explícita de escopo sobre o harness upstream.
   ciclo de release do upstream; a tag e o commit são a autoridade;
 - a cadência de atualização acompanha releases/patches verificáveis do upstream;
 - a identidade e a triagem inicial estão registradas em
-  `THIRD-PARTY-REVIEW.md` e nas tarefas T-002/T-004 do backlog.
+  `status/THIRD-PARTY-REVIEW.md` e nas tarefas T-002/T-004 do backlog.

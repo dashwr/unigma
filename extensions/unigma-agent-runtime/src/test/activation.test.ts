@@ -17,10 +17,16 @@ interface RuntimeManifest {
 }
 
 suite('Unigma agent runtime activation', () => {
-	test('activates only on the explicit runtime demand command', () => {
+	test('activates only on explicit runtime demand commands', () => {
 		const manifest = JSON.parse(readFileSync(join(__dirname, '..', '..', 'package.json'), 'utf8')) as RuntimeManifest;
-		assert.deepStrictEqual(manifest.activationEvents, [`onCommand:${RUNTIME_DEMAND_COMMAND}`]);
-		assert.deepStrictEqual(manifest.contributes?.commands?.map(command => command.command), [RUNTIME_DEMAND_COMMAND]);
+		assert.deepStrictEqual(manifest.activationEvents, [
+			`onCommand:${RUNTIME_DEMAND_COMMAND}`,
+			'onCommand:unigma.agent.runtime.transport.send',
+		]);
+		const commands = manifest.contributes?.commands?.map(command => command.command) ?? [];
+		assert.ok(commands.includes(RUNTIME_DEMAND_COMMAND), 'activation command must be registered');
+		assert.ok(commands.includes('unigma.agent.runtime.transport.send'), 'transport command must be registered');
+		assert.ok(!commands.includes('unigma.agent.runtime.registerTransport'), 'transport objects must not cross executeCommand');
 	});
 
 	test('does not leave the idle state until demand is received', () => {

@@ -53,6 +53,27 @@ Esta matriz não promete uma distribuição Linux específica, libc, shell,
 topologia de proxy, arquitetura diferente de x64 ou extensão de configuração
 não validada. Tais combinações exigem contrato e evidência novos.
 
+### 2.1 Política de pré-conexão T-013
+
+`evaluateRemoteSshConnection` é uma política pura para fixture/teste, não uma
+implementação de transporte. A combinação só é aceita quando todos os gates
+abaixo são válidos; qualquer estado ausente ou recusado termina na categoria
+indicada e não inicia OpenSSH, autenticação, provisionamento ou replay.
+
+| gate | estado aceito | recusa fail-closed |
+| --- | --- | --- |
+| confiança do workspace | confiável | `ssh.workspace-blocked` |
+| plataforma | cliente Windows x64 ou Linux x64 e host Linux x64 | `ssh.remote-platform-unsupported` |
+| cliente | OpenSSH disponível | `ssh.client-unavailable` |
+| destino | alias ou identificador SSH válido | `ssh.target-unresolved` |
+| host key | confiável pelo OpenSSH | `ssh.host-key-untrusted` |
+| canal | conexão não interrompida | `ssh.connection-lost` |
+| servidor remoto | build/protocolo compatível | `ssh.remote-server-incompatible` |
+
+Os estados `unknown`, `mismatched` e `revoked` de host key são todos recusados
+como `ssh.host-key-untrusted`. A política não resolve aliases, executa OpenSSH,
+acessa `known_hosts`, solicita credenciais, tenta fallback local nem reconecta.
+
 ## 3. Local de execução
 
 | contexto | workbench e autoridade | extension host | runtime e processo OpenCode |
@@ -268,10 +289,11 @@ executa:
 - host Windows remoto e arquiteturas fora da matriz recusados antes do
   provisionamento.
 
-Não fazem parte de T-013: código em `extensions/unigma-remote-ssh/`, manifesto,
-transporte, bootstrap executável, alteração de `known_hosts`, solicitação de
-credenciais, instalação de OpenCode, atualização de documentos compartilhados,
-build, teste de integração ou deploy.
+T-013 implementa somente a política pura e seus testes em
+`extensions/unigma-remote-ssh/`. Não fazem parte dela: manifesto, transporte,
+bootstrap executável, alteração de `known_hosts`, solicitação de credenciais,
+instalação de OpenCode, atualização de documentos compartilhados, build, teste
+de integração ou deploy.
 
 ## Referências
 

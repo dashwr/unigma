@@ -206,7 +206,7 @@ jobs:
           build="$1"
           export PATH="/opt/node-current/bin:$PATH"
           cd "$build"
-          node build/unigma/audit-distribution.mjs "$build/../VSCode-linux-x64" "$build"
+           node --experimental-strip-types build/unigma/audit-distribution.ts "$build/../VSCode-linux-x64" "$build"
           '@
           $script = $script -replace "`r`n?", "`n"
           [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))

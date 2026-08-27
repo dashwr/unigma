@@ -22,6 +22,18 @@ const copyrightHeaderLines = [
 	' *  Licensed under the MIT License. See License.txt in the project root for license information.',
 	' *--------------------------------------------------------------------------------------------*/',
 ];
+const unigmaCopyrightHeaderLines = [
+	'/*---------------------------------------------------------------------------------------------',
+	' *  Copyright (c) 2026 unigma contributors',
+	' *  Licensed under the MIT License. See License.txt in the project root for license information.',
+	' *--------------------------------------------------------------------------------------------*/',
+];
+
+function copyrightHeaderFor(filePath: string): readonly string[] {
+	return filePath.replace(/\\/g, '/').startsWith('extensions/unigma-agent-runtime/')
+		? unigmaCopyrightHeaderLines
+		: copyrightHeaderLines;
+}
 
 interface VinylFileWithLines extends VinylFile {
 	__lines: string[];
@@ -161,9 +173,10 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 
 	const copyrights = es.through(function (file: VinylFileWithLines) {
 		const lines = file.__lines;
+		const expectedHeader = copyrightHeaderFor(file.relative);
 
-		for (let i = 0; i < copyrightHeaderLines.length; i++) {
-			if (lines[i] !== copyrightHeaderLines[i]) {
+		for (let i = 0; i < expectedHeader.length; i++) {
+			if (lines[i] !== expectedHeader[i]) {
 				console.error(file.relative + ': Missing or bad copyright statement');
 				errorCount++;
 				break;

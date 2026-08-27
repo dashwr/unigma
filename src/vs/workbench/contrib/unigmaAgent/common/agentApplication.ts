@@ -1,9 +1,9 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) 2026 unigma contributors
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/** The stateful gate between validated RPC payloads and a future runtime adapter. */
+/** Testable stateful contract mirror; the runtime owns operational request and session state. */
 export interface AgentApplicationCommand {
 	readonly requestId: string;
 	readonly type: string;

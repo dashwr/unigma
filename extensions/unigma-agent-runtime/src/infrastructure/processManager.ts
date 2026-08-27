@@ -27,12 +27,16 @@ export interface ProcessManagerOptions {
 	readonly command?: string;
 	readonly port?: number;
 	readonly startupTimeoutMs?: number;
+	readonly maxRestarts?: number;
+	readonly restartBackoffMs?: number;
 	readonly spawn?: SpawnProcess;
 	readonly reservePort?: () => Promise<number>;
 }
 
 const PROCESS_OWNER = 'unigma-agent-runtime' as const;
 const DEFAULT_STARTUP_TIMEOUT_MS = 10_000;
+const DEFAULT_MAX_RESTARTS = 1;
+const RESTART_BACKOFF_MS = 1_000;
 
 function workspacePath(workspace: WorkspaceReference): string {
 	let parsed: URL;
@@ -76,6 +80,8 @@ function reserveLoopbackPort(): Promise<number> {
 export class ChildProcessManager implements ProcessManager {
 	private readonly command: string;
 	private readonly startupTimeoutMs: number;
+	private readonly maxRestarts: number;
+	private readonly restartBackoffMs: number;
 	private readonly spawn: SpawnProcess;
 	private readonly reservePort: () => Promise<number>;
 	private readonly fixedPort: number | undefined;
@@ -85,11 +91,16 @@ export class ChildProcessManager implements ProcessManager {
 	private stopPromise: Promise<void> | undefined;
 	private stopRequested = false;
 	private stopFailed = false;
+	private restartCount = 0;
+	private restartTimer: NodeJS.Timeout | undefined;
+	private currentWorkspace: WorkspaceReference | undefined;
 
 	public constructor(options: ProcessManagerOptions = {}) {
 		this.command = options.command ?? 'opencode';
 		this.fixedPort = options.port;
 		this.startupTimeoutMs = options.startupTimeoutMs ?? DEFAULT_STARTUP_TIMEOUT_MS;
+		this.maxRestarts = options.maxRestarts ?? DEFAULT_MAX_RESTARTS;
+		this.restartBackoffMs = options.restartBackoffMs ?? RESTART_BACKOFF_MS;
 		this.spawn = options.spawn ?? (nodeSpawn as unknown as SpawnProcess);
 		this.reservePort = options.reservePort ?? reserveLoopbackPort;
 	}
@@ -115,6 +126,7 @@ export class ChildProcessManager implements ProcessManager {
 			return handle;
 		}
 
+		this.currentWorkspace = workspace;
 		const startPromise = this.start(workspace);
 		this.startPromise = startPromise;
 		try {
@@ -123,6 +135,7 @@ export class ChildProcessManager implements ProcessManager {
 				await this.stopPromise;
 				throw new Error('OpenCode startup was cancelled.');
 			}
+			this.restartCount = 0;
 			return handle;
 		} finally {
 			if (this.startPromise === startPromise) {
@@ -137,13 +150,19 @@ export class ChildProcessManager implements ProcessManager {
 		}
 
 		this.stopRequested = true;
+		this.restartCount = 0;
+		this.currentWorkspace = undefined;
+		if (this.restartTimer) {
+			clearTimeout(this.restartTimer);
+			this.restartTimer = undefined;
+		}
 		const pendingStart = this.startPromise;
 		this.stopPromise = (async () => {
 			if (pendingStart) {
 				try {
 					await pendingStart;
 				} catch {
-					// a falha de inicialização já executou sua própria limpeza.
+					// The startup failure already performed its own cleanup.
 				}
 			}
 
@@ -160,7 +179,6 @@ export class ChildProcessManager implements ProcessManager {
 
 			const exited = await new Promise<boolean>(resolve => {
 				let settled = false;
-				let timeout: NodeJS.Timeout | undefined;
 				const finish = (value: boolean) => {
 					if (settled) {
 						return;
@@ -171,8 +189,7 @@ export class ChildProcessManager implements ProcessManager {
 					}
 					resolve(value);
 				};
-				timeout = setTimeout(() => finish(false), this.startupTimeoutMs);
-
+				const timeout = setTimeout(() => finish(false), this.startupTimeoutMs);
 				child.once('exit', () => finish(true));
 				if (!child.killed) {
 					child.kill();
@@ -286,6 +303,46 @@ export class ChildProcessManager implements ProcessManager {
 			this.child = undefined;
 			this.handle = undefined;
 			this.stopFailed = false;
+			if (!this.stopRequested && this.restartCount < this.maxRestarts && this.currentWorkspace) {
+				this.scheduleRestart(this.currentWorkspace);
+			}
+		}
+	}
+
+	private scheduleRestart(workspace: WorkspaceReference): void {
+		this.restartCount++;
+		const delay = this.restartBackoffMs * this.restartCount;
+		this.restartTimer = setTimeout(() => {
+			this.restartTimer = undefined;
+			void this.attemptRestart(workspace);
+		}, delay);
+	}
+
+	private async attemptRestart(workspace: WorkspaceReference): Promise<void> {
+		if (this.stopRequested || this.startPromise) {
+			return;
+		}
+
+		const startPromise = this.start(workspace);
+		this.startPromise = startPromise;
+		try {
+			await startPromise;
+			if (this.stopRequested) {
+				try {
+					await this.stopOwned();
+				} catch {
+					// stopOwned handles its own cleanup.
+				}
+				return;
+			}
+		} catch {
+			if (!this.stopRequested && this.restartCount < this.maxRestarts && this.currentWorkspace) {
+				this.scheduleRestart(workspace);
+			}
+		} finally {
+			if (this.startPromise === startPromise) {
+				this.startPromise = undefined;
+			}
 		}
 	}
 }

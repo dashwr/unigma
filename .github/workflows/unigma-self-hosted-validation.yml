@@ -77,7 +77,7 @@ jobs:
         timeout-minutes: 2
         run: |
           $artifact = Join-Path (Split-Path $env:GITHUB_WORKSPACE -Parent) 'VSCode-win32-x64'
-          node build/unigma/audit-distribution.mjs $artifact $env:GITHUB_WORKSPACE
+           node --experimental-strip-types build/unigma/audit-distribution.ts $artifact $env:GITHUB_WORKSPACE
 
       - name: run desktop smoke test
         # O produto não empacota Copilot/AgentHost nem a extensão js-debug que

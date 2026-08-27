@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) 2026 unigma contributors
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
@@ -26,7 +26,7 @@ suite('AgentProtocol', () => {
 
 	test('accepts every command shape', () => {
 		const commands: readonly AgentCommand[] = [
-			{ version: AGENT_PROTOCOL_VERSION, requestId: 'start-1', type: AgentCommandType.StartSession, workspaceUri: 'file:///workspace' },
+			{ version: AGENT_PROTOCOL_VERSION, requestId: 'start-1', type: AgentCommandType.StartSession, workspaceUri: 'file:///workspace', localIntegrationPreflight: { accepted: true } },
 			{ version: AGENT_PROTOCOL_VERSION, requestId: 'stop-1', type: AgentCommandType.StopSession, sessionId: 'session-1' },
 			{ version: AGENT_PROTOCOL_VERSION, requestId: 'input-1', type: AgentCommandType.SendInput, sessionId: 'session-1', text: 'Explain this change.' },
 			{ version: AGENT_PROTOCOL_VERSION, requestId: 'diff-1', type: AgentCommandType.RequestDiff, sessionId: 'session-1' },
@@ -91,6 +91,37 @@ suite('AgentProtocol', () => {
 			sessionId: 'session-1',
 			diff: { diffId: 'diff-1', files: [{ path: 'src/file.ts', original: 'old' }] },
 		}), false);
+	});
+
+	test('requires a sanitized local integration preflight', () => {
+		const accepted = validateAgentCommand({
+			version: AGENT_PROTOCOL_VERSION,
+			requestId: 'start-accepted',
+			type: AgentCommandType.StartSession,
+			localIntegrationPreflight: { accepted: true },
+		});
+		const refused = validateAgentCommand({
+			version: AGENT_PROTOCOL_VERSION,
+			requestId: 'start-refused',
+			type: AgentCommandType.StartSession,
+			localIntegrationPreflight: { accepted: false, code: 'permissionDenied' },
+		});
+		const missing = validateAgentCommand({
+			version: AGENT_PROTOCOL_VERSION,
+			requestId: 'start-missing',
+			type: AgentCommandType.StartSession,
+		});
+		const malformed = validateAgentCommand({
+			version: AGENT_PROTOCOL_VERSION,
+			requestId: 'start-malformed',
+			type: AgentCommandType.StartSession,
+			localIntegrationPreflight: { accepted: false, code: 'raw-config' },
+		});
+
+		assert.strictEqual(accepted.valid, true);
+		assert.strictEqual(refused.valid, true);
+		assert.strictEqual(missing.valid, false);
+		assert.strictEqual(malformed.valid, false);
 	});
 
 	test('rejects fields outside the private contract', () => {

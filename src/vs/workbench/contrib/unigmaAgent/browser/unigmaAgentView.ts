@@ -9,6 +9,7 @@ import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IAllowedMcpServersService } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { defaultButtonStyles, defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -17,11 +18,16 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkbenchMcpManagementService } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
 import { IViewDescriptorService } from '../../../common/views.js';
 import { UNIGMA_AGENT_MANIFEST } from './unigmaAgentManifest.js';
 import { IUnigmaAgentRuntime } from './unigmaAgentRuntime.js';
+import { evaluateWorkbenchLocalIntegrationPreflight } from '../common/localIntegrationPreflight.js';
+import type { AgentLocalIntegrationPreflight } from '../common/agentProtocol.js';
 import {
 	EMPTY_UNIGMA_AGENT_SESSION,
 	reduceUnigmaAgentSessionEvent,
@@ -68,6 +74,10 @@ export class UnigmaAgentViewPane extends ViewPane {
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
 		@IUnigmaAgentRuntime private readonly runtime: IUnigmaAgentRuntime,
+		@IWorkbenchMcpManagementService private readonly mcpManagementService: IWorkbenchMcpManagementService,
+		@IAllowedMcpServersService private readonly allowedMcpServersService: IAllowedMcpServersService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustService: IWorkspaceTrustManagementService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this._register(this.runtime.onDidReceiveEvent(event => {
@@ -113,7 +123,34 @@ export class UnigmaAgentViewPane extends ViewPane {
 		this.stateContainer?.focus();
 
 		try {
-			await this.runtime.start();
+			const workspace = this.workspaceContextService.getWorkspace().folders[0]?.uri;
+			let preflight: AgentLocalIntegrationPreflight;
+			if (!workspace) {
+				preflight = { accepted: false, code: 'pathUnavailable' };
+			} else {
+				try {
+					const installed = await this.mcpManagementService.getInstalled();
+					preflight = evaluateWorkbenchLocalIntegrationPreflight({
+						workspaceTrusted: this.workspaceTrustService.isWorkspaceTrusted(),
+						workspaceUri: workspace,
+						servers: installed.map(server => ({
+							name: server.name,
+							scope: server.scope,
+							config: server.config,
+							location: server.location,
+							approved: this.allowedMcpServersService.isAllowed(server) === true,
+						})),
+						// Plugin and rule inventory is not connected; do not allow implicit startup.
+						sourceInventoryComplete: false,
+					});
+				} catch {
+					preflight = { accepted: false, code: 'configurationInvalid' };
+				}
+			}
+			if (this.disposed) {
+				return;
+			}
+			await this.runtime.start(preflight, workspace?.toString());
 		} catch {
 			if (!this.disposed) {
 				this.setState(UNIGMA_AGENT_VIEW_STATES.Error);
@@ -253,12 +290,16 @@ export class UnigmaAgentViewPane extends ViewPane {
 			submitButton.label = localize('unigmaAgent.sending', 'Sending...');
 			submitButton.setAriaLabel(localize('unigmaAgent.sending', 'Sending...'));
 			void this.runtime.sendInput(this.model.sessionId, text).then(() => {
+				if (this.disposed) {
+					return;
+				}
 				this.inputValue = '';
 				this.isSubmitting = false;
-				input.value = '';
-				input.disabled = false;
-				inputContainer.setAttribute('aria-busy', 'false');
+				this.renderState();
 			}, () => {
+				if (this.disposed) {
+					return;
+				}
 				this.isSubmitting = false;
 				this.setState(UNIGMA_AGENT_VIEW_STATES.Error);
 				this.stateContainer?.focus();

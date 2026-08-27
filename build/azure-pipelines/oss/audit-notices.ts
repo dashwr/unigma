@@ -11,7 +11,7 @@
  *  showing coverage gaps, extras, duplicates, and license breakdown.
  *
  *  Usage:
- *    npx tsx build/azure-pipelines/oss/audit-notices.ts --notice <path> --repo .
+ *    node build/azure-pipelines/oss/audit-notices.ts --notice <path> --repo .
  *
  *  --notice   Path to ThirdPartyNotices.txt (or .new.txt)
  *  --repo     Path to the repo root (defaults to cwd)
@@ -19,8 +19,8 @@
 
 import fs from 'fs';
 import path from 'path';
-import { parseNoticeFile, type NoticeEntry } from './parse-notices.js';
-import { parseArgs } from './utils.js';
+import { parseNoticeFile, type NoticeEntry } from './parse-notices.ts';
+import { parseArgs } from './utils.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -29,7 +29,7 @@ import { parseArgs } from './utils.js';
 /** Recursively walk a directory, yielding file paths that match a predicate. */
 function walkFiles(dir: string, match: (name: string) => boolean): string[] {
 	const results: string[] = [];
-	const skipDirs = new Set(['.git', '.build', 'out', 'out-build', 'out-editor', 'out-vscode']);
+	const skipDirs = new Set(['.git', '.build', 'node_modules', 'out', 'out-build', 'out-editor', 'out-vscode']);
 
 	function walk(d: string): void {
 		let entries: fs.Dirent[];
@@ -264,11 +264,12 @@ interface CrossRefResult {
 	manifestUniqueNameVersions: Set<string>;
 	noticeOnlyNames: string[];
 	manifestOnlyNames: string[];
+	versionDivergences: { name: string; noticeVersions: string[]; manifestVersions: string[] }[];
 	overlapCount: number;
 	bySource: Map<string, number>;
 }
 
-function crossReference(noticeNames: Set<string>, manifestPackages: ManifestPackage[]): CrossRefResult {
+function crossReference(noticeNames: Set<string>, manifestPackages: ManifestPackage[], noticeEntries: NoticeEntry[]): CrossRefResult {
 	const manifestUniqueNames = new Set<string>();
 	const manifestUniqueNameVersions = new Set<string>();
 
@@ -296,6 +297,37 @@ function crossReference(noticeNames: Set<string>, manifestPackages: ManifestPack
 	const noticeOnlyNames = [...noticeNames].filter(n => !manifestUniqueNames.has(n)).sort();
 	const manifestOnlyNames = [...manifestUniqueNames].filter(n => !noticeNames.has(n)).sort();
 	const overlapCount = [...noticeNames].filter(n => manifestUniqueNames.has(n)).length;
+	const noticeVersions = new Map<string, Set<string>>();
+	for (const entry of noticeEntries) {
+		if (entry.version) {
+			const name = entry.name.toLowerCase();
+			const versions = noticeVersions.get(name) ?? new Set<string>();
+			versions.add(entry.version);
+			noticeVersions.set(name, versions);
+		}
+	}
+	const manifestVersions = new Map<string, Set<string>>();
+	for (const pkg of manifestPackages) {
+		if (pkg.version) {
+			const name = pkg.name.toLowerCase();
+			const versions = manifestVersions.get(name) ?? new Set<string>();
+			versions.add(pkg.version);
+			manifestVersions.set(name, versions);
+		}
+	}
+	const versionDivergences = [...noticeVersions]
+		.flatMap(([name, versions]) => {
+			const manifest = manifestVersions.get(name);
+			if (!manifest || versions.size === 0 || manifest.size === 0) {
+				return [];
+			}
+			const notice = [...versions].sort();
+			const manifestValues = [...manifest].sort();
+			return notice.every(version => manifest.has(version)) && manifestValues.every(version => versions.has(version))
+				? []
+				: [{ name, noticeVersions: notice, manifestVersions: manifestValues }];
+		})
+		.sort((a, b) => a.name.localeCompare(b.name));
 
 	return {
 		manifestPackages,
@@ -303,6 +335,7 @@ function crossReference(noticeNames: Set<string>, manifestPackages: ManifestPack
 		manifestUniqueNameVersions,
 		noticeOnlyNames,
 		manifestOnlyNames,
+		versionDivergences,
 		overlapCount,
 		bySource,
 	};
@@ -398,6 +431,26 @@ function printReport(noticePath: string, stats: NoticeStats, xref: CrossRefResul
 		console.log('');
 	}
 
+	if (xref.versionDivergences.length > 0) {
+		console.log(`  WARNING: Packages with NOTICE/manifest version differences: ${xref.versionDivergences.length}`);
+		for (const divergence of xref.versionDivergences.slice(0, 50)) {
+			console.log(`     - ${divergence.name}: NOTICE [${divergence.noticeVersions.join(', ')}], manifests [${divergence.manifestVersions.join(', ')}]`);
+		}
+		if (xref.versionDivergences.length > 50) {
+			console.log(`     ... and ${xref.versionDivergences.length - 50} more`);
+		}
+		console.log('');
+	}
+
+	const unknownLicenses = stats.entries.filter(entry => !entry.license);
+	if (unknownLicenses.length > 0) {
+		console.log(`  WARNING: NOTICE entries without a declared license: ${unknownLicenses.length}`);
+		for (const entry of unknownLicenses) {
+			console.log(`     - ${entry.name}${entry.version ? ` ${entry.version}` : ''} (line ${entry.lineNumber})`);
+		}
+		console.log('');
+	}
+
 	// -- Section 3: Summary --
 	console.log('-- 3. SUMMARY ------------------------------------------------');
 	console.log('');
@@ -457,7 +510,7 @@ function main(): void {
 	const args = parseArgs(process.argv.slice(2));
 
 	if (!args['notice']) {
-		console.error('Usage: npx tsx build/azure-pipelines/oss/audit-notices.ts --notice <path> [--repo <path>]');
+		console.error('Usage: node build/azure-pipelines/oss/audit-notices.ts --notice <path> [--repo <path>]');
 		console.error('');
 		console.error('  --notice   Path to ThirdPartyNotices.txt');
 		console.error('  --repo     Path to the repo root (defaults to cwd)');
@@ -526,8 +579,11 @@ function main(): void {
 		noticeNames.add(e.name.toLowerCase());
 	}
 
-	const xref = crossReference(noticeNames, allManifestPkgs);
+	const xref = crossReference(noticeNames, allManifestPkgs, entries);
 	printReport(noticePath, stats, xref, lockfileBreakdown);
+	if (xref.manifestOnlyNames.length > 0) {
+		process.exitCode = 1;
+	}
 }
 
 main();

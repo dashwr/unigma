@@ -5,6 +5,7 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import {
 	AGENT_PROTOCOL_VERSION,
@@ -12,6 +13,7 @@ import {
 	AgentCommandType,
 	AgentErrorCode,
 	type AgentErrorEvent,
+	type AgentLocalIntegrationPreflight,
 	AgentEvent,
 	AgentEventType,
 	validateAgentEvent,
@@ -22,7 +24,12 @@ export const enum UnigmaAgentRuntimeConnectionState {
 	Connected = 'connected',
 }
 
-/** Injectable boundary for a future process, extension-host, or remote RPC adapter. */
+/** Serializable internal channel from the workbench to the extension host. */
+export const UNIGMA_AGENT_RUNTIME_TRANSPORT_COMMAND = 'unigma.agent.runtime.transport.send';
+/** Serializable internal channel from the extension host to the workbench. */
+export const UNIGMA_AGENT_RUNTIME_TRANSPORT_EVENT_COMMAND = 'unigma.agent.runtime.transport.event';
+
+/** Injectable boundary for tests and future RPC adapters. */
 export interface IUnigmaAgentRpcTransport {
 	readonly onDidReceiveEvent: Event<unknown>;
 
@@ -36,17 +43,14 @@ export interface IUnigmaAgentRuntime {
 	readonly connectionState: UnigmaAgentRuntimeConnectionState;
 	readonly onDidChangeConnectionState: Event<UnigmaAgentRuntimeConnectionState>;
 
-	start(): Promise<void>;
+	start(preflight: AgentLocalIntegrationPreflight, workspaceUri?: string): Promise<void>;
 	sendInput(sessionId: string, text: string): Promise<void>;
 	registerTransport(transport: IUnigmaAgentRpcTransport): IDisposable;
 }
 
 export const IUnigmaAgentRuntime = createDecorator<IUnigmaAgentRuntime>('unigmaAgentRuntime');
 
-/**
- * Translates decoded transport payloads at the UI boundary. Invalid payloads remain visible as
- * protocol errors rather than entering the view model as untyped data.
- */
+/** Translates decoded payloads at the UI boundary; invalid data becomes a protocol error. */
 export function translateUnigmaAgentRpcEvent(value: unknown): AgentEvent {
 	const validation = validateAgentEvent(value);
 	if (validation.valid) {
@@ -68,10 +72,61 @@ export function translateUnigmaAgentRpcEvent(value: unknown): AgentEvent {
 	};
 }
 
-/**
- * A transport-free runtime by default. An integration registers the transport explicitly; this
- * service never starts it or performs I/O itself.
- */
+function serializeAgentCommand(command: AgentCommand): Record<string, unknown> {
+	const envelope = {
+		version: command.version,
+		requestId: command.requestId,
+		type: command.type,
+	};
+
+	switch (command.type) {
+		case AgentCommandType.StartSession:
+			return {
+				...envelope,
+				...(command.sessionId === undefined ? {} : { sessionId: command.sessionId }),
+				...(command.workspaceUri === undefined ? {} : { workspaceUri: command.workspaceUri }),
+				localIntegrationPreflight: { ...command.localIntegrationPreflight },
+			};
+		case AgentCommandType.StopSession:
+		case AgentCommandType.ListWorktrees:
+			return { ...envelope, sessionId: command.sessionId };
+		case AgentCommandType.SendInput:
+			return { ...envelope, sessionId: command.sessionId, text: command.text };
+		case AgentCommandType.RequestDiff:
+			return {
+				...envelope,
+				sessionId: command.sessionId,
+				...(command.diffId === undefined ? {} : { diffId: command.diffId }),
+			};
+		case AgentCommandType.Approve:
+			return { ...envelope, sessionId: command.sessionId, approvalId: command.approvalId };
+		case AgentCommandType.Reject:
+			return {
+				...envelope,
+				sessionId: command.sessionId,
+				approvalId: command.approvalId,
+				...(command.reason === undefined ? {} : { reason: command.reason }),
+			};
+		case AgentCommandType.ApplyConfiguration:
+			return {
+				...envelope,
+				...(command.sessionId === undefined ? {} : { sessionId: command.sessionId }),
+				configuration: { ...command.configuration },
+			};
+	}
+}
+
+class CommandAgentRpcTransport implements IUnigmaAgentRpcTransport {
+	readonly onDidReceiveEvent: Event<unknown> = Event.None;
+
+	constructor(private readonly commandService: ICommandService) { }
+
+	send(command: AgentCommand): Promise<void> {
+		return this.commandService.executeCommand<void>(UNIGMA_AGENT_RUNTIME_TRANSPORT_COMMAND, serializeAgentCommand(command)).then(() => undefined);
+	}
+}
+
+/** Runtime da UI sem processo ou I/O; o adaptador de comandos liga-o ao extension host. */
 export class UnigmaAgentRuntime extends Disposable implements IUnigmaAgentRuntime {
 	declare readonly _serviceBrand: undefined;
 	private readonly _onDidReceiveEvent = this._register(new Emitter<AgentEvent>());
@@ -81,6 +136,18 @@ export class UnigmaAgentRuntime extends Disposable implements IUnigmaAgentRuntim
 	private transport: IUnigmaAgentRpcTransport | undefined;
 	private transportSubscription: IDisposable | undefined;
 	private requestSequence = 0;
+
+	constructor();
+	constructor(commandService: ICommandService);
+	constructor(@ICommandService commandService?: ICommandService) {
+		super();
+		this._register(CommandsRegistry.registerCommand(UNIGMA_AGENT_RUNTIME_TRANSPORT_EVENT_COMMAND, (_accessor, event: unknown) => {
+			this._onDidReceiveEvent.fire(translateUnigmaAgentRpcEvent(event));
+		}));
+		if (commandService) {
+			this._register(this.registerTransport(new CommandAgentRpcTransport(commandService)));
+		}
+	}
 
 	get connectionState(): UnigmaAgentRuntimeConnectionState {
 		return this.transport ? UnigmaAgentRuntimeConnectionState.Connected : UnigmaAgentRuntimeConnectionState.Disconnected;
@@ -107,11 +174,13 @@ export class UnigmaAgentRuntime extends Disposable implements IUnigmaAgentRuntim
 		};
 	}
 
-	async start(): Promise<void> {
+	async start(preflight: AgentLocalIntegrationPreflight, workspaceUri?: string): Promise<void> {
 		await this.send({
 			version: AGENT_PROTOCOL_VERSION,
 			requestId: this.nextRequestId(),
 			type: AgentCommandType.StartSession,
+			workspaceUri,
+			localIntegrationPreflight: preflight,
 		});
 	}
 
@@ -158,7 +227,7 @@ export class UnigmaAgentRuntime extends Disposable implements IUnigmaAgentRuntim
 			requestId: command.requestId,
 			error,
 		};
-		const sessionId = 'sessionId' in command ? command.sessionId : undefined;
+		const sessionId = command.sessionId;
 		this._onDidReceiveEvent.fire(sessionId === undefined ? event : { ...event, sessionId });
 	}
 

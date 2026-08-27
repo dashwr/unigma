@@ -23,6 +23,8 @@ export class AgentRuntimeApplication implements DisposableLike {
 	private readonly rpcSubscription: DisposableLike | undefined;
 	private readonly clientEventSubscription: DisposableLike | undefined;
 	private readonly sessionOperations = new Map<string, Promise<void>>();
+	private readonly requestIds = new Set<string>();
+	private readonly sessionIds = new Set<string>();
 
 	public constructor(ports?: RuntimePorts, rpc?: AgentRuntimeRpc<RuntimePromptCommand, RuntimeRpcEvent>) {
 		this._ports = ports;
@@ -82,6 +84,17 @@ export class AgentRuntimeApplication implements DisposableLike {
 	}
 
 	private async startConnection(workspace: WorkspaceReference, requestId?: string): Promise<void> {
+		const preflight = this._ports!.localIntegrationPreflight?.(workspace);
+		if (!preflight || !preflight.accepted) {
+			const refusalCode = preflight && !preflight.accepted ? preflight.code : 'unknownOrigin';
+			this._ports!.diagnostics.record({
+				level: 'warn',
+				code: `runtime.integration.refused.${refusalCode}`,
+				requestId,
+			});
+			throw new Error('Local integration preflight refused.');
+		}
+
 		try {
 			const process = await this._ports!.processManager.ensureStarted(workspace);
 			if (this.isDisposed()) {
@@ -114,10 +127,20 @@ export class AgentRuntimeApplication implements DisposableLike {
 		if (command.version !== 1 || command.type !== 'session.prompt' || this.isDisposed()) {
 			return;
 		}
+		if (!this._ports) {
+			this.emitRpcError(command.requestId, 'internal');
+			return;
+		}
+
+		if (this.requestIds.has(command.requestId)) {
+			this.emitRpcError(command.requestId, 'duplicateRequestId');
+			return;
+		}
+		this.requestIds.add(command.requestId);
 
 		if (!this._ports!.workspaceTrust.isTrusted(command.workspace)) {
 			this._ports!.diagnostics.record({ level: 'warn', code: 'runtime.workspace.untrusted', requestId: command.requestId });
-			this.rpc?.emitEvent({ version: 1, type: 'session.error', requestId: command.requestId });
+			this.emitRpcError(command.requestId, 'workspaceUntrusted');
 			return;
 		}
 
@@ -137,17 +160,28 @@ export class AgentRuntimeApplication implements DisposableLike {
 		}
 
 		let createdSession = false;
+		let sessionId: string | undefined;
 		try {
+			const reference = await this._ports!.sessionReferenceStore.read(command.workspace);
+			const registeredSessionId = reference?.workspaceUri === command.workspace.uri ? reference.sessionId : undefined;
+			if (registeredSessionId) {
+				this.sessionIds.add(registeredSessionId);
+			}
+			if (command.sessionId !== undefined && (registeredSessionId !== command.sessionId || !this.sessionIds.has(command.sessionId))) {
+				this.emitRpcError(command.requestId, 'sessionNotFound');
+				return;
+			}
+
 			await this.connectWorkspace(command.workspace, command.requestId, 'rpc');
 			if (this.isDisposed()) {
 				return;
 			}
-			const reference = await this._ports!.sessionReferenceStore.read(command.workspace);
-			const sessionId = reference?.sessionId ?? await this.createSession();
-			if (!reference) {
+			sessionId = registeredSessionId ?? await this.createSession();
+			if (!registeredSessionId) {
 				createdSession = true;
 				await this._ports!.sessionReferenceStore.write({ sessionId, workspaceUri: command.workspace.uri });
 			}
+			this.sessionIds.add(sessionId);
 			await this._ports!.openCodeClient.send({
 				method: 'POST',
 				path: `/session/${encodeURIComponent(sessionId)}/prompt_async`,
@@ -156,6 +190,7 @@ export class AgentRuntimeApplication implements DisposableLike {
 			this.rpc?.emitEvent({ version: 1, type: 'session.ready', sessionId, requestId: command.requestId });
 		} catch {
 			if (createdSession) {
+				this.sessionIds.delete(sessionId!);
 				try {
 					await this._ports!.sessionReferenceStore.remove(command.workspace);
 				} catch {
@@ -163,7 +198,24 @@ export class AgentRuntimeApplication implements DisposableLike {
 				}
 			}
 			this._ports?.diagnostics.record({ level: 'error', code: 'runtime.session.failed', requestId: command.requestId });
-			this.rpc?.emitEvent({ version: 1, type: 'session.error', requestId: command.requestId });
+			this.emitRpcError(command.requestId, 'internal');
+		}
+	}
+
+	private emitRpcError(requestId: string, code: 'duplicateRequestId' | 'sessionNotFound' | 'workspaceUntrusted' | 'internal'): void {
+		switch (code) {
+			case 'duplicateRequestId':
+				this.rpc?.emitEvent({ version: 1, type: 'session.error', requestId, error: { code, message: 'This request was already handled.', retryable: false } });
+				return;
+			case 'sessionNotFound':
+				this.rpc?.emitEvent({ version: 1, type: 'session.error', requestId, error: { code, message: 'The requested session is not available.', retryable: false } });
+				return;
+			case 'workspaceUntrusted':
+				this.rpc?.emitEvent({ version: 1, type: 'session.error', requestId, error: { code, message: 'The workspace is not trusted.', retryable: false } });
+				return;
+			case 'internal':
+				this.rpc?.emitEvent({ version: 1, type: 'session.error', requestId, error: { code, message: 'The agent runtime could not complete the request.', retryable: false } });
+				return;
 		}
 	}
 
@@ -190,6 +242,8 @@ export class AgentRuntimeApplication implements DisposableLike {
 
 		this._state = 'disposed';
 		this._lastDemand = undefined;
+		this.requestIds.clear();
+		this.sessionIds.clear();
 		this.rpcSubscription?.dispose();
 		this.clientEventSubscription?.dispose();
 		this._disposePromise ??= this.disposeRuntime().catch(() => {

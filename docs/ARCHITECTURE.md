@@ -79,6 +79,11 @@ patchset, versão, hashes, alvo e evidências. Configuração, credenciais, sess
 e histórico permanecem fora do bundle; atualização e rollback trocam somente o
 artefato do aplicativo e exigem que o processo esteja parado.
 
+`opencode serve` já é headless; isso resolve a forma de execução, não a política
+de distribuição. A análise service-only deve verificar as superfícies realmente
+alcançáveis/empacotadas e aplicar apenas um patch mínimo comprovado, sem remover o
+harness por varredura cega.
+
 ## 3. stack
 
 | área | escolha aprovada | motivo |

@@ -52,7 +52,7 @@ somente `unigma-linux-x64.tar.xz` é candidato a distribuição.
 - o tar contém `./resources/app/LICENSE.txt` e o notice raiz. Os hashes
   conferem com o checkout (`LICENSE.txt`:
   `cce33203a80863c22499035b1cfb6aba5df5f02e4ea2669cf5bc5730c1864236`; notice:
-  `51b3fd6b279f33c32499035b1cfb6aba5df5f02e4ea2669cf5bc5730c1864236`), além
+   `51b3fd6b279f33c324ba7d32ed9f8849bb51cc2d7c61eaf13c2e8eba5efdd523`), além
   de três notices de extensões;
 - o `product.json` empacotado usa `unigma`, MIT, `builtInExtensions=[]` e não
   configura gallery, feeds, report URL ou voz;
@@ -118,6 +118,11 @@ sem eliminar a revisão legal pendente.
 
 ### limites restantes
 
+- a rodada de fechamento gerou o
+  [`2026-08-26-third-party-inventory.md`](2026-08-26-third-party-inventory.md): o
+  auditor executa com Node sem `tsx`, mas retorna falha por 1.321 entradas
+  `manifest-only`, registra sete notices sem licença declarada e sete
+  divergências de versão notice/manifest;
 - os wrappers dos artefatos incluem logs de smoke e não são candidatos a
   distribuição; a inspeção de conteúdo acima considera somente tar/ZIP;
 - o auditor técnico não substitui a conferência completa do inventário de
@@ -125,7 +130,8 @@ sem eliminar a revisão legal pendente.
 - `resources/unigma/BRANDING-PROVENANCE.md` registra a fonte externa,
   derivações e hashes do lockup final, mas declara explicitamente que não é
   licença pública nem atestação de autoria, cessão ou não colisão. AC-012 segue
-  bloqueada.
+  bloqueada; o registro detalhado está em
+  [`BRANDING-CLEARANCE.md`](BRANDING-CLEARANCE.md).
 
 ## estado da triagem
 

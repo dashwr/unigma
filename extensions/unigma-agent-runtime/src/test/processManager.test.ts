@@ -143,4 +143,128 @@ suite('Unigma agent process manager', () => {
 		assert.strictEqual(spawnCount, 2);
 		await manager.stopOwned();
 	});
+
+	test('restarts a crashed process automatically', async () => {
+		const children: FakeProcess[] = [];
+		let spawnCount = 0;
+		const manager = new ChildProcessManager({
+			...optionsFor(() => {
+				spawnCount++;
+				const child = new FakeProcess(1000 + spawnCount);
+				children.push(child);
+				queueMicrotask(() => child.emit('spawn'));
+				return child as unknown as ReturnType<NonNullable<ProcessManagerOptions['spawn']>>;
+			}),
+			maxRestarts: 2,
+			restartBackoffMs: 5,
+		});
+
+		const handle = await manager.ensureStarted(workspace);
+		assert.strictEqual(spawnCount, 1);
+		assert.strictEqual(handle.pid, 1001);
+
+		// Simulate unexpected crash
+		children[0].exitCode = 1;
+		children[0].emit('exit', 1, null);
+		await new Promise(resolve => setTimeout(resolve, 30));
+
+		assert.strictEqual(spawnCount, 2);
+		assert.ok(children[1].pid !== undefined);
+		await manager.stopOwned();
+	});
+
+	test('stops restarting after maxRestarts is exceeded', async () => {
+		const children: FakeProcess[] = [];
+		let spawnCount = 0;
+		const manager = new ChildProcessManager({
+			...optionsFor(() => {
+				spawnCount++;
+				const child = new FakeProcess(1000 + spawnCount);
+				children.push(child);
+				queueMicrotask(() => child.emit('spawn'));
+				return child as unknown as ReturnType<NonNullable<ProcessManagerOptions['spawn']>>;
+			}),
+			restartBackoffMs: 5,
+		});
+
+		await manager.ensureStarted(workspace);
+		assert.strictEqual(spawnCount, 1);
+
+		// First crash - should restart
+		children[0].exitCode = 1;
+		children[0].emit('exit', 1, null);
+		await new Promise(resolve => setTimeout(resolve, 30));
+		assert.strictEqual(spawnCount, 2);
+
+		// Second crash - should not restart (maxRestarts=1)
+		children[1].exitCode = 1;
+		children[1].emit('exit', 1, null);
+		await new Promise(resolve => setTimeout(resolve, 30));
+		assert.strictEqual(spawnCount, 2);
+		await manager.stopOwned();
+	});
+
+	test('stopOwned cancels pending restart', async () => {
+		const children: FakeProcess[] = [];
+		let spawnCount = 0;
+		const manager = new ChildProcessManager({
+			...optionsFor(() => {
+				spawnCount++;
+				const child = new FakeProcess(1000 + spawnCount);
+				children.push(child);
+				queueMicrotask(() => child.emit('spawn'));
+				return child as unknown as ReturnType<NonNullable<ProcessManagerOptions['spawn']>>;
+			}),
+			maxRestarts: 3,
+			restartBackoffMs: 50,
+		});
+
+		await manager.ensureStarted(workspace);
+		assert.strictEqual(spawnCount, 1);
+
+		// Simulate crash and immediately stop
+		children[0].exitCode = 1;
+		children[0].emit('exit', 1, null);
+		await manager.stopOwned();
+		await new Promise(resolve => setTimeout(resolve, 100));
+
+		// Should not have restarted
+		assert.strictEqual(spawnCount, 1);
+	});
+
+	test('resets restart count after a successful ensureStarted', async () => {
+		const children: FakeProcess[] = [];
+		let spawnCount = 0;
+		const manager = new ChildProcessManager({
+			...optionsFor(() => {
+				spawnCount++;
+				const child = new FakeProcess(1000 + spawnCount);
+				children.push(child);
+				queueMicrotask(() => child.emit('spawn'));
+				return child as unknown as ReturnType<NonNullable<ProcessManagerOptions['spawn']>>;
+			}),
+			maxRestarts: 2,
+			restartBackoffMs: 5,
+		});
+
+		await manager.ensureStarted(workspace);
+		assert.strictEqual(spawnCount, 1);
+
+		// First crash
+		children[0].exitCode = 1;
+		children[0].emit('exit', 1, null);
+		await new Promise(resolve => setTimeout(resolve, 30));
+		assert.strictEqual(spawnCount, 2);
+
+		// Successful reconnection resets count
+		await manager.ensureStarted(workspace);
+		assert.strictEqual(spawnCount, 2);
+
+		// Second crash - should still restart (count was reset)
+		children[1].exitCode = 1;
+		children[1].emit('exit', 1, null);
+		await new Promise(resolve => setTimeout(resolve, 30));
+		assert.strictEqual(spawnCount, 3);
+		await manager.stopOwned();
+	});
 });
