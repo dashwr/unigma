@@ -139,9 +139,24 @@ jobs:
           export UV_THREADPOOL_SIZE=12
           export CMAKE_BUILD_PARALLEL_LEVEL=12
           export MAKEFLAGS=-j12
+          export npm_config_fetch_retries=5
+          export npm_config_fetch_retry_factor=2
+          export npm_config_fetch_retry_mintimeout=10000
+          export npm_config_fetch_retry_maxtimeout=120000
           cd "$build"
           node build/azure-pipelines/common/disableFoundryLocalInstall.ts
-          npm ci --no-audit --no-fund
+          for attempt in 1 2 3 4 5; do
+            if npm ci --no-audit --no-fund; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 5 ]; then
+              echo "npm ci failed after 5 attempts" >&2
+              exit 1
+            fi
+            delay=$((attempt * 10))
+            echo "npm ci failed on attempt $attempt; retrying in ${delay}s" >&2
+            sleep "$delay"
+          done
           '@
           $script = $script -replace "`r`n?", "`n"
           [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))
