@@ -14,11 +14,7 @@ use super::{args::CommandShellArgs, CommandContext};
 use crate::{
 	async_pipe::{get_socket_name, listen_socket_rw_stream, AsyncRWAccepter},
 	log,
-	tunnels::{
-		serve_stream,
-		shutdown_signal::ShutdownRequest,
-		AuthRequired, ServeStreamParams,
-	},
+	tunnels::{serve_stream, shutdown_signal::ShutdownRequest, AuthRequired, ServeStreamParams},
 	util::errors::{wrap, AnyError, CodeError},
 	util::prereqs::PreReqChecker,
 };
@@ -54,7 +50,9 @@ pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Resul
 					.await
 					.map_err(|e| wrap(e, "error listening on socket"))?;
 
-				params.log.result(format!("Listening on {}", socket.display()));
+				params
+					.log
+					.result(format!("Listening on {}", socket.display()));
 				Box::new(listener)
 			}
 			(Some(_), _, _) | (_, Some(_), _) => {

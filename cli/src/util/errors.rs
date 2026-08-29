@@ -167,7 +167,7 @@ pub struct ExtensionInstallFailed(pub String);
 
 impl std::fmt::Display for ExtensionInstallFailed {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(f, "Extension install failed: {}", &self.0)
+		write!(f, "Extension install failed: {}", self.0)
 	}
 }
 
