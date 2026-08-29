@@ -54,6 +54,11 @@
 > das completions. `cargo test` passou com 33 testes e `terminal-suggest` compilou
 > sem erros. O aceite permanece em `review`: clippy tem cinco lints baseline,
 > Node 24/runner e a atualização de `cli/ThirdPartyNotices.txt` continuam pendentes.
+>
+> evidência runner: a execução [`33267418418`](https://github.com/dashwr/unigma/actions/runs/33267418418)
+> passou no commit `a3300897`, com build Windows x64, auditoria de pacote, smoke,
+> checks focados e contrato do runtime; o artefato não expirou. Clippy e notices
+> continuam gates separados.
 
 ## como usar
 

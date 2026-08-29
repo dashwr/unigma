@@ -13,7 +13,9 @@ que emenda no plano de ondas
 entre a onda 1 e a colheita da onda 2. `CLI-001` está em `review`: os testes Rust
 e a compilação de `terminal-suggest` passaram localmente, mas clippy tem cinco
 lints baseline, notices e a matriz Node 24/runner ainda estão pendentes.
-`OVN-D024` permanece em `review` pelos mesmos gates de distribuição.
+`OVN-D024` permanece em `review` pelos mesmos gates de distribuição. O runner
+self-hosted Windows concluiu com sucesso a execução `33267418418` no commit
+`a3300897`, incluindo build, auditoria, smoke e contrato do runtime.
 
 ## quadro
 
