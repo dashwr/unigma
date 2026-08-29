@@ -4,14 +4,16 @@
 > datados desta pasta; este quadro responde **o que está ativo, onde parou e qual
 > é o próximo passo**.
 
-**última atualização:** 2026-08-27
-**foco atual:** `OVN-001` — execução coordenada e consolidação do overnight
-E00–E03. `DOC-001` foi concluída; a primeira onda read-only virou uma pequena
-onda de correções técnicas, ainda sem fechamento formal de épico. O próximo plano
-de execução está em [`../planos/2026-08-27-e00-e03-ondas.md`](../planos/2026-08-27-e00-e03-ondas.md).
-A onda 1 foi executada; os recortes 2A/T-020 e 2B/T-030 da onda 2 foram
-verificados localmente. A próxima ação é consolidar os bloqueios de matriz e
-aceite, sem iniciar a onda 3.
+**última atualização:** 2026-08-29
+**foco atual:** `CLI-001` — desacoplar o Agent Host do CLI Rust **preservando o
+Code Server**, etapa A de
+[`../planos/2026-08-29-cli-ssh-remoto.md`](../planos/2026-08-29-cli-ssh-remoto.md),
+que emenda no plano de ondas
+[`../planos/2026-08-28-ondas-refundacao.md`](../planos/2026-08-28-ondas-refundacao.md)
+entre a onda 1 e a colheita da onda 2. `CLI-001` está em `review`: os testes Rust
+e a compilação de `terminal-suggest` passaram localmente, mas clippy tem cinco
+lints baseline, notices e a matriz Node 24/runner ainda estão pendentes.
+`OVN-D024` permanece em `review` pelos mesmos gates de distribuição.
 
 ## quadro
 
@@ -19,6 +21,11 @@ aceite, sem iniciar a onda 3.
 | --- | --- | --- | --- | --- | --- | --- |
 | `DOC-001` | adaptar o workflow e reorganizar `docs/` | documentação final | `done` | manter este quadro na próxima solicitação multi-tarefa | nenhuma | [`README.md`](../README.md), [`fontes/MODELO-DE-TAREFAS.pdf`](../fontes/MODELO-DE-TAREFAS.pdf) |
 | `OVN-001` | triagem, delegação e consolidação do overnight E00–E03 | implementação/verificação | `in_progress` | consolidar resultados de 1A–1F e dos recortes 2A/2B, desbloquear ambiente/gates humanos e não iniciar onda 3 | nenhum; sem colisão de arquivos | [`planos/2026-08-27-e00-e03-ondas.md`](../planos/2026-08-27-e00-e03-ondas.md), [`BACKLOG.md`](../BACKLOG.md) |
+| `OVN-D024` | retirada do Agent Host herdado e do CAPI | implementação/review | `review` | executar compile/typecheck/testes e auditor de notices no runner após publicar a ref | T-100–T-104 locais; runner | [`../planos/2026-08-28-ondas-refundacao.md`](../planos/2026-08-28-ondas-refundacao.md), [`../DECISIONS.md`](../DECISIONS.md) |
+| `CLI-001` | etapa A: desacoplar o Agent Host do CLI Rust, preservando Code Server, bridge, multiplexer, protocolo e `command-shell` | implementação/review | `review` | colher Node 24/runner, revisar notices e decidir tratamento do baseline clippy; não promover por teste local | auditoria CLI; `D-027`; `D-029` | [`../planos/2026-08-29-cli-ssh-remoto.md`](../planos/2026-08-29-cli-ssh-remoto.md), [`2026-08-29-cli-audit.md`](2026-08-29-cli-audit.md) |
+| `CLI-002` | etapa B: OpenSSH → `unigma-server` remoto → extension host → `unigma-agent-runtime` → `opencode serve` (T-050…T-053) | backlog | `blocked` | decidir a entrega do `unigma-server` (`Q-2`) e concluir `CLI-001`, a onda 4 e o probe SSH da onda 5 | `CLI-001`, `D-028`, VPS autorizada | [`../planos/2026-08-29-cli-ssh-remoto.md`](../planos/2026-08-29-cli-ssh-remoto.md), [`../SSH-CONTRACT.md`](../SSH-CONTRACT.md) |
+| `CLI-003` | auditoria do `code tunnel` e de `@microsoft/dev-tunnels-*` (`Q-3`) | discovery | `ready` | levantar, sem alterar código, quem consome o subcomando `tunnel`, o que ele exige do serviço Microsoft e o que cairia junto; entregar veredito preservar/remover para decisão | nenhuma; não bloqueia `CLI-001` nem `CLI-002` | [`../planos/2026-08-29-cli-ssh-remoto.md`](../planos/2026-08-29-cli-ssh-remoto.md) §7, [`2026-08-29-cli-audit.md`](2026-08-29-cli-audit.md) |
+| `OVN-T105` | dependências órfãs após D-024 | backlog bloqueado | `blocked` | remover Claude/Codex do root e regenerar lockfile por instalação normal autorizada; `@microsoft/dev-tunnels-*` fica fora deste corte enquanto `Q-3` não for decidida; as crates `ahp`/`ahp-types` saem em `CLI-001`/A.6 | T-104; `CLI-001`; autorização de instalação | [`BACKLOG.md`](../BACKLOG.md), [`../DECISIONS.md`](../DECISIONS.md) |
 | `OVN-T023` | verificar storage de referência, lifecycle e diagnóstico redigido | verificação | `review` | executar suíte compilada em Node 24 e confirmar ausência de conteúdo sensível | T-010/T-020, runner | [`2026-08-27-overnight.md`](2026-08-27-overnight.md) |
 | `OVN-T020` | verificar esqueleto, ativação lazy e lifecycle do runtime | verificação | `review` | repetir compile e suíte de lifecycle em Node 24/npm <12 | T-010, runner | [`../planos/2026-08-27-e00-e03-ondas.md`](../planos/2026-08-27-e00-e03-ondas.md) |
 | `OVN-T030` | verificar contribuição nativa e fronteira arquitetural | verificação | `review` | repetir compile/teste browser na matriz oficial e cobrir integração quando liberada | T-010, runner | [`../planos/2026-08-27-e00-e03-ondas.md`](../planos/2026-08-27-e00-e03-ondas.md) |
@@ -79,3 +86,7 @@ aceite, sem iniciar a onda 3.
 | 2026-08-27 | `OVN-001` / onda 1 | lanes 1A–1F executadas | auditoria E00-A, bloqueio humano E00-B, compile/teste E01-A, auditoria headless E01-B, preflight E01-C e matriz pura E01-D registrados; onda 2 não iniciada |
 | 2026-08-27 | `OVN-T020/T030` / onda 2 | recortes 2A/2B verificados | runtime compile + suíte oficial Node 24/npm 11 passaram com 59 testes; cliente compile anterior + 8 testes browser passaram em Node 26; compile-client na matriz Node 24 falhou no worker tsgo; runner e integração E02/E03 continuam pendentes |
 | 2026-08-26 | `E01-C/T-012` | implementação → `review` | bridge serializável, preflight fail-closed, compile/teste local e typecheck; runner/inventário real pendentes |
+| 2026-08-29 | `CLI-003` | criada em `ready` | `Q-3` separada por decisão explícita: o destino do `code tunnel` e de `@microsoft/dev-tunnels-*` vira auditoria própria, fora do escopo da etapa A |
+| 2026-08-29 | `CLI-001` / `CLI-002` | criadas em `ready`/`blocked` | auditoria somente-leitura do CLI em [`2026-08-29-cli-audit.md`](2026-08-29-cli-audit.md); decisões `D-027` (preservar Code Server) e `D-028` (`unigma-server` do próprio fork); plano [`../planos/2026-08-29-cli-ssh-remoto.md`](../planos/2026-08-29-cli-ssh-remoto.md); nenhum código alterado |
+| 2026-08-29 | `OVN-D024` / `T-100–T-104` | implementação → `review` | subsistema Agent Host, CAPI, SDK legado, registros de build e smoke/E2E removidos; busca estática sem import residual; runner, artefato e notices pendentes |
+| 2026-08-29 | `CLI-001` / `T-110–T-113` | implementação → `review` | CLI Rust sem consumidores AHP, `PROTOCOL_VERSION=4`, módulos removidos, Code Server preservado; `cargo test` 33 testes e compile de `terminal-suggest` passaram; clippy baseline, Node 24/runner e notices pendentes |

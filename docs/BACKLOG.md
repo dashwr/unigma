@@ -29,6 +29,31 @@
 > consolidados em [`status/2026-08-27-overnight.md`](status/2026-08-27-overnight.md);
 > os recortes 2A/T-020 e 2B/T-030 da onda 2 foram verificados localmente, sem
 > promover E02/E03 a aceite.
+>
+> feito: 2026-08-29 — a implementação local da onda 1/T-100–T-104 removeu as
+> contribuições e o subsistema Agent Host herdados, suas entradas de build/SDK e
+> smoke/E2E, com busca estática sem imports residuais. O estado permanece
+> `review`: compile, typecheck, testes, artefato e delta de notices ainda devem
+> ser colhidos no runner oficial.
+>
+> feito: 2026-08-29 — auditoria somente-leitura do CLI Rust registrada em
+> [`status/2026-08-29-cli-audit.md`](status/2026-08-29-cli-audit.md). Ela separa o
+> Code Server (necessário ao SSH remoto, preservado) do Agent Host/AHP herdado
+> (removível) e originou as decisões `D-027` e `D-028`. Nenhum código foi alterado
+> na auditoria.
+>
+> próximo plano: [`planos/2026-08-29-cli-ssh-remoto.md`](planos/2026-08-29-cli-ssh-remoto.md).
+> Etapa A desacopla o Agent Host do CLI preservando `code_server.rs`, o bridge, o
+> multiplexer, o protocolo e o `command-shell`; etapa B implementa e valida
+> OpenSSH → `unigma-server` remoto → extension host remoto →
+> `unigma-agent-runtime` → `opencode serve` (T-050/T-051/T-052/T-053). Os testes
+> ficam concentrados no fim de cada etapa.
+>
+> feito local: 2026-08-29 — `CLI-001` removeu consumidores/módulos AHP do CLI Rust,
+> fixou `PROTOCOL_VERSION=4`, preservou o Code Server e removeu o subcomando Agent
+> das completions. `cargo test` passou com 33 testes e `terminal-suggest` compilou
+> sem erros. O aceite permanece em `review`: clippy tem cinco lints baseline,
+> Node 24/runner e a atualização de `cli/ThirdPartyNotices.txt` continuam pendentes.
 
 ## como usar
 
@@ -686,9 +711,14 @@ estão pendentes.
 - **objetivo:** integrar `unigma-remote-ssh` ao modelo de autoridade remota do
   Code - OSS usando OpenSSH existente.
 - **responsável lógico:** engenharia remota.
-- **dependências:** T-002, T-003, T-013.
+- **dependências:** T-002, T-003, T-013 e a etapa A de
+  [`planos/2026-08-29-cli-ssh-remoto.md`](planos/2026-08-29-cli-ssh-remoto.md),
+  que deixa o CLI sem o Agent Host e com o Code Server intacto.
 - **arquivos/módulos prováveis:** `extensions/unigma-remote-ssh/src/`, manifesto,
-  adaptadores OpenSSH e testes.
+  adaptadores OpenSSH e testes; do lado do servidor, `cli/src/tunnels/code_server.rs`
+  e o entry point `command-shell`, preservados por `D-027`.
+- **servidor remoto:** `unigma-server` construído deste fork (`D-028`), acoplado
+  por commit ao cliente; a forma de entrega é a questão aberta `Q-2` do plano.
 - **critérios de aceite:** usa `known_hosts` e agente/chaves do usuário; não
   solicita nem persiste segredos; host remoto possui extension host compatível;
   falhas são observáveis.
@@ -707,8 +737,10 @@ estão pendentes.
 - **dependências:** T-050, T-021, T-022 e T-023.
 - **arquivos/módulos prováveis:** `unigma-remote-ssh/`, runtime, resolução de
   host/paths e ciclo de vida remoto.
-- **critérios de aceite:** OpenCode roda no destino; caminhos/Git/worktrees são
-  remotos; loopback é do host remoto; encerramento limpa apenas processo criado.
+- **critérios de aceite:** OpenCode roda no destino, dentro do extension host
+  remoto hospedado pelo `unigma-server` — não em substituição a ele; caminhos/Git/
+  worktrees são remotos; loopback é do host remoto e nunca é exposto ao desktop;
+  encerramento limpa apenas processo criado.
 - **testes necessários:** sessão remota, Git remoto, dois workspaces, perda SSH,
   reconexão e processo remoto órfão.
 - **riscos:** confundir loopback local/remoto ou vazar workspace; mitigação:
@@ -1660,7 +1692,7 @@ usado nesta onda.
   altos/médios;
 - passaram checagens de sintaxe TypeScript, smoke puro da política, parsing dos
   manifestos e `git diff --check`;
-- a suíte oficial ainda não foi executada: `node_modules` não existe e
+ - a suíte oficial ainda não foi executada: `node_modules` não existe e
   `npm ci --no-audit --no-fund` exige Node `24.18.0`, enquanto o ambiente usa
   `v26.7.0`; por isso `mocha`, `gulp` e `tsc` continuam ausentes;
 - a instalação de dependências foi autorizada pelo responsável, mas ainda não
