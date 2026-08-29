@@ -16,6 +16,8 @@ lints baseline, notices e a matriz Node 24/runner ainda estão pendentes.
 `OVN-D024` permanece em `review` pelos mesmos gates de distribuição. O runner
 self-hosted Windows concluiu com sucesso a execução `33267418418` no commit
 `a3300897`, incluindo build, auditoria, smoke e contrato do runtime.
+O retry Linux WSL `33279351708` também concluiu com sucesso no commit `e6b4e1bd`,
+após o workflow ganhar retry/backoff para downloads do npm/node-gyp.
 
 ## quadro
 
