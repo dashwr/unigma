@@ -13,12 +13,13 @@ que emenda no plano de ondas
 entre a onda 1 e a colheita da onda 2. `CLI-001` está em `review`: os testes Rust
 e a compilação de `terminal-suggest` passaram localmente; os gates de runner da
 etapa A estão verdes.
-`OVN-D024` fechou a matriz oficial em 2026-08-30 no head `91867fb1`: Windows
-`33328903196` e Linux/WSL2 `33330427263` concluíram todos os passos, incluindo
-pacote, auditoria de distribuição, smoke e evidência de artefato. É a primeira
-execução completa do produto sem o Agent Host. As entradas formais estão em
-[`EVIDENCE.md`](EVIDENCE.md); o que continua em aberto é inventário de terceiros
-da raiz, branding e qualquer capacidade de E-02 em diante.
+`OVN-D024` fechou a matriz oficial em 2026-08-30 no head `91867fb1`; a matriz
+final de remoção de dependências Copilot fechou no head `ac74acec`: Windows
+`33340526388` e Linux/WSL2 `33341927790` concluíram todos os passos, incluindo
+instalação limpa, pacote, auditoria de distribuição, smoke e evidência de
+artefato. As entradas formais estão em [`EVIDENCE.md`](EVIDENCE.md); o que
+continua em aberto é o inventário de terceiros da raiz, clearance legal e
+qualquer capacidade de E-02 em diante.
 Os runs anteriores `33267418418` (Windows, `a3300897`) e `33279351708`
 (Linux WSL, `e6b4e1bd`) permanecem como registro histórico do recorte do CLI.
 Em 2026-08-30, `c00f37b3` removeu `@github/copilot` e `@github/copilot-sdk` da

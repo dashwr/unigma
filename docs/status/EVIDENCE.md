@@ -215,3 +215,52 @@ Correções que tornaram esta matriz possível, todas no mesmo head:
   dashboard lia `defaultChatAgent`, ausente neste `product.json`.
 - `91867fb1` — o teste de capability passou a ler as entradas da paleta em vez
   de depender da mensagem de erro de `runCommand`, que só produzia timeout.
+
+### matriz oficial final — remoção de dependências Copilot — 2026-08-30
+
+data:            2026-08-30
+tarefa/gate:     `OVN-BRANDING-PACKAGE` / `D-032` — dependências e About
+run id:          `33340526388`
+workflow:        `unigma-self-hosted-validation.yml`
+commit/head:     `ac74acec2d5cbc591f2b98fb198e53cec8a45045`
+plataforma:      windows-x64 — runner self-hosted
+node/npm:        `v24.18.0` / npm 11.x
+passos:
+  1 `install dependencies`                     ok
+  2 `compile unigma agent runtime`             ok
+  3 `run focused upstream checks`              ok
+  4 `build windows x64 package`                ok
+  5 `audit windows x64 package`                ok
+  6 `run desktop smoke test`                   ok
+  7 `write artifact evidence`                  ok
+  8 `upload windows evidence`                  ok
+artefato:        `unigma-windows-x64-33340526388` (id `9740716863`, `251764464` bytes)
+hashes:          registrados no artefato pelo passo `write artifact evidence`
+prova:           a remoção das dependências da raiz e do remote não quebrou a
+                 instalação limpa, o pacote Windows, a auditoria de distribuição
+                 ou o smoke de núcleo.
+não prova:       notice root regenerado, clearance legal de terceiros, sessão
+                 OpenCode real ou qualquer capacidade SSH.
+
+data:            2026-08-30
+tarefa/gate:     `OVN-BRANDING-PACKAGE` / `D-032` — dependências e About
+run id:          `33341927790`
+workflow:        `unigma-linux-wsl-validation.yml`
+commit/head:     `ac74acec2d5cbc591f2b98fb198e53cec8a45045`
+plataforma:      linux-x64 — Ubuntu WSL2 sobre o runner Windows
+node/npm:        `v24.18.0` / npm 11.x
+passos:
+  1 `install Linux dependencies and Node in WSL`  ok
+  2 `install dependencies in WSL`                 ok
+  3 `compile unigma agent runtime in WSL`         ok
+  4 `build Linux x64 package in WSL`              ok
+  5 `audit Linux x64 package in WSL`              ok
+  6 `run Linux desktop smoke test in WSL`         ok
+  7 `write Linux artifact evidence`               ok
+  8 `upload Linux evidence`                       ok
+artefato:        `unigma-linux-x64-33341927790` (id `9741090425`, `178618673` bytes)
+hashes:          registrados no artefato pelo passo `write Linux artifact evidence`
+prova:           o mesmo head final também passa pela instalação limpa, pacote,
+                 auditoria e smoke em Linux/WSL2.
+não prova:       notice root regenerado, clearance legal de terceiros, sessão
+                 OpenCode real ou qualquer capacidade SSH.

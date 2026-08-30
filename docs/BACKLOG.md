@@ -64,6 +64,12 @@
 > escopo root permanece pendente; os 7 avisos de licença são falso positivo do
 > parser, e o notice final não foi regenerado após a poda de dependências.
 >
+> validado: 2026-08-30 — no head `ac74acec`, Windows (`33340526388`) e
+> Linux/WSL2 (`33341927790`) passaram instalação limpa, pacote, auditoria,
+> smoke e evidência após remover `@github/copilot` e `@github/copilot-sdk` da
+> raiz e de `remote/`. Artefatos: Windows `9740716863` / `251764464` bytes;
+> Linux `9741090425` / `178618673` bytes.
+>
 > feito: 2026-08-29 — auditoria somente-leitura do CLI Rust registrada em
 > [`status/2026-08-29-cli-audit.md`](status/2026-08-29-cli-audit.md). Ela separa o
 > Code Server (necessário ao SSH remoto, preservado) do Agent Host/AHP herdado
