@@ -52,7 +52,7 @@ documento e nao e uma versao do OpenCode.
 | Item | Regra do MVP |
 | --- | --- |
 | Versao OpenCode | **Candidata de teste:** release `v1.18.23`, cujo tag local aponta para `31c409a86510e80fd6f798da165c50a6a40fccba`. `/usr/bin/opencode --version` retorna `1.18.23`; SHA-256 Linux observado: `f80650dcfc1308afaecc2d343c9a0a52fdc2dacd49150b7256a000acf068799f`. Sem manifesto de release local, esse hash não prova sozinho a relação binário→commit. Ela ainda não é o binário bundled service-only de release. |
-| Versao observada | O valor de `version` retornado por `GET /global/health` deve ser registrado como evidência de cada teste; não é uma allowlist por si só. |
+| Versao observada | O valor de `version` retornado por `GET /global/health` deve ser registrado como evidência de cada teste e precisa ser exatamente `1.18.23` para o MVP; qualquer outra versão falha fechado até nova revisão desta matriz. |
 | Checkout upstream candidato | `/home/dasher/projects/unigma/opencode`, branch `dev`, HEAD `c2eacd72afc4a4984564c393e15ab30011057269`, árvore limpa; `packages/opencode`, `core` e `server` declaram `1.18.23`. A revisão fonte ainda não é um patchset ou bundle aceito. |
 | Autoridade do contrato | A especificacao publicada por `GET /doc` do binario em teste e a autoridade para paths, metodos, schemas e respostas. O SDK `dev` e referencia publica de tipos, nao uma versao suportada. |
 | Combinacao upstream | Code - OSS `1.134.0`, commit `474a349ad5b745e512ef86b864d1c74f7264dd7a`, Node.js `24.18.0` e Electron `42.8.1` continuam sendo a matriz do upstream; isso nao prova compatibilidade com OpenCode. |

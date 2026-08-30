@@ -36,6 +36,12 @@
 > `review`: compile, typecheck, testes, artefato e delta de notices ainda devem
 > ser colhidos no runner oficial.
 >
+> feito: 2026-08-29 — removido o caminho residual de Agent Sessions Welcome da
+> configuração de startup, layout, tema e walkthrough; a página órfã foi excluída.
+>
+> feito: 2026-08-29 — compatibilidade do runtime fixada em OpenCode `1.18.23`,
+> com rejeição fail-closed de versões diferentes; compile/typecheck do cliente e
+> 60 testes do runtime passaram sob Node `24.18.0`.
 > feito: 2026-08-29 — auditoria somente-leitura do CLI Rust registrada em
 > [`status/2026-08-29-cli-audit.md`](status/2026-08-29-cli-audit.md). Ela separa o
 > Code Server (necessário ao SSH remoto, preservado) do Agent Host/AHP herdado
@@ -1711,8 +1717,9 @@ usado nesta onda.
 
 ### E00-B / AC-012
 
-- continua bloqueada: a cadeia técnica de branding está documentada, mas faltam
-  atestação independente de autoria, direitos, autorização e não colisão.
+- escopo ajustado por `D-030`: prova formal de autoria e trademark clearance não
+  bloqueiam a entrega FOSS; a frente deve remover identidade upstream visível e
+  preservar copyright, licenças e notices aplicáveis.
 
 ### estado operacional
 

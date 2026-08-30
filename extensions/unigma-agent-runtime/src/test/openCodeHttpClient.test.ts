@@ -8,7 +8,7 @@ import assert from 'assert';
 import { createServer, type Server, type ServerResponse } from 'node:http';
 import * as path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { OpenCodeHttpClient, type OpenCodeEvent } from '../infrastructure/openCodeHttpClient';
+import { OpenCodeHttpClient, SUPPORTED_OPENCODE_VERSION, type OpenCodeEvent } from '../infrastructure/openCodeHttpClient';
 import type { DiagnosticRecord, OwnedProcessHandle } from '../domain/runtime';
 
 const workspacePath = process.platform === 'win32' ? 'C:\\unigma-workspace' : '/tmp/unigma-workspace';
@@ -48,6 +48,7 @@ function documentFor(missingOperation?: readonly [string, string]): Record<strin
 
 interface FixtureOptions {
 	readonly document?: Record<string, unknown>;
+	readonly healthVersion?: string;
 	readonly workspacePath?: string;
 	readonly workspaceResponse?: unknown;
 	readonly onEvent?: (response: ServerResponse, index: number) => void;
@@ -70,7 +71,7 @@ async function createFixture(options: FixtureOptions = {}): Promise<Fixture> {
 		request.resume();
 
 		if (requestPath === '/global/health') {
-			return json(response, { healthy: true, version: 'fixture-0.1' });
+			return json(response, { healthy: true, version: options.healthVersion ?? SUPPORTED_OPENCODE_VERSION });
 		}
 		if (requestPath === '/doc') {
 			return json(response, options.document ?? documentFor());
@@ -170,6 +171,19 @@ suite('Unigma OpenCode HTTP/SSE client', () => {
 				fixture.requests.slice(0, 4).map(request => `${request.method} ${request.path}`),
 				['GET /global/health', 'GET /doc', 'GET /path', 'GET /event'],
 			);
+		} finally {
+			await client.disconnect();
+			await fixture.close();
+		}
+	});
+
+	test('fails closed for an unsupported OpenCode version', async () => {
+		const fixture = await createFixture({ healthVersion: '1.18.24' });
+		const client = new OpenCodeHttpClient({ requestTimeoutMs: 500, startupTimeoutMs: 1000 });
+
+		try {
+			await assert.rejects(client.connect(processFor(fixture.endpoint)), /Unsupported OpenCode version: 1\.18\.24/);
+			assert.ok(!fixture.requests.some(request => request.path === '/doc'));
 		} finally {
 			await client.disconnect();
 			await fixture.close();

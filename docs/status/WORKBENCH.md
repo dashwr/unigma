@@ -13,11 +13,18 @@ que emenda no plano de ondas
 entre a onda 1 e a colheita da onda 2. `CLI-001` está em `review`: os testes Rust
 e a compilação de `terminal-suggest` passaram localmente, mas clippy tem cinco
 lints baseline, notices e a matriz Node 24/runner ainda estão pendentes.
-`OVN-D024` permanece em `review` pelos mesmos gates de distribuição. O runner
+`OVN-D024` permanece em `review` pelos gates técnicos de distribuição. O runner
 self-hosted Windows concluiu com sucesso a execução `33267418418` no commit
 `a3300897`, incluindo build, auditoria, smoke e contrato do runtime.
 O retry Linux WSL `33279351708` também concluiu com sucesso no commit `e6b4e1bd`,
 após o workflow ganhar retry/backoff para downloads do npm/node-gyp.
+Nesta rodada, o caminho residual de Agent Sessions Welcome foi removido da
+configuração de startup, layout, tema e contribuição de walkthrough; os três
+arquivos da página órfã também foram removidos. A validação ainda é `review`,
+pois compile/typecheck e runner precisam confirmar o recorte completo.
+Em 2026-08-29, `compile-client` e `typecheck-client` passaram sob Node
+`24.18.0`; o runtime próprio compilou e sua suíte passou com 60 testes. Os
+auditores de notices ainda retornam `1` por manifest-only e licenças pendentes.
 
 ## quadro
 
@@ -34,7 +41,7 @@ após o workflow ganhar retry/backoff para downloads do npm/node-gyp.
 | `OVN-T020` | verificar esqueleto, ativação lazy e lifecycle do runtime | verificação | `review` | repetir compile e suíte de lifecycle em Node 24/npm <12 | T-010, runner | [`../planos/2026-08-27-e00-e03-ondas.md`](../planos/2026-08-27-e00-e03-ondas.md) |
 | `OVN-T030` | verificar contribuição nativa e fronteira arquitetural | verificação | `review` | repetir compile/teste browser na matriz oficial e cobrir integração quando liberada | T-010, runner | [`../planos/2026-08-27-e00-e03-ondas.md`](../planos/2026-08-27-e00-e03-ondas.md) |
 | `E00-A` / `T-002/T-004` | notices, terceiros e identidade de distribuição | release candidate | `blocked` | concluir inventário legal e classificar lacunas antes de release | revisão independente | [`2026-08-26-third-party-inventory.md`](2026-08-26-third-party-inventory.md), [`THIRD-PARTY-REVIEW.md`](THIRD-PARTY-REVIEW.md) |
-| `E00-B` / `AC-012` | autoria, direitos e não colisão do branding | aprovação humana | `blocked` | obter as cinco atestações independentes registradas no clearance | titular/revisor independente | [`BRANDING-CLEARANCE.md`](BRANDING-CLEARANCE.md), [`ACCEPTANCE.md`](../ACCEPTANCE.md) |
+| `E00-B` / `AC-012` | autoria, direitos e não colisão do branding | decisão de escopo | `partial` | manter obrigações legais e remover identidade upstream; prova formal não é gate por D-030 | D-030 | [`BRANDING-CLEARANCE.md`](BRANDING-CLEARANCE.md), [`../DECISIONS.md`](../DECISIONS.md) |
 | `E01-A` / `T-010` | contrato RPC e erros sanitizados | regressão | `review` | executar/registrar a suíte integrada do workbench quando o alvo existir | build e harness do runner | [`BACKLOG.md`](../BACKLOG.md), [`2026-08-26-campanha.md`](2026-08-26-campanha.md) |
 | `E01-B` / `T-011` | compatibilidade HTTP/SSE do OpenCode | evidência | `partial` | usar `serve` headless para integração; auditar superfície e validar binário bundled fixado; probe externo não é suporte | bundle service-only | [`OPENCODE-COMPATIBILITY.md`](../OPENCODE-COMPATIBILITY.md) |
 | `E01-C` / `T-012` | preflight local e bridge workbench↔extension host | regressão/runner | `review` | rodar validação oficial; depois conectar inventário plugin/regra e prova OpenCode real | `E01-B`, runner sequencial | [`LOCAL-INTEGRATIONS-POLICY.md`](../LOCAL-INTEGRATIONS-POLICY.md), [`2026-08-26-campanha.md`](2026-08-26-campanha.md) |
@@ -72,7 +79,7 @@ após o workflow ganhar retry/backoff para downloads do npm/node-gyp.
 
 | tipo | frente | necessário | estado |
 | --- | --- | --- | --- |
-| humano/legal | `E00-B` / `AC-012` | cinco atestações independentes de autoria, direitos, distribuição, não cópia e não colisão | pendente |
+| escopo | `E00-B` / `AC-012` | prova formal e trademark clearance não são gates por D-030; preservar obrigações legais aplicáveis | decidido |
 | ambiente/permissão | `E01-A` / `E01-C` / `E01-D` | Node `24.18.0`/npm `<12` já disponível localmente; runner Windows/WSL e host Linux x64 autorizado continuam pendentes; nenhum segredo deve ser coletado | pendente |
 | decisão técnica | `E01-B` / `E01-C` | bundle OpenCode fixado e inventário confiável de plugins/regras | pendente |
 | escopo/aceite | `E02/E03` | manter 2A/2B como recortes verificados, sem promover os épicos sem os gates E00/E01 | pendente |
@@ -86,6 +93,7 @@ após o workflow ganhar retry/backoff para downloads do npm/node-gyp.
 | 2026-08-27 | `OVN-001` | triagem → correção/verificação | bridge sanitizado e associado a workspace; permissão alinhada à matriz; auditor exclui `node_modules`; compile/lint/typecheck locais passaram |
 | 2026-08-27 | `OVN-T023/T030` | backlog → `review` | diagnóstico allowlisted, filtragem de eventos tardios e proteção de lifecycle aplicadas; testes oficiais pendentes |
 | 2026-08-27 | `OVN-001` | verificação local ampliada | `test-build-scripts`: 270 testes/40 suites; `compile-client`: passou em `2.47 min` sob Node 26; a tentativa Node 24 terminou em `tsgo exited with code unknown` após ~13 min |
+| 2026-08-29 | `OVN-D024` | UI residual de Agent Sessions removida | busca estática sem `agentSessionsWelcomePage`, `AgentSessionsWelcomePage` ou `openAgentSessionsWelcome` em `src`; eslint e `git diff --check` passaram nos cinco arquivos alterados |
 | 2026-08-27 | `D-023` / `E09` | decisão confirmada | `serve` já é headless; manter `service-only`, sem poda ampla antes de auditoria de superfícies alcançáveis/empacotadas |
 | 2026-08-27 | `OVN-001` / onda 1 | lanes 1A–1F executadas | auditoria E00-A, bloqueio humano E00-B, compile/teste E01-A, auditoria headless E01-B, preflight E01-C e matriz pura E01-D registrados; onda 2 não iniciada |
 | 2026-08-27 | `OVN-T020/T030` / onda 2 | recortes 2A/2B verificados | runtime compile + suíte oficial Node 24/npm 11 passaram com 59 testes; cliente compile anterior + 8 testes browser passaram em Node 26; compile-client na matriz Node 24 falhou no worker tsgo; runner e integração E02/E03 continuam pendentes |

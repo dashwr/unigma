@@ -63,6 +63,7 @@ const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 const DEFAULT_STARTUP_TIMEOUT_MS = 15_000;
 const DEFAULT_HEALTH_CHECK_INTERVAL_MS = 30_000;
 const MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
+export const SUPPORTED_OPENCODE_VERSION = '1.18.23';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -212,6 +213,9 @@ export class OpenCodeHttpClient implements OpenCodeClient<OpenCodeRequest, OpenC
 				const health = await this.requestJson('/global/health');
 				if (!isRecord(health) || health.healthy !== true || typeof health.version !== 'string' || health.version.length === 0) {
 					throw new Error('OpenCode health response is invalid.');
+				}
+				if (health.version !== SUPPORTED_OPENCODE_VERSION) {
+					throw new Error(`Unsupported OpenCode version: ${health.version}. Expected ${SUPPORTED_OPENCODE_VERSION}.`);
 				}
 				return;
 			} catch (error) {

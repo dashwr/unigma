@@ -5,7 +5,10 @@
 Este registro cobre somente a cadeia tecnica dos assets de distribuicao
 versionados e a evidencia de clearance disponivel em 2026-08-26. Nao e licenca,
 cessao, autorizacao de publicacao, atestacao de autoria/originalidade ou parecer
-de marca. AC-012 permanece **bloqueada**.
+de marca. Por decisão `D-030`, AC-012 não é gate de entrega do produto FOSS.
+Este registro continua descrevendo lacunas formais de prova, mas elas não
+bloqueiam o caminho operacional enquanto copyright, licenças, notices e
+segurança forem preservados.
 
 Os PNGs exploratorios nao rastreados foram excluidos do escopo: nao foram lidos,
 usados ou alterados nesta revisao.
@@ -51,11 +54,9 @@ titularidade, permissao, licenca, originalidade ou ausencia de colisao.
 | Nao colisao/trademark clearance | Nenhuma busca ou parecer foi fornecido. | Busca e analise independente documentadas para `unigma`, `unigma-code` e os elementos visuais, com jurisdicoes, classes/mercados, fontes consultadas, resultados e conclusao. | Nao comprovada. |
 | Asset macOS | O ICNS versionado e identificavel por hash e anterior a integracao. | Fonte, receita de derivacao e direitos do ICNS, ou ICNS regenerado com receita verificavel apos os direitos da fonte estarem comprovados. | Nao comprovado. |
 
-## Condicao para AC-012
+## Condicao operacional por D-030
 
-AC-012 nao pode passar com esta documentacao. Sao necessarias, cumulativamente,
-as cinco evidencias ausentes indicadas na matriz: atestacao de autoria e
-originalidade, instrumento de direitos de derivacao, autorizacao de distribuicao,
-revisao independente contra elementos identificaveis do OpenCode e clearance de
-nao colisao/trademark. Ate entao, este registro nao autoriza publicacao ou
-distribuicao dos assets.
+As lacunas formais acima ficam registradas, mas não bloqueiam a entrega FOSS por
+decisão do responsável. A liberação operacional continua condicionada a
+copyright, licenças, notices, atribuições obrigatórias, integridade da cadeia de
+dependências e ausência de cópia deliberada de assets ou código de terceiros.
