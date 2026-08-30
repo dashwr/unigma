@@ -28,6 +28,7 @@ import { McpAccessValue, McpAutoStartValue, mcpAccessConfig, mcpAllowedServersCo
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
 import { COPILOT_ALLOWED_MCP_SERVERS_KEY, COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG, COPILOT_ALLOW_MANAGED_HOOKS_ONLY_KEY, COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_CONFIG, COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_KEY, COPILOT_DENIED_MCP_SERVERS_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_MODEL_KEY, COPILOT_STRICT_MARKETPLACES_KEY, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, managedModelValue, managedSettingValue } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { isChatPanelEnabled } from '../../../../base/common/product.js';
 import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { AgentSandboxSettingId } from '../../../../platform/sandbox/common/settings.js';
@@ -109,6 +110,7 @@ import { registerChatToolActions } from './actions/chatToolActions.js';
 import { ChatTransferContribution } from './actions/chatTransfer.js';
 import { CONFIGURE_DICTATION_INSTRUCTIONS_ACTION_ID, registerConfigureSpeechInstructionsActions } from './actions/configureVoiceInstructionsAction.js';
 import { ChatDebugEditor } from './chatDebug/chatDebugEditor.js';
+import './agentSessions/agentSessionsService.contribution.js';
 import { ChatDebugEditorInput, ChatDebugEditorInputSerializer } from './chatDebug/chatDebugEditorInput.js';
 import { ChatGoalSummaryService, IChatGoalSummaryService } from './chatGoalSummaryService.js';
 import { ChatSubmitRequestHandlerService, IChatSubmitRequestHandlerService } from './chatSubmitRequestHandlerService.js';
@@ -2748,7 +2750,13 @@ registerWorkbenchContribution2(ChatQuotaNotificationContribution.ID, ChatQuotaNo
 registerWorkbenchContribution2(ChatPromoNotificationContribution.ID, ChatPromoNotificationContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(HasByokModelsContribution.ID, HasByokModelsContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatTeardownContribution.ID, ChatTeardownContribution, WorkbenchPhase.AfterRestored);
-registerWorkbenchContribution2(ChatStatusBarEntry.ID, ChatStatusBarEntry, WorkbenchPhase.BlockRestore);
+if (isChatPanelEnabled(product)) {
+	// The status bar entry only ever leads back to the chat panel: its click
+	// either reveals the chat widget or starts the chat setup flow. With the
+	// panel disabled both paths are dead ends, and its dashboard reads
+	// `defaultChatAgent`, which this product does not define.
+	registerWorkbenchContribution2(ChatStatusBarEntry.ID, ChatStatusBarEntry, WorkbenchPhase.BlockRestore);
+}
 registerWorkbenchContribution2(BuiltinToolsContribution.ID, BuiltinToolsContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ClientToolSetsContribution.ID, ClientToolSetsContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(UsagesToolContribution.ID, UsagesToolContribution, WorkbenchPhase.BlockRestore);
