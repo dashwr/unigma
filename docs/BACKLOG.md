@@ -53,13 +53,16 @@
 > ícone sem destino cujo dashboard lia `defaultChatAgent` inexistente. A
 > classificação dos gaps de notices root mostrou que as 7 "licenças ausentes"
 > são falso positivo do parser e que 254 dos 978 manifest-only não são
-> distribuídos; restam 283 lacunas legais reais.
+> distribuídos; após remover as dependências Copilot da raiz e de `remote/`, o
+> escopo root ficou em 695 manifest-only. A geração final depende do artefato
+> CG do Azure DevOps.
 >
 > feito: 2026-08-30 — `D-032` desativa somente `workbench.panel.chat`; o smoke
 > preserva os casos Integrated Browser independentes, declara os dois casos Chat
 > como capability não suportada e usa fixture visual neutra. O auditor ganhou
 > `--scope all|root|cli`; a CLI passa com zero manifest-only/licença ausente. O
-> escopo root permanece pendente com 979 gaps potenciais e 7 licenças ausentes.
+> escopo root permanece pendente; os 7 avisos de licença são falso positivo do
+> parser, e o notice final não foi regenerado após a poda de dependências.
 >
 > feito: 2026-08-29 — auditoria somente-leitura do CLI Rust registrada em
 > [`status/2026-08-29-cli-audit.md`](status/2026-08-29-cli-audit.md). Ela separa o

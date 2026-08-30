@@ -11,8 +11,8 @@ Code Server**, etapa A de
 que emenda no plano de ondas
 [`../planos/2026-08-28-ondas-refundacao.md`](../planos/2026-08-28-ondas-refundacao.md)
 entre a onda 1 e a colheita da onda 2. `CLI-001` está em `review`: os testes Rust
-e a compilação de `terminal-suggest` passaram localmente, mas clippy tem cinco
-lints baseline, notices e a matriz Node 24/runner ainda estão pendentes.
+e a compilação de `terminal-suggest` passaram localmente; os gates de runner da
+etapa A estão verdes.
 `OVN-D024` fechou a matriz oficial em 2026-08-30 no head `91867fb1`: Windows
 `33328903196` e Linux/WSL2 `33330427263` concluíram todos os passos, incluindo
 pacote, auditoria de distribuição, smoke e evidência de artefato. É a primeira
@@ -21,6 +21,15 @@ execução completa do produto sem o Agent Host. As entradas formais estão em
 da raiz, branding e qualquer capacidade de E-02 em diante.
 Os runs anteriores `33267418418` (Windows, `a3300897`) e `33279351708`
 (Linux WSL, `e6b4e1bd`) permanecem como registro histórico do recorte do CLI.
+Em 2026-08-30, `c00f37b3` removeu `@github/copilot` e `@github/copilot-sdk` da
+raiz e de `remote/`, limpou as linhas correspondentes do About e removeu o
+workaround morto do postinstall. `compile-client`, `typecheck-client`,
+`test-build-scripts` (262/262), eslint e os testes do auditor passaram; os dois
+lockfiles não contêm mais esses pacotes. O auditor root caiu de 721 para 695
+manifest-only; CLI segue `rc=0`.
+O notice root ainda não foi regenerado: o fluxo completo exige o artefato CG
+interno do Azure DevOps, indisponível neste ambiente. A varredura interrompida
+durante a poda da árvore foi descartada e não é evidência legal.
 Nesta rodada, o caminho residual de Agent Sessions Welcome foi removido da
 configuração de startup, layout, tema e contribuição de walkthrough; os três
 arquivos da página órfã também foram removidos. A validação ainda é `review`,
