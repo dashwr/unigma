@@ -12,7 +12,7 @@
   "scripts": {
     "compile": "gulp compile-extension:unigma-remote-ssh",
     "watch": "gulp watch-extension:unigma-remote-ssh",
-    "test": "node --test \"out/test/**/*.test.js\""
+    "test": "node --test out/test/*.test.js"
   },
   "devDependencies": {
     "@types/node": "24.x"
