@@ -29,6 +29,13 @@ export interface NoticeEntry {
 	 * names/lengths are unaffected.
 	 */
 	licenseText?: string;
+	/**
+	 * The single leading URL line stripped from `licenseText`, if the entry had
+	 * one. Kept so callers that re-render a NOTICE (merge-notices.ts) can put the
+	 * URL back on its own line instead of folding it into the license body.
+	 * Empty string when the entry carries no URL line.
+	 */
+	url?: string;
 }
 
 /**
@@ -182,9 +189,11 @@ export function parseNoticeFile(filePath: string): NoticeEntry[] {
 		while (bodyLines.length > 0 && !bodyLines[0].trim()) {
 			bodyLines.shift();
 		}
+		let url = '';
 		if (bodyLines.length > 0) {
 			const first = bodyLines[0].trim();
 			if (first.startsWith('http://') || first.startsWith('https://')) {
+				url = first;
 				bodyLines.shift();
 			}
 		}
@@ -197,6 +206,7 @@ export function parseNoticeFile(filePath: string): NoticeEntry[] {
 			licenseTextLength: textLength,
 			lineNumber: headerIdx + 1, // 1-indexed
 			licenseText,
+			url,
 		});
 	}
 
