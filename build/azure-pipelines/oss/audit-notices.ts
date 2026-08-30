@@ -37,11 +37,67 @@ export function resolveScope(value: string | undefined): AuditScope {
 	throw new Error(`Invalid --scope '${value}'. Expected all, root, or cli.`);
 }
 
-/** Return whether a repo-relative path belongs to the requested manifest scope. */
-export function isPathInScope(relativePath: string, scope: AuditScope): boolean {
+/**
+ * Manifests that exist in the repo but never reach the distributed product:
+ * build tooling, tests and editor config. `build/win32/Cargo.lock` is the one
+ * exception — it builds `inno_updater.exe`, which ships inside the Windows
+ * installer, so its crates do need a notice.
+ */
+const NON_DISTRIBUTED_ROOT_PREFIXES = ['build/', 'test/', '.vscode/'];
+const DISTRIBUTED_BUILD_PATHS = new Set(['build/win32/Cargo.lock']);
+
+/**
+ * Read the packaging exclusion list from `build/lib/extensions.ts`.
+ *
+ * The list is the single source of truth for extensions that are never bundled
+ * (Copilot plus the test extensions), so it is parsed from that file rather
+ * than duplicated here. Returns an empty list when the file cannot be read or
+ * the declaration shape changed — the audit then stays at its historical,
+ * broader scope instead of silently dropping manifests.
+ */
+export function readExcludedExtensions(repoRoot: string): string[] {
+	try {
+		const source = fs.readFileSync(path.join(repoRoot, 'build', 'lib', 'extensions.ts'), 'utf8');
+		const declaration = source.match(/const\s+excludedExtensions\s*=\s*\[([^\]]*)\]/);
+		if (!declaration) {
+			return [];
+		}
+		return [...declaration[1].matchAll(/['"]([^'"]+)['"]/g)].map(m => m[1]);
+	} catch {
+		return [];
+	}
+}
+
+/** Is this repo-relative path a manifest that never ships in the product? */
+function isNonDistributedRootPath(normalized: string, excludedExtensions: readonly string[]): boolean {
+	if (DISTRIBUTED_BUILD_PATHS.has(normalized)) {
+		return false;
+	}
+	if (NON_DISTRIBUTED_ROOT_PREFIXES.some(prefix => normalized.startsWith(prefix))) {
+		return true;
+	}
+	if (normalized.startsWith('src/') && /(^|\/)test\//.test(normalized)) {
+		return true;
+	}
+	return excludedExtensions.some(name => normalized.startsWith(`extensions/${name}/`));
+}
+
+/**
+ * Return whether a repo-relative path belongs to the requested manifest scope.
+ *
+ * `root` additionally drops manifests that are not part of the distributed
+ * product; `all` stays deliberately exhaustive.
+ */
+export function isPathInScope(relativePath: string, scope: AuditScope, excludedExtensions: readonly string[] = []): boolean {
 	const normalized = relativePath.replace(/\\/g, '/').replace(/^\.\//, '');
 	const isCliPath = normalized === 'cli' || normalized.startsWith('cli/');
-	return scope === 'all' || (scope === 'cli' ? isCliPath : !isCliPath);
+	if (scope === 'all') {
+		return true;
+	}
+	if (scope === 'cli') {
+		return isCliPath;
+	}
+	return !isCliPath && !isNonDistributedRootPath(normalized, excludedExtensions);
 }
 
 // ---------------------------------------------------------------------------
@@ -569,7 +625,11 @@ function main(): void {
 	console.log(`  Manifest scope: ${scope}`);
 	console.log(`  Manifest sources: ${scope === 'all' ? 'repository root and cli/**' : scope === 'root' ? 'repository root (excluding cli/**)' : 'cli/**'}`);
 
-	const inScope = (filePath: string): boolean => isPathInScope(path.relative(repoRoot, filePath), scope);
+	const excludedExtensions = scope === 'root' ? readExcludedExtensions(repoRoot) : [];
+	if (scope === 'root') {
+		console.log(`  Excluded (not distributed): build/** (except build/win32/Cargo.lock), test/**, .vscode/**, src/**/test/**, extensions/{${excludedExtensions.join(', ')}}/**`);
+	}
+	const inScope = (filePath: string): boolean => isPathInScope(path.relative(repoRoot, filePath), scope, excludedExtensions);
 
 	// Collect all manifest packages
 	const allManifestPkgs: ManifestPackage[] = [];
