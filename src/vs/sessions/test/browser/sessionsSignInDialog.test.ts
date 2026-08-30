@@ -13,40 +13,16 @@ suite('Sessions - Sign-In Dialog', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('offers signed-out continuation only when allowed', () => {
+	test('requires sign-in and optionally offers a return to the editor', () => {
 		const commandService = new class extends mock<ICommandService>() { }();
-		let continueCount = 0;
 		const required = createSessionsSignInDialogOptions(commandService, false);
-		const optional = createSessionsSignInDialogOptions(commandService, false, true, () => continueCount++);
-
-		optional.onDidDismissDialog?.();
 
 		assert.deepStrictEqual({
-			required: {
-				disableCloseButton: required.disableCloseButton,
-				allowContinueWithoutSignIn: required.allowContinueWithoutSignIn,
-				hasFooter: required.renderDialogFooter !== undefined,
-				hasDismissHandler: required.onDidDismissDialog !== undefined,
-			},
-			optional: {
-				disableCloseButton: optional.disableCloseButton,
-				allowContinueWithoutSignIn: optional.allowContinueWithoutSignIn,
-				hasFooter: optional.renderDialogFooter !== undefined,
-				continueCount,
-			},
+			disableCloseButton: required.disableCloseButton,
+			hasFooter: required.renderDialogFooter !== undefined,
 		}, {
-			required: {
-				disableCloseButton: true,
-				allowContinueWithoutSignIn: false,
-				hasFooter: false,
-				hasDismissHandler: false,
-			},
-			optional: {
-				disableCloseButton: false,
-				allowContinueWithoutSignIn: true,
-				hasFooter: false,
-				continueCount: 1,
-			},
+			disableCloseButton: true,
+			hasFooter: false,
 		});
 	});
 });

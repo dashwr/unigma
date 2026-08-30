@@ -32,19 +32,19 @@ const footerContent = {
 export default defineThemedFixtureGroup({ path: 'sessions/signInDialog/' }, {
 	SignIn: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: context => renderSignInDialog(context, false, true, true),
+		render: context => renderSignInDialog(context, false, true),
 	}),
 	SignInWithEditorWindowOpen: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: context => renderSignInDialog(context, false, false, true),
+		render: context => renderSignInDialog(context, false, false),
 	}),
 	SignInRequired: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: context => renderSignInDialog(context, false, true, false),
+		render: context => renderSignInDialog(context, false, true),
 	}),
 	EnterpriseSignIn: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: context => renderSignInDialog(context, true, true, true),
+		render: context => renderSignInDialog(context, true, true),
 	}),
 	SigningIn: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -52,9 +52,9 @@ export default defineThemedFixtureGroup({ path: 'sessions/signInDialog/' }, {
 	}),
 });
 
-function renderSignInDialog(context: ComponentFixtureContext, enterpriseAuthentication: boolean, showReturnToVSCodeEditor: boolean, allowContinueWithoutSignIn: boolean): void {
+function renderSignInDialog(context: ComponentFixtureContext, enterpriseAuthentication: boolean, showReturnToVSCodeEditor: boolean): void {
 	const instantiationService = createDialogServices(context);
-	const presentation = createSessionsSignInDialogOptions(instantiationService.get(ICommandService), showReturnToVSCodeEditor, allowContinueWithoutSignIn);
+	const presentation = createSessionsSignInDialogOptions(instantiationService.get(ICommandService), showReturnToVSCodeEditor);
 	const dialog = context.disposableStore.add(instantiationService.createInstance(ChatSetupDialog, context.container, {
 		title: presentation.dialogTitle,
 		buttons: getChatSetupDialogButtons(ChatEntitlement.Unknown, presentation, enterpriseAuthentication, providers),

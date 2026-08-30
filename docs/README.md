@@ -22,7 +22,7 @@ plano histórico ou em um prompt antigo.
 | aceite e execução | `ACCEPTANCE.md`, `BACKLOG.md` | evidência exigida e trabalho implementável |
 | quadro vivo | [`status/WORKBENCH.md`](status/WORKBENCH.md) | onde cada frente está e qual é a próxima ação |
 | histórico/evidência | [`status/`](status/) | registros datados, auditorias e bloqueios; não substitui o quadro vivo |
-| planos/propostas | [`planos/`](planos/) | sequência de execução ou proposta ainda não normativa; plano ativo: [`2026-08-27-e00-e03-ondas.md`](planos/2026-08-27-e00-e03-ondas.md) |
+| planos/propostas | [`planos/`](planos/) | sequência de execução ou proposta ainda não normativa. Plano de ondas vigente: [`2026-08-28-ondas-refundacao.md`](planos/2026-08-28-ondas-refundacao.md); frente ativa hoje: [`2026-08-29-cli-ssh-remoto.md`](planos/2026-08-29-cli-ssh-remoto.md), que emenda no plano de ondas entre a onda 1 e a onda 2. O anterior [`2026-08-27-e00-e03-ondas.md`](planos/2026-08-27-e00-e03-ondas.md) é histórico |
 | fontes brutas | [`fontes/`](fontes/) | material recebido; preservar sem edição e derivar fatos para os documentos acima |
 
 `DECISIONS.md` vence uma proposta ou plano em caso de divergência. Nenhum

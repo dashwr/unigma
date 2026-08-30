@@ -10,7 +10,7 @@
  * stamp its own `product.dictationRuntime` into the per-platform `product.json`
  * at packaging time.
  *
- * This mirrors `build/agent-sdk/` but for the Foundry Local native runtime used
+ * This follows the same build/publish pattern for the Foundry Local native runtime used
  * by on-device dictation: a prebuilt N-API addon (`foundry_local_napi.node`)
  * plus the Foundry Local Core / onnxruntime / onnxruntime-genai shared
  * libraries. Rather than downloading those from npm + NuGet at runtime, each
@@ -18,7 +18,7 @@
  * `main.vscode-cdn.net`; the runtime downloads the single content-addressed
  * tarball for its target (see `foundryLocalRuntime.ts`).
  *
- * There is exactly ONE runtime (unlike the multi-SDK agent-sdk pipeline), so
+ * There is exactly ONE runtime (unlike a multi-SDK pipeline), so
  * `product.dictationRuntime` is a single `{version, urlTemplate}` object rather
  * than a map keyed by id. The version is the pinned `foundry-local-sdk`
  * dependency in the repo-root `package.json` — the same package the runtime

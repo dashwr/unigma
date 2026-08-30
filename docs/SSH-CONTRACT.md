@@ -157,6 +157,21 @@ OpenSSH do host.
    remoto necessário à mesma build do cliente. O método de bootstrap ainda não
    é especificado por T-013.
 
+### Identidade do componente remoto
+
+O servidor remoto é o `unigma-server` construído deste fork (`D-028`), não o
+servidor Code - OSS upstream: o extension host remoto precisa das extensões
+internas do unigma. `product.json` já fixa
+`serverApplicationName: "unigma-server"` e `serverDataFolderName: ".unigma-server"`.
+
+O mecanismo de entrega — pré-instalado pelo responsável, enviado pelo cliente
+pela própria sessão OpenSSH ou baixado de um endpoint próprio — permanece aberto
+como `Q-2` em
+[`planos/2026-08-29-cli-ssh-remoto.md`](planos/2026-08-29-cli-ssh-remoto.md).
+Enquanto não houver decisão, nenhum download automático é permitido: o fork não
+define `updateUrl`, `downloadUrl`, `quality` nem `commit`, e publicar o servidor
+é distribuição, sujeita a `E00-A`/`E00-B`.
+
 ### Recusado pelo contrato
 
 - instalar, atualizar ou configurar `sshd`, OpenSSH, firewall, serviço,

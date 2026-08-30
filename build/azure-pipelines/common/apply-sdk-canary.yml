@@ -3,7 +3,7 @@
 # private feed and refreshes the lockfile so the node_modules cache key below
 # misses and `npm ci` installs the canary. Authenticates to the feed first so
 # the override's lockfile refresh can resolve the canary — the standard
-# npmAuthenticate runs only after the cache-key step. Mirrors common/agent-sdk-produce.yml.
+# npmAuthenticate runs only after the cache-key step, before the canary override.
 # See microsoft/vscode-engineering specs/sdk-vscode-integration.spec.md.
 
 parameters:

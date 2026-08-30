@@ -111,7 +111,7 @@ export function registerAgentFeedbackReviewCommands(): IDisposable {
 		const feedbackService = accessor.get(IAgentFeedbackService);
 		const resource = getOwningSessionResource(accessor.get(ISessionsManagementService), URI.revive(sessionOrChatResource));
 		for (const id of commentIds) {
-			feedbackService.acceptFeedback(resource, id, { revealToAgent: true });
+			feedbackService.acceptFeedback(resource, id);
 		}
 	}));
 
