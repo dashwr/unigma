@@ -43,6 +43,18 @@
 > com rejeição fail-closed de versões diferentes; compile/typecheck do cliente e
 > 60 testes do runtime passaram sob Node `24.18.0`.
 >
+> feito: 2026-08-30 — matriz oficial verde no head `91867fb1`: Windows
+> `33328903196` e Linux/WSL2 `33330427263`, ambos com pacote, auditoria de
+> distribuição, smoke e evidência de artefato. Antes disso, dois defeitos do
+> corte `D-024` foram corrigidos: `IAgentSessionsService` deixou de ser
+> registrado enquanto 36 consumidores do stack de chat continuavam vivos — o
+> customer `MainThreadChatSessions` quebrava o RPC do extension host — e
+> `ChatStatusBarEntry` ficava fora do gate `isChatPanelEnabled`, mantendo um
+> ícone sem destino cujo dashboard lia `defaultChatAgent` inexistente. A
+> classificação dos gaps de notices root mostrou que as 7 "licenças ausentes"
+> são falso positivo do parser e que 254 dos 978 manifest-only não são
+> distribuídos; restam 283 lacunas legais reais.
+>
 > feito: 2026-08-30 — `D-032` desativa somente `workbench.panel.chat`; o smoke
 > preserva os casos Integrated Browser independentes, declara os dois casos Chat
 > como capability não suportada e usa fixture visual neutra. O auditor ganhou

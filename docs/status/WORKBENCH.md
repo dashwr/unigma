@@ -13,11 +13,14 @@ que emenda no plano de ondas
 entre a onda 1 e a colheita da onda 2. `CLI-001` está em `review`: os testes Rust
 e a compilação de `terminal-suggest` passaram localmente, mas clippy tem cinco
 lints baseline, notices e a matriz Node 24/runner ainda estão pendentes.
-`OVN-D024` permanece em `review` pelos gates técnicos de distribuição. O runner
-self-hosted Windows concluiu com sucesso a execução `33267418418` no commit
-`a3300897`, incluindo build, auditoria, smoke e contrato do runtime.
-O retry Linux WSL `33279351708` também concluiu com sucesso no commit `e6b4e1bd`,
-após o workflow ganhar retry/backoff para downloads do npm/node-gyp.
+`OVN-D024` fechou a matriz oficial em 2026-08-30 no head `91867fb1`: Windows
+`33328903196` e Linux/WSL2 `33330427263` concluíram todos os passos, incluindo
+pacote, auditoria de distribuição, smoke e evidência de artefato. É a primeira
+execução completa do produto sem o Agent Host. As entradas formais estão em
+[`EVIDENCE.md`](EVIDENCE.md); o que continua em aberto é inventário de terceiros
+da raiz, branding e qualquer capacidade de E-02 em diante.
+Os runs anteriores `33267418418` (Windows, `a3300897`) e `33279351708`
+(Linux WSL, `e6b4e1bd`) permanecem como registro histórico do recorte do CLI.
 Nesta rodada, o caminho residual de Agent Sessions Welcome foi removido da
 configuração de startup, layout, tema e contribuição de walkthrough; os três
 arquivos da página órfã também foram removidos. A validação ainda é `review`,

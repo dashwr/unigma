@@ -150,3 +150,68 @@ não prova:       runner Windows/Linux, artefato, smoke, suporte de release,
 
 O registro acima substitui a afirmação anterior de ausência de execução. Ele é
 diagnóstico local válido para a onda 0, não evidência de distribuição.
+
+### matriz oficial — etapa A / D-024 — 2026-08-30
+
+data:            2026-08-30
+tarefa/gate:     `CLI-001` / `D-024` — retirada do Agent Host
+run id:          `33328903196`
+workflow:        `unigma-self-hosted-validation.yml`
+commit/head:     `91867fb14061ae12fbde1faf61de3732785c61ca`
+plataforma:      windows-x64 — runner self-hosted
+node/npm:        `v24.18.0` / npm 11.x
+passos:
+  1 `install dependencies`                     ok
+  2 `compile unigma agent runtime`             ok
+  3 `run focused upstream checks`              ok
+  4 `build windows x64 package`                ok
+  5 `audit windows x64 package`                ok
+  6 `run desktop smoke test`                   ok — 62 passing, 30 pending
+  7 `write artifact evidence`                  ok
+  8 `upload windows evidence`                  ok
+artefato:        `unigma-windows-x64-33328903196` (id `9737358810`, `251993014` bytes)
+hashes:          registrados no artefato pelo passo `write artifact evidence`
+prova:           com o Agent Host removido, o pacote Windows compila, passa na
+                 auditoria de distribuição e no smoke de núcleo; o extension
+                 host monta seus proxies e as extensões built-in ativam.
+não prova:       inventário de terceiros da raiz, branding liberado, sessão
+                 OpenCode real contra `opencode serve` ou qualquer capacidade
+                 de SSH remoto.
+
+data:            2026-08-30
+tarefa/gate:     `CLI-001` / `D-024` — retirada do Agent Host
+run id:          `33330427263`
+workflow:        `unigma-linux-wsl-validation.yml`
+commit/head:     `91867fb14061ae12fbde1faf61de3732785c61ca`
+plataforma:      linux-x64 — Ubuntu WSL2 sobre o runner Windows
+node/npm:        `v24.18.0` / npm 11.x
+passos:
+  1 `install Linux dependencies and Node in WSL`  ok
+  2 `install dependencies in WSL`                 ok
+  3 `compile unigma agent runtime in WSL`         ok
+  4 `build Linux x64 package in WSL`              ok
+  5 `audit Linux x64 package in WSL`              ok
+  6 `run Linux desktop smoke test in WSL`         ok
+  7 `write Linux artifact evidence`               ok
+  8 `upload Linux evidence`                       ok
+artefato:        `unigma-linux-x64-33330427263` (id `9737817330`, `178711178` bytes)
+hashes:          registrados no artefato pelo passo `write Linux artifact evidence`
+prova:           o mesmo head validado no Windows também empacota, audita e passa
+                 no smoke em Linux; a retirada do Agent Host não é específica de
+                 plataforma.
+não prova:       o mesmo conjunto de lacunas do registro Windows acima.
+
+Correções que tornaram esta matriz possível, todas no mesmo head:
+
+- `0d60cb8e` — o corte de `D-024` removeu o import que registrava
+  `IAgentSessionsService`, mas 36 consumidores do stack de chat continuaram
+  vivos. O customer `MainThreadChatSessions` falhava em
+  `ExtensionHostManager._createExtensionHostCustomers`, mutilando o canal RPC:
+  language features mudas, `status.scm.0` ausente e extensões de smoke sem
+  ativar. O serviço voltou a ser registrado sozinho, sem nenhuma superfície da
+  Agents Window.
+- `0d60cb8e` — `ChatStatusBarEntry` era o único registro da área de chat fora do
+  gate `isChatPanelEnabled`. Ele mantinha um ícone clicável sem destino e seu
+  dashboard lia `defaultChatAgent`, ausente neste `product.json`.
+- `91867fb1` — o teste de capability passou a ler as entradas da paleta em vez
+  de depender da mensagem de erro de `runCommand`, que só produzia timeout.
