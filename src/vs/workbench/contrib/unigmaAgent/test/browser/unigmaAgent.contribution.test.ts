@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CommandsRegistry, type ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -225,5 +226,37 @@ suite('Unigma Agent contribution', () => {
 		assert.strictEqual(stopped, EMPTY_UNIGMA_AGENT_SESSION);
 		assert.strictEqual(lateResult, stopped);
 		assert.strictEqual(lateError, loading);
+	});
+
+	test('serializes Cancel clicks while stopSession is pending', async () => {
+		let resolveStop!: () => void;
+		let stopCalls = 0;
+		const pane = Object.create(UnigmaAgentViewPane.prototype) as {
+			model: { state: string; sessionId?: string };
+			runtime: { stopSession(sessionId: string): Promise<void> };
+			isStopping: boolean;
+			disposed: boolean;
+			stop(button: Button): Promise<void>;
+		};
+		pane.model = { state: UNIGMA_AGENT_VIEW_STATES.Loading, sessionId: 'session-1' };
+		pane.isStopping = false;
+		pane.disposed = false;
+		pane.runtime = {
+			stopSession: async sessionId => {
+				stopCalls++;
+				assert.strictEqual(sessionId, 'session-1');
+				await new Promise<void>(resolve => { resolveStop = resolve; });
+			},
+		};
+		const button = { enabled: true, label: 'Cancel', setAriaLabel: (_label: string) => undefined } as unknown as Button;
+
+		const first = pane.stop(button);
+		const second = pane.stop(button);
+		assert.strictEqual(stopCalls, 1);
+		assert.strictEqual(button.enabled, false);
+		assert.strictEqual(button.label, 'Cancelling...');
+		resolveStop();
+		await Promise.all([first, second]);
+		assert.strictEqual(pane.isStopping, true);
 	});
 });

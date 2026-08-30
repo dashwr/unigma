@@ -260,8 +260,8 @@ Important functions and constants:
 Maintenance rules:
 
 - The shipped-arch filter intentionally uses the static constants `VSCODE_SHIPPED_PLATFORMS` and `VSCODE_SHIPPED_ARCHS` in `scan-licenses.ts`.
-- Do not import these constants from `build/agent-sdk/common.ts`. Agent SDK excludes `armhf` and uses `alpine` where npm package names use `linuxmusl`, so it is not a direct fit for this scanner.
-- If VS Code adds or removes a shipped platform or arch, update those constants. The source of truth is noted in the code comment: `build/azure-pipelines/product-build.yml` plus `build/agent-sdk/common.ts`. Expect this to change about once a year.
+- Keep these constants local to the scanner. The build configuration uses `alpine` where npm package names use `linuxmusl`, so another platform helper is not a direct fit here.
+- If VS Code adds or removes a shipped platform or arch, update those constants. The source of truth is `build/azure-pipelines/product-build.yml`. Expect this to change about once a year.
 - Each arch child's own license ID is authoritative. Do not blindly reuse parent license text across a different child license ID; that would repeat the legacy sharp/libvips defect.
 
 Tests:
@@ -341,6 +341,18 @@ npx tsx build/azure-pipelines/oss/audit-notices.ts \
   --notice <path-to-ThirdPartyNotices.new.txt> \
   --repo .
 ```
+
+The optional `--scope` selects which manifest tree is audited:
+
+```sh
+--scope all   # default; repository root and cli/**
+--scope root  # repository root, excluding cli/**
+--scope cli   # only cli/**
+```
+
+The value is validated before scanning. The report prints the effective scope
+and selected manifest sources, so a scoped run cannot be mistaken for a full
+repository audit.
 
 What it checks:
 

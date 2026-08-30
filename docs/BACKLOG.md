@@ -42,6 +42,13 @@
 > feito: 2026-08-29 — compatibilidade do runtime fixada em OpenCode `1.18.23`,
 > com rejeição fail-closed de versões diferentes; compile/typecheck do cliente e
 > 60 testes do runtime passaram sob Node `24.18.0`.
+>
+> feito: 2026-08-30 — `D-032` desativa somente `workbench.panel.chat`; o smoke
+> preserva os casos Integrated Browser independentes, declara os dois casos Chat
+> como capability não suportada e usa fixture visual neutra. O auditor ganhou
+> `--scope all|root|cli`; a CLI passa com zero manifest-only/licença ausente. O
+> escopo root permanece pendente com 979 gaps potenciais e 7 licenças ausentes.
+>
 > feito: 2026-08-29 — auditoria somente-leitura do CLI Rust registrada em
 > [`status/2026-08-29-cli-audit.md`](status/2026-08-29-cli-audit.md). Ela separa o
 > Code Server (necessário ao SSH remoto, preservado) do Agent Host/AHP herdado

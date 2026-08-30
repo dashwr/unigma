@@ -133,8 +133,8 @@ Três estratégias possíveis, a decidir antes de escrever código:
 | **push pelo cliente** | o cliente envia o tarball pela própria sessão OpenSSH e extrai no host remoto; nenhum endpoint público | mais lento na primeira conexão; sem CDN |
 | **caminho pré-instalado** | o responsável instala o servidor na VPS e a extensão só o localiza e reutiliza | mínimo esforço para validar B.2–B.4; não é experiência de produto |
 
-Recomendação para desbloquear a validação: **caminho pré-instalado primeiro,
-push pelo cliente como alvo do MVP, tarball próprio quando houver distribuição.**
+Decisão `D-031`: a primeira validação usa o **caminho pré-instalado**. Push pelo
+cliente e tarball próprio ficam fora desta etapa e exigirão contratos separados.
 
 Não existe atalho de intercompatibilidade: o servidor precisa ser do mesmo fork
 e commit do cliente, porque o protocolo do extension host e o workbench são

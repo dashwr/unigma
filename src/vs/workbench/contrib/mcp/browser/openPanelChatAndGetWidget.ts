@@ -4,13 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { raceTimeout } from '../../../../base/common/async.js';
+import { isChatPanelEnabled } from '../../../../base/common/product.js';
 import { Event } from '../../../../base/common/event.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
+import product from '../../../../platform/product/common/product.js';
 import { ChatViewId, IChatWidget, IChatWidgetService } from '../../chat/browser/chat.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 
 
 export async function openPanelChatAndGetWidget(viewsService: IViewsService, chatService: IChatWidgetService): Promise<IChatWidget | undefined> {
+	if (!isChatPanelEnabled(product)) {
+		return undefined;
+	}
 	await viewsService.openView(ChatViewId, true);
 	const widgets = chatService.getWidgetsByLocations(ChatAgentLocation.Chat);
 	if (widgets.length) {

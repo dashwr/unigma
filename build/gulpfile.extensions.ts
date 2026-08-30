@@ -87,6 +87,7 @@ const compilations = [
 	'extensions/typescript-language-features/web/tsconfig.json',
 	'extensions/typescript-language-features/tsconfig.json',
 	'extensions/unigma-agent-runtime/tsconfig.json',
+	'extensions/unigma-remote-ssh/tsconfig.json',
 	'extensions/vscode-api-tests/tsconfig.json',
 	'extensions/vscode-colorize-tests/tsconfig.json',
 	'extensions/vscode-colorize-perf-tests/tsconfig.json',

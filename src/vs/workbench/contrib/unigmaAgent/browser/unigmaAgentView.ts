@@ -60,6 +60,7 @@ export class UnigmaAgentViewPane extends ViewPane {
 	private model: UnigmaAgentSessionViewModel = EMPTY_UNIGMA_AGENT_SESSION;
 	private inputValue = '';
 	private isSubmitting = false;
+	private isStopping = false;
 	private disposed = false;
 
 	constructor(
@@ -118,6 +119,7 @@ export class UnigmaAgentViewPane extends ViewPane {
 			return;
 		}
 
+		this.isStopping = false;
 		this.model = startUnigmaAgentSession();
 		this.renderState();
 		this.stateContainer?.focus();
@@ -159,6 +161,32 @@ export class UnigmaAgentViewPane extends ViewPane {
 		}
 	}
 
+	private async stop(cancelButton: Button): Promise<void> {
+		const sessionId = this.model.sessionId;
+		if (!sessionId || this.isStopping) {
+			return;
+		}
+
+		this.isStopping = true;
+		const cancellingLabel = localize('unigmaAgent.cancelling', 'Cancelling...');
+		cancelButton.enabled = false;
+		cancelButton.label = cancellingLabel;
+		cancelButton.setAriaLabel(cancellingLabel);
+		try {
+			await this.runtime.stopSession(sessionId);
+		} catch {
+			if (!this.disposed) {
+				this.setState(UNIGMA_AGENT_VIEW_STATES.Error);
+			}
+		} finally {
+			// Keep the guard until a runtime event leaves Loading after success.
+			// On failure setState renders Error and clears it below.
+			if (this.model.state !== UNIGMA_AGENT_VIEW_STATES.Loading) {
+				this.isStopping = false;
+			}
+		}
+	}
+
 	private setState(state: UnigmaAgentSessionViewModel['state']): void {
 		this.model = { state, sessionId: this.model.sessionId };
 		if (!this.stateContainer || !this.agentProgressBar) {
@@ -175,6 +203,9 @@ export class UnigmaAgentViewPane extends ViewPane {
 		}
 
 		this.element.dataset['state'] = this.model.state;
+		if (this.model.state !== UNIGMA_AGENT_VIEW_STATES.Loading) {
+			this.isStopping = false;
+		}
 		this.renderDisposables.clear();
 		DOM.clearNode(this.stateContainer);
 		this.agentProgressBar.stop().hide();
@@ -229,6 +260,16 @@ export class UnigmaAgentViewPane extends ViewPane {
 
 		if (this.model.state === UNIGMA_AGENT_VIEW_STATES.Loading) {
 			this.agentProgressBar.infinite().show();
+			if (this.model.sessionId) {
+				const actionContainer = DOM.append(this.stateContainer, DOM.$('.unigma-agent-action'));
+				actionContainer.style.marginTop = '8px';
+				const cancelLabel = this.isStopping
+					? localize('unigmaAgent.cancelling', 'Cancelling...')
+					: localize('unigmaAgent.cancel', 'Cancel');
+				const cancelButton = this.renderDisposables.add(new Button(actionContainer, { ...defaultButtonStyles, ariaLabel: cancelLabel, disabled: this.isStopping }));
+				cancelButton.label = cancelLabel;
+				this.renderDisposables.add(cancelButton.onDidClick(() => void this.stop(cancelButton)));
+			}
 			return;
 		}
 

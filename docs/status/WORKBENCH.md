@@ -4,7 +4,7 @@
 > datados desta pasta; este quadro responde **o que está ativo, onde parou e qual
 > é o próximo passo**.
 
-**última atualização:** 2026-08-29
+**última atualização:** 2026-08-30
 **foco atual:** `CLI-001` — desacoplar o Agent Host do CLI Rust **preservando o
 Code Server**, etapa A de
 [`../planos/2026-08-29-cli-ssh-remoto.md`](../planos/2026-08-29-cli-ssh-remoto.md),
@@ -22,9 +22,16 @@ Nesta rodada, o caminho residual de Agent Sessions Welcome foi removido da
 configuração de startup, layout, tema e contribuição de walkthrough; os três
 arquivos da página órfã também foram removidos. A validação ainda é `review`,
 pois compile/typecheck e runner precisam confirmar o recorte completo.
-Em 2026-08-29, `compile-client` e `typecheck-client` passaram sob Node
-`24.18.0`; o runtime próprio compilou e sua suíte passou com 60 testes. Os
-auditores de notices ainda retornam `1` por manifest-only e licenças pendentes.
+Em 2026-08-30, a execução Windows `33288698590` no commit `4814f40a` passou
+build, checks e auditoria do pacote, mas falhou no smoke: 61 passaram e os dois
+casos Integrated Browser dependentes de `workbench.panel.chat` falharam. O
+recorte local seguinte desativa apenas essa superfície por `D-032`, preserva os
+serviços compartilhados, declara os dois casos como capability não suportada e
+adiciona uma asserção negativa. `compile-client`, `typecheck-client`, 60 testes
+do runtime, 6 testes da policy SSH, 262 testes de build e o teste focal da
+capability passaram sob Node `24.18.0`. O auditor da CLI com `--scope cli`
+retorna `0`, sem manifest-only ou licença ausente; o escopo root ainda tem 979
+gaps potenciais e 7 licenças não declaradas.
 
 ## quadro
 
@@ -34,7 +41,7 @@ auditores de notices ainda retornam `1` por manifest-only e licenças pendentes.
 | `OVN-001` | triagem, delegação e consolidação do overnight E00–E03 | implementação/verificação | `in_progress` | consolidar resultados de 1A–1F e dos recortes 2A/2B, desbloquear ambiente/gates humanos e não iniciar onda 3 | nenhum; sem colisão de arquivos | [`planos/2026-08-27-e00-e03-ondas.md`](../planos/2026-08-27-e00-e03-ondas.md), [`BACKLOG.md`](../BACKLOG.md) |
 | `OVN-D024` | retirada do Agent Host herdado e do CAPI | implementação/review | `review` | executar compile/typecheck/testes e auditor de notices no runner após publicar a ref | T-100–T-104 locais; runner | [`../planos/2026-08-28-ondas-refundacao.md`](../planos/2026-08-28-ondas-refundacao.md), [`../DECISIONS.md`](../DECISIONS.md) |
 | `CLI-001` | etapa A: desacoplar o Agent Host do CLI Rust, preservando Code Server, bridge, multiplexer, protocolo e `command-shell` | implementação/review | `review` | colher Node 24/runner, revisar notices e decidir tratamento do baseline clippy; não promover por teste local | auditoria CLI; `D-027`; `D-029` | [`../planos/2026-08-29-cli-ssh-remoto.md`](../planos/2026-08-29-cli-ssh-remoto.md), [`2026-08-29-cli-audit.md`](2026-08-29-cli-audit.md) |
-| `CLI-002` | etapa B: OpenSSH → `unigma-server` remoto → extension host → `unigma-agent-runtime` → `opencode serve` (T-050…T-053) | backlog | `blocked` | decidir a entrega do `unigma-server` (`Q-2`) e concluir `CLI-001`, a onda 4 e o probe SSH da onda 5 | `CLI-001`, `D-028`, VPS autorizada | [`../planos/2026-08-29-cli-ssh-remoto.md`](../planos/2026-08-29-cli-ssh-remoto.md), [`../SSH-CONTRACT.md`](../SSH-CONTRACT.md) |
+| `CLI-002` | etapa B: OpenSSH → `unigma-server` remoto → extension host → `unigma-agent-runtime` → `opencode serve` (T-050…T-053) | scaffold/review | `blocked` | validar o scaffold inerte e concluir `CLI-001`, a onda 4 e o probe SSH; a primeira entrega usa servidor pré-instalado por `D-031` | `CLI-001`, `D-028`, `D-031`, VPS autorizada | [`../planos/2026-08-29-cli-ssh-remoto.md`](../planos/2026-08-29-cli-ssh-remoto.md), [`../SSH-CONTRACT.md`](../SSH-CONTRACT.md) |
 | `CLI-003` | auditoria do `code tunnel` e de `@microsoft/dev-tunnels-*` (`Q-3`) | discovery | `ready` | levantar, sem alterar código, quem consome o subcomando `tunnel`, o que ele exige do serviço Microsoft e o que cairia junto; entregar veredito preservar/remover para decisão | nenhuma; não bloqueia `CLI-001` nem `CLI-002` | [`../planos/2026-08-29-cli-ssh-remoto.md`](../planos/2026-08-29-cli-ssh-remoto.md) §7, [`2026-08-29-cli-audit.md`](2026-08-29-cli-audit.md) |
 | `OVN-T105` | dependências órfãs após D-024 | backlog bloqueado | `blocked` | remover Claude/Codex do root e regenerar lockfile por instalação normal autorizada; `@microsoft/dev-tunnels-*` fica fora deste corte enquanto `Q-3` não for decidida; as crates `ahp`/`ahp-types` saem em `CLI-001`/A.6 | T-104; `CLI-001`; autorização de instalação | [`BACKLOG.md`](../BACKLOG.md), [`../DECISIONS.md`](../DECISIONS.md) |
 | `OVN-T023` | verificar storage de referência, lifecycle e diagnóstico redigido | verificação | `review` | executar suíte compilada em Node 24 e confirmar ausência de conteúdo sensível | T-010/T-020, runner | [`2026-08-27-overnight.md`](2026-08-27-overnight.md) |

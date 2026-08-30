@@ -37,6 +37,8 @@ trabalho.
 | D-025 | `AC-012` exige esforço proporcional a um projeto FOSS não monetizado cujos assets foram criados pelo próprio responsável: autodeclaração assinada, proveniência dos assets e busca documentada de colisão de marca. `AC-001` permanece integralmente aplicável. | substituído por D-030 | resposta do responsável nesta rodada |
 | D-026 | O OpenCode é consumido em três camadas: binário do usuário validado por contrato, bundle de release upstream fixado e não modificado, e poda `service-only` opcional. `T-096` não é caminho crítico. | confirmado em 2026-08-28 | resposta do responsável nesta rodada |
 | D-030 | O responsável não exige prova formal de autoria/proveniência dos assets nem trademark clearance para liberar o produto FOSS. A frente de branding deve remover identidades upstream da experiência do usuário e manter somente copyright, licenças, notices e demais obrigações legais aplicáveis; segurança técnica e integridade da cadeia de dependências continuam gates. | confirmado em 2026-08-29 | resposta do responsável nesta rodada |
+| D-031 | A primeira entrega de `CLI-002` assume `unigma-server` pré-instalado no host remoto. O cliente não provisiona, copia ou atualiza o servidor nesta etapa; push/tarball ficam para uma fase posterior com contrato próprio. | confirmado em 2026-08-30 | resposta do responsável nesta rodada |
+| D-032 | A distribuição unigma desativa somente a superfície `workbench.panel.chat`; serviços compartilhados necessários a MCP, inline chat, terminal/notebook e `unigmaAgent` permanecem. Comandos e smoke devem declarar essa capability indisponível sem fallback ou skip genérico. | confirmado em 2026-08-30 | resposta do responsável nesta rodada |
 
 ### D-016 — direção confirmada e limites
 

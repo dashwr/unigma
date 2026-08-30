@@ -7758,7 +7758,7 @@ SOFTWARE.
 
 ---------------------------------------------------------
 
-russh fd4f608a83753f9f3e137f95600faffede71cf65
+russh fd4f608a83753f9f3e137f95600faffede71cf65 - Apache-2.0
 https://github.com/microsoft/vscode-russh
 
 Apache License
@@ -7966,7 +7966,7 @@ Apache License
 
 ---------------------------------------------------------
 
-russh-cryptovec fd4f608a83753f9f3e137f95600faffede71cf65
+russh-cryptovec fd4f608a83753f9f3e137f95600faffede71cf65 - Apache-2.0
 https://github.com/microsoft/vscode-russh
 
 Apache License
@@ -8174,7 +8174,7 @@ Apache License
 
 ---------------------------------------------------------
 
-russh-keys fd4f608a83753f9f3e137f95600faffede71cf65
+russh-keys fd4f608a83753f9f3e137f95600faffede71cf65 - Apache-2.0
 https://github.com/microsoft/vscode-russh
 
 Apache License

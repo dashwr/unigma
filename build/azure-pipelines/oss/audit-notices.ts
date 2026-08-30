@@ -15,12 +15,34 @@
  *
  *  --notice   Path to ThirdPartyNotices.txt (or .new.txt)
  *  --repo     Path to the repo root (defaults to cwd)
+ *  --scope    Manifest scope: all (default), root (excluding cli/**), or cli
  *--------------------------------------------------------------------------------------------*/
 
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { parseNoticeFile, type NoticeEntry } from './parse-notices.ts';
 import { parseArgs } from './utils.ts';
+
+export type AuditScope = 'all' | 'root' | 'cli';
+
+/** Validate the optional manifest scope while preserving the historical default. */
+export function resolveScope(value: string | undefined): AuditScope {
+	if (value === undefined || value === 'all') {
+		return 'all';
+	}
+	if (value === 'root' || value === 'cli') {
+		return value;
+	}
+	throw new Error(`Invalid --scope '${value}'. Expected all, root, or cli.`);
+}
+
+/** Return whether a repo-relative path belongs to the requested manifest scope. */
+export function isPathInScope(relativePath: string, scope: AuditScope): boolean {
+	const normalized = relativePath.replace(/\\/g, '/').replace(/^\.\//, '');
+	const isCliPath = normalized === 'cli' || normalized.startsWith('cli/');
+	return scope === 'all' || (scope === 'cli' ? isCliPath : !isCliPath);
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -160,7 +182,9 @@ function collectCargoLockDeps(filePath: string): ManifestPackage[] {
 			const block = m[1];
 			const nameMatch = block.match(/^name\s*=\s*"(.+?)"/m);
 			const verMatch = block.match(/^version\s*=\s*"(.+?)"/m);
-			if (nameMatch) {
+			const sourceMatch = block.match(/^source\s*=\s*"(.+?)"/m);
+			// Cargo workspace packages have no source and are first-party.
+			if (nameMatch && sourceMatch) {
 				results.push({
 					name: nameMatch[1],
 					version: verMatch ? verMatch[1] : '',
@@ -508,12 +532,20 @@ function printReport(noticePath: string, stats: NoticeStats, xref: CrossRefResul
 
 function main(): void {
 	const args = parseArgs(process.argv.slice(2));
+	let scope: AuditScope;
+	try {
+		scope = resolveScope(args['scope']);
+	} catch (error) {
+		console.error(`Error: ${(error as Error).message}`);
+		process.exit(1);
+	}
 
 	if (!args['notice']) {
-		console.error('Usage: node build/azure-pipelines/oss/audit-notices.ts --notice <path> [--repo <path>]');
+		console.error('Usage: node build/azure-pipelines/oss/audit-notices.ts --notice <path> [--repo <path>] [--scope <all|root|cli>]');
 		console.error('');
 		console.error('  --notice   Path to ThirdPartyNotices.txt');
 		console.error('  --repo     Path to the repo root (defaults to cwd)');
+		console.error('  --scope    Manifest scope: all (default), root (excluding cli/**), or cli');
 		process.exit(1);
 	}
 
@@ -534,19 +566,23 @@ function main(): void {
 	const stats = analyzeNotice(entries);
 
 	console.log(`Walking repo for manifests: ${repoRoot}`);
+	console.log(`  Manifest scope: ${scope}`);
+	console.log(`  Manifest sources: ${scope === 'all' ? 'repository root and cli/**' : scope === 'root' ? 'repository root (excluding cli/**)' : 'cli/**'}`);
+
+	const inScope = (filePath: string): boolean => isPathInScope(path.relative(repoRoot, filePath), scope);
 
 	// Collect all manifest packages
 	const allManifestPkgs: ManifestPackage[] = [];
 
 	// package.json files
-	const packageJsonFiles = walkFiles(repoRoot, n => n === 'package.json');
+	const packageJsonFiles = walkFiles(repoRoot, n => n === 'package.json').filter(inScope);
 	console.log(`  Found ${packageJsonFiles.length} package.json files`);
 	for (const f of packageJsonFiles) {
 		allManifestPkgs.push(...collectPackageJsonDeps(f));
 	}
 
 	// package-lock.json files (full transitive dependency tree)
-	const packageLockFiles = walkFiles(repoRoot, n => n === 'package-lock.json');
+	const packageLockFiles = walkFiles(repoRoot, n => n === 'package-lock.json').filter(inScope);
 	console.log(`  Found ${packageLockFiles.length} package-lock.json files`);
 	const lockfileBreakdown = new Map<string, number>();
 	for (const f of packageLockFiles) {
@@ -557,14 +593,14 @@ function main(): void {
 	}
 
 	// Cargo.lock files
-	const cargoLockFiles = walkFiles(repoRoot, n => n === 'Cargo.lock');
+	const cargoLockFiles = walkFiles(repoRoot, n => n === 'Cargo.lock').filter(inScope);
 	console.log(`  Found ${cargoLockFiles.length} Cargo.lock files`);
 	for (const f of cargoLockFiles) {
 		allManifestPkgs.push(...collectCargoLockDeps(f));
 	}
 
 	// cgmanifest.json files
-	const cgManifestFiles = walkFiles(repoRoot, n => n === 'cgmanifest.json');
+	const cgManifestFiles = walkFiles(repoRoot, n => n === 'cgmanifest.json').filter(inScope);
 	console.log(`  Found ${cgManifestFiles.length} cgmanifest.json files`);
 	for (const f of cgManifestFiles) {
 		allManifestPkgs.push(...collectCgManifestDeps(f));
@@ -586,4 +622,6 @@ function main(): void {
 	}
 }
 
-main();
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))) {
+	main();
+}

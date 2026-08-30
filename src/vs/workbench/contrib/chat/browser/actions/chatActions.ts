@@ -33,12 +33,12 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { isChatPanelEnabled } from '../../../../../base/common/product.js';
 import product from '../../../../../platform/product/common/product.js';
 import { GitHubPaths, IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
@@ -76,8 +76,6 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
-
-const COPILOT_CLI_AGENT_HOST_PROVIDER_ID = 'copilotcli';
 
 export const ACTION_ID_NEW_CHAT = `workbench.action.chat.newChat`;
 export const ACTION_ID_NEW_EDIT_SESSION = `workbench.action.chat.newEditSession`;
@@ -594,77 +592,80 @@ export abstract class ModeOpenChatGlobalAction extends OpenChatGlobalAction {
 export function registerChatActions() {
 	/**
 	 * Returns the session URI to use when opening a brand-new chat editor,
-	 * honoring the remembered harness preference and then the configured default.
+	 * honoring the remembered session preference and then the configured default.
 	 */
 	function getNewChatEditorSessionUri(accessor: ServicesAccessor): URI {
-		const agentHostEnablementService = accessor.get(IAgentHostEnablementService);
-		return getDefaultNewChatSessionResource(accessor.get(IConfigurationService), accessor.get(IChatSessionsService), accessor.get(IStorageService), accessor.get(IWorkspaceContextService).getWorkspace(), agentHostEnablementService.enabled.get(), undefined, agentHostEnablementService.managedSandboxEnforced.get());
+		return getDefaultNewChatSessionResource(accessor.get(IConfigurationService), accessor.get(IChatSessionsService), accessor.get(IStorageService), accessor.get(IWorkspaceContextService).getWorkspace());
 	}
 
-	registerAction2(PrimaryOpenChatGlobalAction);
-	registerAction2(class extends ModeOpenChatGlobalAction {
-		constructor() { super(ChatMode.Ask); }
-	});
-	registerAction2(class extends ModeOpenChatGlobalAction {
-		constructor() {
-			super(ChatMode.Agent, {
-				when: ContextKeyExpr.has(`config.${ChatConfiguration.AgentEnabled}`),
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI,
-				linux: {
-					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyI
+	if (isChatPanelEnabled(product)) {
+		registerAction2(PrimaryOpenChatGlobalAction);
+		registerAction2(class extends ModeOpenChatGlobalAction {
+			constructor() { super(ChatMode.Ask); }
+		});
+		registerAction2(class extends ModeOpenChatGlobalAction {
+			constructor() {
+				super(ChatMode.Agent, {
+					when: ContextKeyExpr.has(`config.${ChatConfiguration.AgentEnabled}`),
+					weight: KeybindingWeight.WorkbenchContrib,
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI,
+					linux: {
+						primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyI
+					}
+				},);
+			}
+		});
+		registerAction2(class extends ModeOpenChatGlobalAction {
+			constructor() { super(ChatMode.Edit); }
+		});
+	}
+
+	if (isChatPanelEnabled(product)) {
+		registerAction2(class ToggleChatAction extends Action2 {
+			constructor() {
+				super({
+					id: TOGGLE_CHAT_ACTION_ID,
+					title: localize2('toggleChat', "Toggle Chat"),
+					category: CHAT_CATEGORY
+				});
+			}
+
+			async run(accessor: ServicesAccessor) {
+				const layoutService = accessor.get(IWorkbenchLayoutService);
+				const viewsService = accessor.get(IViewsService);
+				const viewDescriptorService = accessor.get(IViewDescriptorService);
+				const widgetService = accessor.get(IChatWidgetService);
+
+				const chatLocation = viewDescriptorService.getViewLocationById(ChatViewId);
+				const chatVisible = viewsService.isViewVisible(ChatViewId);
+				if (chatVisible) {
+					this.updatePartVisibility(layoutService, chatLocation, false);
+				} else {
+					this.updatePartVisibility(layoutService, chatLocation, true);
+					(await widgetService.revealWidget())?.focusInput();
 				}
-			},);
-		}
-	});
-	registerAction2(class extends ModeOpenChatGlobalAction {
-		constructor() { super(ChatMode.Edit); }
-	});
-
-	registerAction2(class ToggleChatAction extends Action2 {
-		constructor() {
-			super({
-				id: TOGGLE_CHAT_ACTION_ID,
-				title: localize2('toggleChat', "Toggle Chat"),
-				category: CHAT_CATEGORY
-			});
-		}
-
-		async run(accessor: ServicesAccessor) {
-			const layoutService = accessor.get(IWorkbenchLayoutService);
-			const viewsService = accessor.get(IViewsService);
-			const viewDescriptorService = accessor.get(IViewDescriptorService);
-			const widgetService = accessor.get(IChatWidgetService);
-
-			const chatLocation = viewDescriptorService.getViewLocationById(ChatViewId);
-			const chatVisible = viewsService.isViewVisible(ChatViewId);
-			if (chatVisible) {
-				this.updatePartVisibility(layoutService, chatLocation, false);
-			} else {
-				this.updatePartVisibility(layoutService, chatLocation, true);
-				(await widgetService.revealWidget())?.focusInput();
-			}
-		}
-
-		private updatePartVisibility(layoutService: IWorkbenchLayoutService, location: ViewContainerLocation | null, visible: boolean): void {
-			let part: Parts.PANEL_PART | Parts.SIDEBAR_PART | Parts.AUXILIARYBAR_PART | undefined;
-			switch (location) {
-				case ViewContainerLocation.Panel:
-					part = Parts.PANEL_PART;
-					break;
-				case ViewContainerLocation.Sidebar:
-					part = Parts.SIDEBAR_PART;
-					break;
-				case ViewContainerLocation.AuxiliaryBar:
-					part = Parts.AUXILIARYBAR_PART;
-					break;
 			}
 
-			if (part) {
-				layoutService.setPartHidden(!visible, part);
+			private updatePartVisibility(layoutService: IWorkbenchLayoutService, location: ViewContainerLocation | null, visible: boolean): void {
+				let part: Parts.PANEL_PART | Parts.SIDEBAR_PART | Parts.AUXILIARYBAR_PART | undefined;
+				switch (location) {
+					case ViewContainerLocation.Panel:
+						part = Parts.PANEL_PART;
+						break;
+					case ViewContainerLocation.Sidebar:
+						part = Parts.SIDEBAR_PART;
+						break;
+					case ViewContainerLocation.AuxiliaryBar:
+						part = Parts.AUXILIARYBAR_PART;
+						break;
+				}
+
+				if (part) {
+					layoutService.setPartHidden(!visible, part);
+				}
 			}
-		}
-	});
+		});
+	}
 
 
 	registerAction2(class NewChatEditorAction extends Action2 {
@@ -1117,30 +1118,6 @@ export function registerChatActions() {
 			const widgetService = accessor.get(IChatWidgetService);
 			const widget = widgetService.lastFocusedWidget ?? (await widgetService.revealWidget());
 			widget?.input.showContextUsageDetails();
-		}
-	});
-
-	registerAction2(class CompactAgentHostConversationAction extends Action2 {
-		constructor() {
-			super({
-				id: 'workbench.action.chat.compactAgentHostConversation',
-				title: localize2('interactiveSession.compactAgentHostConversation.label', "Compact Conversation"),
-				category: CHAT_CATEGORY,
-				precondition: ChatContextKeys.enabled,
-				menu: {
-					id: MenuId.ChatContextUsageActions,
-					group: 'navigation',
-					when: ContextKeyExpr.and(
-						ChatContextKeys.chatIsAgentHostSession,
-						ChatContextKeys.chatAgentHostProviderId.isEqualTo(COPILOT_CLI_AGENT_HOST_PROVIDER_ID)
-					),
-				},
-			});
-		}
-
-		async run(_accessor: ServicesAccessor, widget?: IChatWidget): Promise<void> {
-			// Compaction is a maintenance command, so keep any draft the user typed (#314664).
-			await widget?.acceptInput('/compact', { preserveInput: true });
 		}
 	});
 
