@@ -87,11 +87,13 @@ suite('Unigma Agent contribution', () => {
 		await runtime.start({ accepted: true }, 'file:///workspace');
 		received.fire({ version: AGENT_PROTOCOL_VERSION, type: AgentEventType.State, sessionId: 'session-1', state: AgentSessionState.Starting });
 		await runtime.sendInput('session-1', 'Explain this change.');
+		await runtime.stopSession('session-1');
 
 		assert.deepStrictEqual(events, [{ version: AGENT_PROTOCOL_VERSION, type: AgentEventType.State, sessionId: 'session-1', state: AgentSessionState.Starting }]);
 		assert.deepStrictEqual(sent, [
 			{ version: AGENT_PROTOCOL_VERSION, requestId: 'unigma-agent-1', type: AgentCommandType.StartSession, workspaceUri: 'file:///workspace', localIntegrationPreflight: { accepted: true } },
 			{ version: AGENT_PROTOCOL_VERSION, requestId: 'unigma-agent-2', type: AgentCommandType.SendInput, sessionId: 'session-1', text: 'Explain this change.' },
+			{ version: AGENT_PROTOCOL_VERSION, requestId: 'unigma-agent-3', type: AgentCommandType.StopSession, sessionId: 'session-1' },
 		]);
 
 		registration.dispose();

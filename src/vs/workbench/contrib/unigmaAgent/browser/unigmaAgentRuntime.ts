@@ -44,6 +44,7 @@ export interface IUnigmaAgentRuntime {
 	readonly onDidChangeConnectionState: Event<UnigmaAgentRuntimeConnectionState>;
 
 	start(preflight: AgentLocalIntegrationPreflight, workspaceUri?: string): Promise<void>;
+	stopSession(sessionId: string): Promise<void>;
 	sendInput(sessionId: string, text: string): Promise<void>;
 	registerTransport(transport: IUnigmaAgentRpcTransport): IDisposable;
 }
@@ -191,6 +192,15 @@ export class UnigmaAgentRuntime extends Disposable implements IUnigmaAgentRuntim
 			type: AgentCommandType.SendInput,
 			sessionId,
 			text,
+		});
+	}
+
+	async stopSession(sessionId: string): Promise<void> {
+		await this.send({
+			version: AGENT_PROTOCOL_VERSION,
+			requestId: this.nextRequestId(),
+			type: AgentCommandType.StopSession,
+			sessionId,
 		});
 	}
 
