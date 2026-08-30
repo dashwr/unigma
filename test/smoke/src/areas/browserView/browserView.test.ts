@@ -220,10 +220,13 @@ export function setup(logger: Logger, options: BrowserViewSmokeOptions): void {
 		if (!options.chatPanelSupported) {
 			it('unsupported-capability: chat panel is not registered', async function () {
 				const app = this.app as Application;
-				await assert.rejects(
-					app.workbench.quickaccess.runCommand('workbench.action.chat.open'),
-					/chat.*failed to find command/i
-				);
+
+				// `Chat: Open Chat` is registered behind `isChatPanelEnabled`, so on this
+				// product the command palette must not offer it. Reading the palette
+				// entries directly keeps the assertion observable: `runCommand` would
+				// only surface a helper timeout, which proves nothing about the command.
+				const commandNames = await app.workbench.quickaccess.getVisibleCommandNames('Chat: Open Chat');
+				assert.deepStrictEqual(commandNames.filter(name => name === 'Chat: Open Chat'), []);
 				assert.strictEqual(await app.code.driver.currentPage.locator('div[id="workbench.panel.chat"]').count(), 0);
 			});
 		}
