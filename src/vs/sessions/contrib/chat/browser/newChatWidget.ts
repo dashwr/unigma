@@ -19,21 +19,16 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { localize } from '../../../../nls.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISession, SESSION_WORKSPACE_GROUP_GITHUB, SessionTypeAuthRequirement } from '../../../services/sessions/common/session.js';
+import { ISession } from '../../../services/sessions/common/session.js';
 import { IOpenNewSessionResult, ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { isAllowSignedOutWhenUsableEnabled, shouldShowGitHubWorkspaceGroupSignIn } from '../../../browser/sessionsAuthGate.js';
-import { AGENTIC_SIGN_IN_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { IAquariumService, IMountedToggleHandle } from '../../aquarium/browser/aquariumOverlay.js';
 import { WorkspacePicker } from './sessionWorkspacePicker.js';
 import { WebWorkspacePicker } from './webWorkspacePicker.js';
 import { IPreferredSessionType } from './sessionTypePicker.js';
 import { NewChatInputWidget } from './newChatInput.js';
-import { NoAgentHostEmptyState } from './noAgentHostEmptyState.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
 import { IChatViewOptions } from '../../../browser/parts/chatView.js';
 import { SessionWorkspacePickerVisibleContext } from '../../../common/contextkeys.js';
 import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
@@ -69,14 +64,6 @@ export class NewChatWidget extends Disposable {
 	private readonly _newSessionCreation = new MutableDisposable<IDisposable>();
 
 	/**
-	 * The currently mounted no-agent-host empty state, if any. Set by
-	 * {@link _renderEmptyStateGate} while the empty state replaces the
-	 * workspace picker; consulted by {@link focusInput} to route focus to
-	 * the visible heading instead of the (hidden) chat input.
-	 */
-	private _activeEmptyState: NoAgentHostEmptyState | undefined;
-
-	/**
 	 * Whether to render the session type ("harness") picker below the input
 	 * (in the controls) instead of next to the workspace picker. Read once from
 	 * the view options at construction time; the widget does not react to later
@@ -103,7 +90,7 @@ export class NewChatWidget extends Disposable {
 
 	/**
 	 * Tracks whether the workspace picker is currently rendered (vs replaced by
-	 * the no-agent-host empty state on web). Consumed by the new-session-view
+	 * the no-provider empty state on web). Consumed by the new-session-view
 	 * onboarding tour to skip the workspace step when the picker is not shown.
 	 */
 	private readonly _workspacePickerVisibleKey: IContextKey<boolean>;
@@ -118,13 +105,11 @@ export class NewChatWidget extends Disposable {
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@IAquariumService private readonly aquariumService: IAquariumService,
-		@IAgentHostFilterService private readonly agentHostFilterService: IAgentHostFilterService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IAgentFeedbackService private readonly agentFeedbackService: IAgentFeedbackService,
 		@IChatPetService private readonly chatPetService: IChatPetService,
 		@IChatTipService private readonly chatTipService: IChatTipService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IStorageService private readonly storageService: IStorageService,
 		@INewSessionComposerService newSessionComposerService: INewSessionComposerService,
 	) {
@@ -158,20 +143,6 @@ export class NewChatWidget extends Disposable {
 		const PickerCtor = isWeb ? WebWorkspacePicker : WorkspacePicker;
 		this._workspacePicker = this._register(this.instantiationService.createInstance(PickerCtor, {
 			canRestoreWorkspace: () => !this._isQuickChatComposer.get(),
-			getWorkspaceGroupAction: group => {
-				if (group === SESSION_WORKSPACE_GROUP_GITHUB && shouldShowGitHubWorkspaceGroupSignIn(
-					this.defaultAccountService.currentDefaultAccount !== null,
-					isAllowSignedOutWhenUsableEnabled(this.configurationService),
-				)) {
-					return {
-						label: localize('workspacePicker.signInGitHub', "Sign in to GitHub"),
-						icon: Codicon.signIn,
-						commandId: AGENTIC_SIGN_IN_COMMAND_ID,
-						hideWorkspaceItems: true,
-					};
-				}
-				return undefined;
-			},
 		}));
 
 		const feedbackChanged = observableSignalFromEvent(this, this.agentFeedbackService.onDidChangeFeedback);
@@ -367,15 +338,7 @@ export class NewChatWidget extends Disposable {
 		}));
 
 		const workspacePickerContainer = dom.append(chatWidgetContent, dom.$('.new-session-workspace-picker-container'));
-		// On web (vscode.dev / insiders.vscode.dev) the workspace picker is
-		// scoped to the currently selected agent host. When no hosts are
-		// known there is nothing for the user to pick, so swap the picker
-		// out for the no-agent-host empty state. On Electron desktop the
-		// regular picker is always functional (the local Copilot provider
-		// is always available) so this branch is web-only.
-		this._register(isWeb
-			? this._renderEmptyStateGate(workspacePickerContainer, chatWidgetContent)
-			: this._renderWorkspacePicker(workspacePickerContainer));
+		this._register(this._renderWorkspacePicker(workspacePickerContainer));
 
 		// Quick-chat composer header (workspace-less): a top-of-input "New Chat"
 		// label plus the inline session-type picker. Shown only in quick-chat
@@ -410,11 +373,9 @@ export class NewChatWidget extends Disposable {
 						this.chatTipService.resetSession();
 					}
 				},
-				// No tip in the no-agent-host empty state: there is no usable composer.
-				// Tips also stay away until the user has actually started a couple of
+				// Tips stay away until the user has actually started a couple of
 				// sessions, so a first-run composer is not busy.
-				isEligible: () => !chatWidgetContent.classList.contains('no-agent-host')
-					&& this._hasEnoughSessionsForFirstRunNotices()
+				isEligible: () => this._hasEnoughSessionsForFirstRunNotices()
 					&& this.contextKeyService.getContextKeyValue<number>(ChatContextKeys.foregroundSessionCount.key) === 0,
 				focusInput: () => this.focusInput(),
 			},
@@ -423,8 +384,7 @@ export class NewChatWidget extends Disposable {
 
 		// Quick chat composer: hide the workspace picker for workspace-less
 		// drafts (there is nothing to pick) and reflect it in the picker-visible
-		// context key. Quick chats are only created on desktop (the local agent
-		// host), so leave the web empty-state gate's key management untouched.
+		// context key.
 		this._register(autorun(reader => {
 			const isQuickChat = this._isQuickChatComposer.read(reader);
 			chatWidgetContent.classList.toggle('quick-chat', isQuickChat);
@@ -609,13 +569,12 @@ export class NewChatWidget extends Disposable {
 		// TODO: reconsider silently switching away from the remembered selection;
 		// instead keep it and surface an inline "sign in for this type" affordance
 		// for GitHub-only types.
-		const effectivePick = this._preferUsableSessionTypeWhenSignedOut(folderUri, preferredPick);
 		const fallbackProviderId = this._workspacePicker.selectedResolved?.providerId;
 		try {
 			return await this.sessionsService.openNewSession({
 				folderUri,
-				...(effectivePick
-					? { providerId: effectivePick.providerId, sessionTypeId: effectivePick.sessionTypeId }
+				...(preferredPick
+					? { providerId: preferredPick.providerId, sessionTypeId: preferredPick.sessionTypeId }
 					: fallbackProviderId
 						? { providerId: fallbackProviderId }
 						: undefined),
@@ -624,29 +583,6 @@ export class NewChatWidget extends Disposable {
 			this.logService.error('Failed to create new session:', e);
 			return { session: undefined, trustDeclined: false };
 		}
-	}
-
-	/**
-	 * While the user is signed out and the conditional-auth opt-in is on, replace
-	 * a pick that requires GitHub with the first offered session type usable
-	 * without it. A no-op when signed in, when the opt-in is off (today's
-	 * behavior), or when no offered type is usable — in which case the caller's
-	 * existing fallbacks still apply.
-	 */
-	private _preferUsableSessionTypeWhenSignedOut(folderUri: URI, pick: IPreferredSessionType | undefined): IPreferredSessionType | undefined {
-		if (this.defaultAccountService.currentDefaultAccount !== null || !isAllowSignedOutWhenUsableEnabled(this.configurationService)) {
-			return pick;
-		}
-		const usable = this.sessionsManagementService.getSessionTypesForFolder(folderUri)
-			.filter(type => type.sessionType.authRequirement === SessionTypeAuthRequirement.None);
-		// Match on provider too when the pick names one: two providers can offer
-		// the same session type id, and only one of them may be usable.
-		const pickIsUsable = usable.some(type => type.sessionType.id === pick?.sessionTypeId
-			&& (pick?.providerId === undefined || type.providerId === pick.providerId));
-		if (usable.length === 0 || pickIsUsable) {
-			return pick;
-		}
-		return { providerId: usable[0].providerId, sessionTypeId: usable[0].sessionType.id };
 	}
 
 	private _scheduleRecreateOnProviderChange(folderUri: URI, userPick: IPreferredSessionType | undefined, created: ISession | undefined, replayMissedChange: boolean): void {
@@ -714,93 +650,6 @@ export class NewChatWidget extends Disposable {
 				? localize('newSessionIn', "New session in")
 				: localize('newSessionChooseWorkspace', "Start by picking a");
 		});
-	}
-
-	private _renderEmptyState(container: HTMLElement): IDisposable {
-		this._workspacePickerVisibleKey.set(false);
-		const emptyState = this.instantiationService.createInstance(NoAgentHostEmptyState);
-		emptyState.render(container);
-		this._activeEmptyState = emptyState;
-		return {
-			dispose: () => {
-				if (this._activeEmptyState === emptyState) {
-					this._activeEmptyState = undefined;
-				}
-				emptyState.dispose();
-			},
-		};
-	}
-
-	/**
-	 * Web-only: hosts the workspace picker, but swaps it out for the
-	 * no-agent-host empty state once we are *sure* there are no hosts —
-	 * i.e. after a discovery cycle has completed. Rendering the empty
-	 * state before discovery has run would briefly flash it at users who
-	 * actually have hosts that just haven't been discovered yet (e.g.
-	 * cached tunnels resolved on startup). Until then we keep the regular
-	 * workspace picker, which has its own loading affordance.
-	 */
-	private _renderEmptyStateGate(container: HTMLElement, chatWidgetContent: HTMLElement): IDisposable {
-		const store = new DisposableStore();
-		const pickerSlot = dom.append(container, dom.$('.session-workspace-picker-slot'));
-		const stateDisposables = store.add(new MutableDisposable());
-
-		const showPicker = () => {
-			chatWidgetContent.classList.remove('no-agent-host');
-			dom.clearNode(pickerSlot);
-			stateDisposables.value = this._renderWorkspacePicker(pickerSlot);
-			this._renderChatTip();
-		};
-
-		const showEmptyState = () => {
-			chatWidgetContent.classList.add('no-agent-host');
-			dom.clearNode(pickerSlot);
-			stateDisposables.value = this._renderEmptyState(pickerSlot);
-			this._clearChatTip();
-		};
-
-		const filter = this.agentHostFilterService;
-		let hasCompletedDiscovery = filter.hosts.length > 0;
-
-		// If no discovery cycle is in flight or has completed yet, kick one
-		// off so the empty state can resolve in a bounded time. The
-		// A startup contribution normally triggers rediscovery, but in the
-		// rare case the view mounts first, this prevents the user from being
-		// stuck on a picker that never gets populated.
-		if (!hasCompletedDiscovery && !filter.isDiscovering) {
-			filter.rediscover();
-		}
-
-		const update = () => {
-			if (hasCompletedDiscovery && !filter.isDiscovering && filter.hosts.length === 0) {
-				showEmptyState();
-			} else {
-				showPicker();
-			}
-		};
-
-		update();
-
-		// `onDidChange` fires when the host list changes — entering or
-		// leaving the empty state if the last host disconnects or the
-		// first host appears.
-		store.add(filter.onDidChange(() => {
-			if (filter.hosts.length > 0) {
-				hasCompletedDiscovery = true;
-			}
-			update();
-		}));
-		// `onDidChangeDiscovering` fires on discovery start *and* end; we
-		// treat any transition out of discovering as having completed at
-		// least one cycle.
-		store.add(filter.onDidChangeDiscovering(() => {
-			if (!filter.isDiscovering) {
-				hasCompletedDiscovery = true;
-			}
-			update();
-		}));
-
-		return store;
 	}
 
 	// --- Send ---
@@ -913,14 +762,6 @@ export class NewChatWidget extends Disposable {
 	}
 
 	focusInput(): void {
-		// While the empty state is mounted, the chat input is hidden via
-		// CSS (`.no-agent-host` on `.new-chat-widget-content`) so focusing
-		// it would just send focus to <body>. Land on the empty state's
-		// heading instead so the user has a visible focus target.
-		if (this._activeEmptyState) {
-			this._activeEmptyState.focus();
-			return;
-		}
 		this._newChatInput.focus();
 	}
 

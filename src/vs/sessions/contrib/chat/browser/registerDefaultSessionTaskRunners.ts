@@ -12,7 +12,7 @@ import { WorkbenchSessionTaskRunner } from './workbenchSessionTaskRunner.js';
 /**
  * Registers the default {@link WorkbenchSessionTaskRunner} with the
  * {@link ISessionTaskRunnerRegistry}. The workbench runner is the lowest
- * priority fallback; specialized runners (e.g. for agent hosts) register
+ * priority fallback; specialized runners register
  * themselves separately from their own contributions.
  */
 export class RegisterDefaultSessionTaskRunnersContribution extends Disposable implements IWorkbenchContribution {

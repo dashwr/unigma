@@ -93,7 +93,7 @@ export interface IChatWidgetFixtureOptions {
 	 */
 	readonly decorateInputPart?: (inputPart: ChatInputPart, instantiationService: IInstantiationService) => void;
 	/**
-	 * When set, renders the chat as an agent host session and enables the turn
+	 * When set, renders the chat as a contributed session and enables the turn
 	 * changes summary (`chat.turnStatusPills`), so completed turns with
 	 * {@link IFixtureMessage.fileChanges} show workspace changes and external
 	 * Markdown previews under the response.
@@ -114,7 +114,7 @@ interface IChatWidgetFixtureHandle {
 }
 
 function makeFileDiff(change: IFixtureFileChange): IChatResponseFileEdit {
-	// A created file has no before-content, so the agent host provider maps its
+	// A created file has no before-content, so the session provider maps its
 	// `originalURI` to the `modifiedURI` (equal URIs); an edited file keeps a
 	// distinct original.
 	const root = change.isOutsideWorkspace ? '/home/user' : '/repo';
@@ -230,11 +230,10 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 
 	// Build a real ChatModel populated with hand-crafted requests/responses, then drive a
 	// real ChatViewModel + ChatListWidget — the same components used in production.
-	// The turn changes summary only renders for agent host sessions, whose frontend
-	// resource uses the session type as the scheme (e.g. `agent-host-copilotcli:/…`),
-	// which is what `getChatSessionType` / `toAgentHostBackendSessionUri` recognize.
+	// The turn changes summary uses the contributed session resource scheme, which
+	// is what `getChatSessionType` recognizes.
 	const sessionResource = needsTurnPills
-		? URI.from({ scheme: SessionType.AgentHostCopilot, path: '/turn-pills-session' })
+		? URI.from({ scheme: SessionType.CopilotCLI, path: '/turn-pills-session' })
 		: undefined;
 	const chatService = instantiationService.get(IChatService) as MockChatService;
 	const model = disposableStore.add(instantiationService.createInstance(
@@ -691,7 +690,7 @@ const CODE_BLOCK_IN_LIST: IFixtureMessage[] = [
 					'',
 					'1. The session restores/caches the change-set metadata, so VS Code can display the filenames and change counts.',
 					'2. Opening a diff requires loading its original side using a `git-blob:` URI.',
-					'3. Agent Host executes roughly:',
+					'3. The session provider executes roughly:',
 					'   ```bash',
 					'   git show 1e393d7b352de7927a98d0321e51ae63046c8652:<path>',
 					'   ```',

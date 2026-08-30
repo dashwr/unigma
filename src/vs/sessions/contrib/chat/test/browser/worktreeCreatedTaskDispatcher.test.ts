@@ -14,11 +14,10 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsTasksService, ISessionTaskWithTarget, ITaskEntry } from '../../browser/sessionsTasksService.js';
-import { AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING, WorktreeCreatedTaskDispatcher } from '../../browser/worktreeCreatedTaskDispatcher.js';
+import { WorktreeCreatedTaskDispatcher } from '../../browser/worktreeCreatedTaskDispatcher.js';
 
 interface ITestSession {
 	readonly session: ISession;
@@ -259,33 +258,7 @@ suite('WorktreeCreatedTaskDispatcher', () => {
 		assert.deepStrictEqual(tasks.ranTasks, []);
 	});
 
-	test('skips agent host sessions when the setting is disabled', async () => {
-		await configurationService.setUserConfiguration(AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING, false);
-		createDispatcher();
-		const { session, workspace } = makeSession({ id: 'a', providerId: LOCAL_AGENT_HOST_PROVIDER_ID, hasWorktree: false });
-		tasks.setTasks(session.sessionId, [entry('setup', 'worktreeCreated')]);
-
-		mgmt.sessionStartedEmitter.fire(session);
-		workspace.set(makeWorkspace(true), undefined);
-		await settle();
-
-		assert.deepStrictEqual(tasks.ranTasks, []);
-	});
-
-	test('runs agent host sessions when the setting is enabled', async () => {
-		await configurationService.setUserConfiguration(AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING, true);
-		createDispatcher();
-		const { session, workspace } = makeSession({ id: 'a', providerId: LOCAL_AGENT_HOST_PROVIDER_ID, hasWorktree: false });
-		tasks.setTasks(session.sessionId, [entry('setup', 'worktreeCreated')]);
-
-		mgmt.sessionStartedEmitter.fire(session);
-		workspace.set(makeWorkspace(true), undefined);
-		await settle();
-
-		assert.deepStrictEqual(tasks.ranTasks, [{ label: 'setup', sessionId: 'a' }]);
-	});
-
-	test('does not gate non-agent-host sessions on the agent host setting', async () => {
+	test('runs sessions without a provider-specific setting', async () => {
 		createDispatcher();
 		const { session, workspace } = makeSession({ id: 'a', providerId: 'non-agent-host', hasWorktree: false });
 		tasks.setTasks(session.sessionId, [entry('setup', 'worktreeCreated')]);

@@ -21,7 +21,7 @@ export interface ISessionTaskRunner {
 	readonly id: string;
 	/**
 	 * Priority; higher values are preferred when multiple runners claim a
-	 * session. The built-in workbench runner uses priority `0`; agent-host
+	 * session. The built-in workbench runner uses priority `0`; provider
 	 * runners typically use a higher value (e.g. `100`).
 	 */
 	readonly priority: number;

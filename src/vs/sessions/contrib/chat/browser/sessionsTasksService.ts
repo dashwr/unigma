@@ -109,7 +109,7 @@ export interface ISessionsTasksService {
 	/**
 	 * Returns a one-shot snapshot of **all** tasks (with or without
 	 * `inAgents`) declared for the given session, reading from both workspace
-	 * and user `tasks.json`. Used by the agent-host runner to look up
+	 * and user `tasks.json`. Used by the session runner to look up
 	 * dependency tasks referenced via `dependsOn`.
 	 */
 	getAllTasks(session: ISession): Promise<readonly ISessionTaskWithTarget[]>;

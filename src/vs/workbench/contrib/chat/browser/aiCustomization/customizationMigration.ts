@@ -46,7 +46,7 @@ const retainedPromptHeaderKeys = new Set([
 ]);
 
 /**
- * Prompt files become skills because agent-host harnesses have no prompt-file concept;
+ * Prompt files become skills because the active harness may not have a prompt-file concept;
  * every other customization keeps its type and only changes location.
  */
 export function getCustomizationMigrationTargetType(customization: IPromptPath): PromptsType {

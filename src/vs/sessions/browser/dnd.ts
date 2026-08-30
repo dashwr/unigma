@@ -102,7 +102,7 @@ const chatReferenceTransfer = LocalSelectionTransfer.getInstance<DraggedChatRefe
 
 /**
  * Attach a chat-reference payload to a drag started from a chat tab in the
- * Agents window, so it can be dropped into an agent-host chat input to insert an
+ * sessions window, so it can be dropped into a chat input to insert an
  * inline `#chat:<title>` reference. The payload carries both the opaque
  * {@link chatResource backend chat URI} — forwarded verbatim into the reference
  * entry — and the {@link clientResource client chat resource} used only for

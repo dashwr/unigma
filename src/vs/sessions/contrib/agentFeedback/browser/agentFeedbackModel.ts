@@ -5,7 +5,7 @@
 
 import type { URI } from '../../../../base/common/uri.js';
 import type { IRange } from '../../../../editor/common/core/range.js';
-import type { AgentFeedbackAuthorValue } from '../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
+import type { AgentFeedbackAuthorValue } from '../../../../platform/sessions/common/feedback.js';
 import type { ICodeReviewSuggestion } from '../../codeReview/browser/codeReviewService.js';
 
 /**
@@ -37,10 +37,7 @@ export const enum AgentFeedbackKind {
 
 /**
  * Lifecycle state of an agent feedback item. An item is in exactly one state
- * at a time and progresses Created -> Accepted -> Submitted, and may move to
- * Resolved once the agent has acted on it. Providers without an agent loop
- * (i.e. non-agent-host) resolve items directly on submit, skipping the
- * visible Submitted state.
+ * at a time and progresses Created -> Accepted -> Submitted -> Resolved.
  */
 export const enum AgentFeedbackState {
 	/**
@@ -57,9 +54,7 @@ export const enum AgentFeedbackState {
 	/** Submitted to the agent for action. */
 	Submitted = 'submitted',
 	/**
-	 * Resolved — by the agent for agent-host sessions, or directly on submit
-	 * for other providers that have no agent loop to resolve comments. Resolved
-	 * items are hidden from the UI.
+	 * Resolved items are hidden from the UI.
 	 */
 	Resolved = 'resolved',
 }
@@ -92,11 +87,4 @@ export interface IAgentFeedback {
 	/** Lifecycle state of this feedback item. */
 	readonly state: AgentFeedbackState;
 
-	/**
-	 * Transient marker set when the user reveals this comment to the agent via
-	 * the `viewUnreviewedComments` tool. The agent-host server tool returns the
-	 * comments carrying this flag and then clears it. Only meaningful for
-	 * reviewable (PR / code review) comments.
-	 */
-	readonly pendingAgentReveal?: boolean;
 }

@@ -371,10 +371,6 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/services/agentHost",
-			"project": "vscode-workbench"
-		},
-		{
 			"name": "vs/workbench/services/authToken",
 			"project": "vscode-workbench"
 		},
@@ -677,10 +673,6 @@
 			"project": "vscode-sessions"
 		},
 		{
-			"name": "vs/sessions/contrib/providers/agentHost",
-			"project": "vscode-sessions"
-		},
-		{
 			"name": "vs/sessions/contrib/aiCustomizationTreeView",
 			"project": "vscode-sessions"
 		},
@@ -746,10 +738,6 @@
 		},
 		{
 			"name": "vs/sessions/contrib/logs",
-			"project": "vscode-sessions"
-		},
-		{
-			"name": "vs/sessions/contrib/providers/remoteAgentHost",
 			"project": "vscode-sessions"
 		},
 		{

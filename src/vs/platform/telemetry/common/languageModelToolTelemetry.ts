@@ -34,11 +34,11 @@ export type LanguageModelToolInvokedClassification = LanguageModelToolTelemetryC
 	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether invoking the LanguageModelTool resulted in an error.' };
 	prepareTimeMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Time spent in prepareToolInvocation method in milliseconds.' };
 	invocationTimeMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Time spent in tool invoke method in milliseconds.' };
-	provider?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host provider that invoked the tool (e.g. copilotcli, claude, codex), if applicable.' };
-	resultSizeInCharacters?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Length of the serialized Agent Host tool result in UTF-16 code units, if applicable.' };
-	turnId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the Agent Host turn containing the tool invocation, if applicable.' };
+	provider?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider that invoked the tool, if applicable.' };
+	resultSizeInCharacters?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Length of the serialized tool result in UTF-16 code units, if applicable.' };
+	turnId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the turn containing the tool invocation, if applicable.' };
 	model?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The trusted provider model identifier that produced the tool call, or a generic value for BYOK and unknown models, if applicable.' };
-	toolCallId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host tool call identifier, if applicable.' };
+	toolCallId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The tool call identifier, if applicable.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the usage of language model tools.';
 };

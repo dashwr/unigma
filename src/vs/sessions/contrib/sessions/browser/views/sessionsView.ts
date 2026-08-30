@@ -14,7 +14,6 @@ import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
 import { IView, Sizing, SplitView } from '../../../../../base/browser/ui/splitview/splitview.js';
 import { Color } from '../../../../../base/common/color.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
@@ -30,7 +29,6 @@ import { localize } from '../../../../../nls.js';
 import { SessionsList, SessionsGrouping, SessionsSorting } from './sessionsList.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { AICustomizationShortcutsWidget } from '../aiCustomizationShortcutsWidget.js';
-import { AgentHostShortcutsWidget } from '../agentHostShortcutsWidget.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { agentsBackground } from '../../../../common/theme.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -44,7 +42,6 @@ import { Menus } from '../../../../browser/menus.js';
 import { MobileSessionFilterChips } from '../../../../browser/parts/mobile/mobileSessionFilterChips.js';
 import { IMobileSortGroupSheetItem, showMobileSortGroupSheet } from '../../../../browser/parts/mobile/mobileSortGroupSheet.js';
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
-import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 
 const $ = DOM.$;
 export const SessionsViewId = 'sessions.workbench.view.sessionsView';
@@ -361,24 +358,6 @@ export class SessionsView extends ViewPane {
 		};
 		updateSplitViewStyles();
 		this._register(this.themeService.onDidColorThemeChange(updateSplitViewStyles));
-
-		// Agent Host toolbar (bottom, below customizations). Only rendered
-		// in the sessions window on web desktop layouts: electron has no
-		// host picker today (gated out at the menu level), phone layout
-		// uses the mobile titlebar pill instead, and auxiliary windows do
-		// not contribute any host actions — without this gate they would
-		// show an empty toolbar shell.
-		if (isWeb && this.scopedContextKeyService.contextMatchesRules(ContextKeyExpr.and(
-			IsSessionsWindowContext,
-			IsAuxiliaryWindowContext.toNegated(),
-			IsPhoneLayoutContext.negate(),
-		))) {
-			this._register(this.instantiationService.createInstance(AgentHostShortcutsWidget, sessionsContainer, {
-				onDidChangeLayout: () => {
-					this.layoutSidebarSplitView();
-				},
-			}));
-		}
 
 		this._register(DOM.scheduleAtNextAnimationFrame(DOM.getWindow(parent), () => this.layoutSidebarSplitView()));
 	}

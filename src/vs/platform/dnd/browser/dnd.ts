@@ -503,13 +503,13 @@ export function extractNotebookCellOutputDropData(e: DragEvent): NotebookCellOut
 }
 
 /**
- * Payload for a dragged chat reference (a chat tab from the Agents window). The
+ * Payload for a dragged chat reference (a chat tab from the sessions window). The
  * producing (sessions) layer supplies both the opaque backend chat resource — the
  * value the reference entry carries verbatim — and the client-side chat resource,
  * plus the display title. The consuming (workbench chat input) drop handler needs
- * no knowledge of sessions or agent-host types: it forwards {@link chatResource}
+ * no knowledge of provider types: it forwards {@link chatResource}
  * into the reference entry and compares {@link clientResource} for identity only
- * (self-reference / cross-agent-host detection). The payload is transient (never
+ * (self-reference / cross-session detection). The payload is transient (never
  * persisted), so carrying both resources is fine.
  */
 export interface ChatReferenceTransferData {
@@ -522,7 +522,7 @@ export interface ChatReferenceTransferData {
 	/**
 	 * The sessions-window client chat resource (`IChat.resource`). Used for
 	 * compare-by-equality identity only — e.g. to detect a chat dropped onto its
-	 * own input, or to reject a cross-agent-host drag (which needs the client
+	 * own input, or to reject a cross-session drag (which needs the client
 	 * scheme + authority the backend URI does not carry) — never parsed for
 	 * meaning.
 	 */
@@ -532,14 +532,14 @@ export interface ChatReferenceTransferData {
 }
 
 /**
- * Identifier used to carry a dragged chat reference (a chat tab from the Agents
+ * Identifier used to carry a dragged chat reference (a chat tab from the sessions
  * window) through {@link LocalSelectionTransfer}, mirroring the editor's
  * `DraggedEditorIdentifier` pattern.
  *
  * Unlike the {@link ChatReferenceTransferData} `dataTransfer` mime payload, an
  * in-process local transfer is readable during `dragover`, so the drop target
  * can decide whether the drag is droppable (e.g. suppress the overlay for a
- * self-reference or a cross-agent-host drag) before the drop lands — avoiding a
+ * self-reference or a cross-session drag) before the drop lands — avoiding a
  * "looks droppable but isn't" overlay. It carries the same fields as
  * {@link ChatReferenceTransferData}.
  */

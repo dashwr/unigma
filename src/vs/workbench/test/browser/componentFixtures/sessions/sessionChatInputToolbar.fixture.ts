@@ -23,8 +23,6 @@ import { IGitHubService } from '../../../../../sessions/contrib/github/browser/g
 // eslint-disable-next-line local/code-import-patterns
 import { SessionInputBanners } from '../../../../../sessions/contrib/sessionInputBanners/browser/sessionInputBanners.js';
 // eslint-disable-next-line local/code-import-patterns
-import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../sessions/common/agentHostSessionsProvider.js';
-// eslint-disable-next-line local/code-import-patterns
 import { ChatOriginKind, ISessionTurnFileChange, IChat, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IActiveSession } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
@@ -81,7 +79,7 @@ function createMockSession(spec: ISessionSpec): IMockSessionAndChat {
 	}());
 	const session = new class extends mock<IActiveSession>() {
 		override readonly resource = URI.parse('session:1');
-		override readonly providerId = spec.providerId ?? LOCAL_AGENT_HOST_PROVIDER_ID;
+		override readonly providerId = spec.providerId ?? 'test-provider';
 		override readonly chats = constObservable([chat, ...subagents]);
 	}();
 	const browsers = (spec.browsers ?? []).map((browser, index) => {
@@ -309,7 +307,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 
 	// --- Gating -------------------------------------------------------------
 
-	SessionChatPills_NotAgentHost_Hidden: defineComponentFixture({
+	SessionChatPills_NonSession_Hidden: defineComponentFixture({
 		render: (ctx) => renderPills(ctx, createMockSession({
 			providerId: 'copilot-cloud',
 			turnChanges: [editedFile('app.ts', 12, 5)],

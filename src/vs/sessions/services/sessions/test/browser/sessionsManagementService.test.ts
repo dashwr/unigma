@@ -40,9 +40,9 @@ import { SessionsService } from '../../browser/sessionsService.js';
 import { ISessionsPartService } from '../../browser/sessionsPartService.js';
 import { CustomViewService, ICustomViewService } from '../../../customView/browser/customViewService.js';
 import { ISessionsProvidersService } from '../../browser/sessionsProvidersService.js';
-import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { SessionsHasClosedItemContext } from '../../../../common/contextkeys.js';
-import { COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME } from '../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
+
+const TEST_PROVIDER_ID = 'test-provider';
 
 const stubChat = {
 	resource: URI.parse('test:///chat'),
@@ -1455,9 +1455,9 @@ suite('SessionsManagementService', () => {
 		}(extHostSession);
 
 		// The agent host sorts first.
-		const agentHostSession = stubSession({ sessionId: 'ah-draft', providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionType: 'copilotcli' });
+		const agentHostSession = stubSession({ sessionId: 'ah-draft', providerId: TEST_PROVIDER_ID, sessionType: 'copilotcli' });
 		const agentHost = new class extends TestSessionsProvider {
-			override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
+			override readonly id = TEST_PROVIDER_ID;
 			override readonly order = -1;
 			override readonly sessionTypes: readonly ISessionType[] = [{ authRequirement: SessionTypeAuthRequirement.GitHub, id: 'copilotcli', label: 'Copilot', icon: Codicon.vm }];
 			override resolveWorkspace(_folderUri: URI): ISessionWorkspace { return { folderUri: _folderUri } as unknown as ISessionWorkspace; }
@@ -1497,8 +1497,8 @@ suite('SessionsManagementService', () => {
 			resultProviderId: result.session?.providerId,
 			trustDeclined: result.trustDeclined,
 		}, {
-			created: [{ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionTypeId: 'copilotcli' }],
-			resultProviderId: LOCAL_AGENT_HOST_PROVIDER_ID,
+			created: [{ providerId: TEST_PROVIDER_ID, sessionTypeId: 'copilotcli' }],
+			resultProviderId: TEST_PROVIDER_ID,
 			trustDeclined: false,
 		});
 	});
@@ -3180,73 +3180,6 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
-	suite('legacy Copilot CLI migration', () => {
-
-		const RAW_ID = 'sess-abc';
-
-		function legacyCliSession(): ISession {
-			return stubSession({
-				sessionId: `legacy-${RAW_ID}`,
-				providerId: 'default-copilot',
-				sessionType: COPILOT_CLI_EH_SCHEME,
-				resource: URI.from({ scheme: COPILOT_CLI_EH_SCHEME, path: `/${RAW_ID}` }),
-			});
-		}
-
-		function migratedCliSession(): ISession {
-			return stubSession({
-				sessionId: `migrated-${RAW_ID}`,
-				providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
-				sessionType: COPILOT_CLI_EH_SCHEME,
-				resource: URI.from({ scheme: COPILOT_CLI_LOCAL_AH_SCHEME, path: `/${RAW_ID}` }),
-			});
-		}
-
-		function serviceWithSessions(sessions: readonly ISession[]): ISessionsManagementService {
-			const provider = new class extends TestSessionsProvider {
-				constructor() { super(sessions[0]); }
-				override getSessions(): ISession[] { return [...sessions]; }
-			};
-			return createSessionsManagementService(sessions[0], disposables, provider).service;
-		}
-
-		test('getSessions hides the legacy entry once its migrated agent-host entry exists', () => {
-			const legacy = legacyCliSession();
-			const migrated = migratedCliSession();
-			const service = serviceWithSessions([legacy, migrated]);
-
-			assert.deepStrictEqual(
-				service.getSessions().map(s => s.sessionId),
-				[migrated.sessionId],
-			);
-		});
-
-		test('getSessions keeps the legacy entry visible when no migrated entry exists', () => {
-			const legacy = legacyCliSession();
-			const service = serviceWithSessions([legacy]);
-
-			assert.deepStrictEqual(
-				service.getSessions().map(s => s.sessionId),
-				[legacy.sessionId],
-			);
-		});
-
-		test('getSession still resolves the hidden legacy entry so it can be migrated on open', () => {
-			const legacy = legacyCliSession();
-			const migrated = migratedCliSession();
-			const service = serviceWithSessions([legacy, migrated]);
-
-			// Hidden from the displayed list, yet still resolvable by resource so
-			// an explicit open can trigger migration.
-			assert.deepStrictEqual(
-				{
-					listed: service.getSessions().some(s => s.sessionId === legacy.sessionId),
-					resolved: service.getSession(legacy.resource)?.sessionId ?? null,
-				},
-				{ listed: false, resolved: legacy.sessionId },
-			);
-		});
-	});
 });
 
 /**
@@ -3255,17 +3188,17 @@ suite('SessionsManagementService', () => {
  * Used to assert that the management service surfaces session types ordered by
  * provider order (lower first).
  */
-function createOrderedTypesService(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, copilotOrder: number, agentHostOrder: number): ISessionsManagementService {
+function createOrderedTypesService(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, copilotOrder: number, testProviderOrder: number): ISessionsManagementService {
 	const copilotProvider = new class extends TestSessionsProvider {
 		override readonly id = 'default-copilot';
 		override readonly order = copilotOrder;
 		override readonly sessionTypes: readonly ISessionType[] = [{ authRequirement: SessionTypeAuthRequirement.GitHub, id: 'copilot', label: 'Copilot', icon: Codicon.vm }];
 	}(stubSession({ sessionId: 'c1', providerId: 'default-copilot' }));
 	const agentHostProvider = new class extends TestSessionsProvider {
-		override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
-		override readonly order = agentHostOrder;
+		override readonly id = TEST_PROVIDER_ID;
+		override readonly order = testProviderOrder;
 		override readonly sessionTypes: readonly ISessionType[] = [{ authRequirement: SessionTypeAuthRequirement.GitHub, id: 'agent-host', label: 'Agent Host', icon: Codicon.vm }];
-	}(stubSession({ sessionId: 'a1', providerId: LOCAL_AGENT_HOST_PROVIDER_ID }));
+	}(stubSession({ sessionId: 'a1', providerId: TEST_PROVIDER_ID }));
 
 	const instantiationService = disposables.add(new TestInstantiationService());
 	instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));

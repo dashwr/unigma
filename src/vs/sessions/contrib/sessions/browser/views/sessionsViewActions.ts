@@ -32,11 +32,9 @@ import { Menus } from '../../../../browser/menus.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
-import { registerExternalSessionsFilterMenu } from '../../../../../workbench/contrib/chat/browser/agentSessions/externalSessionsFilterMenu.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
@@ -261,7 +259,6 @@ MenuRegistry.appendMenuItem(SessionsViewFilterSubMenu, {
 	order: 0,
 });
 
-registerExternalSessionsFilterMenu(SessionsViewFilterOptionsSubMenu, Menus.SessionsViewExternalFilter, '2_external');
 
 //  Sort / Group Actions
 
@@ -499,12 +496,8 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 
 const NEW_QUICK_CHAT_COMMAND_ID = 'sessionsView.newQuickChat';
 
-// Gate on AI features being enabled and the local agent host (which serves
-// quick chats) being available.
-const QuickChatEnabledContext = ContextKeyExpr.and(
-	ChatContextKeys.enabled,
-	AGENT_HOST_ENABLED_CONTEXT_KEY,
-);
+// Gate quick chats on AI features being enabled.
+const QuickChatEnabledContext = ChatContextKeys.enabled;
 
 registerAction2(class NewQuickChatAction extends Action2 {
 	constructor() {

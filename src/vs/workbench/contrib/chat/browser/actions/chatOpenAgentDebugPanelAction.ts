@@ -20,7 +20,7 @@ import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { isChatViewTitleActionContext } from '../../common/actions/chatActions.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { CHAT_DEBUG_ACTIVE_SESSION_IS_AGENT_HOST, CHAT_DEBUG_HAS_ACTIVE_SESSION, IChatDebugService } from '../../common/chatDebugService.js';
+import { CHAT_DEBUG_HAS_ACTIVE_SESSION, IChatDebugService } from '../../common/chatDebugService.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { CHAT_CATEGORY, CHAT_CONFIG_MENU_ID } from './chatActions.js';
 import { ChatDebugEditorInput } from '../chatDebug/chatDebugEditorInput.js';
@@ -122,7 +122,6 @@ export function registerChatOpenAgentDebugPanelAction() {
 				precondition: ContextKeyExpr.and(
 					ChatContextKeys.enabled,
 					CHAT_DEBUG_HAS_ACTIVE_SESSION,
-					CHAT_DEBUG_ACTIVE_SESSION_IS_AGENT_HOST.negate(),
 				),
 				menu: [{
 					id: MenuId.EditorTitle,
@@ -130,7 +129,6 @@ export function registerChatOpenAgentDebugPanelAction() {
 					when: ContextKeyExpr.and(
 						ActiveEditorContext.isEqualTo(ChatDebugEditorInput.ID),
 						CHAT_DEBUG_HAS_ACTIVE_SESSION,
-						CHAT_DEBUG_ACTIVE_SESSION_IS_AGENT_HOST.negate(),
 					),
 					order: 10
 				}],
@@ -196,7 +194,7 @@ export function registerChatOpenAgentDebugPanelAction() {
 				menu: [{
 					id: MenuId.EditorTitle,
 					group: 'navigation',
-					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatDebugEditorInput.ID), CHAT_DEBUG_ACTIVE_SESSION_IS_AGENT_HOST.negate()),
+					when: ActiveEditorContext.isEqualTo(ChatDebugEditorInput.ID),
 					order: 11
 				}],
 			});

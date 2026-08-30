@@ -51,7 +51,7 @@ export type StreamBaseline =
  * state machine, and renderable parts are produced eagerly from `assistant.message`
  * (including `toolRequests`) so bootstrap and in-flight work surface immediately
  * instead of waiting for `tool.execution_complete` (which doesn't fire for many
- * agent-host-synthesised setup operations like `run_setup`).
+	 * runtime-synthesised setup operations like `run_setup`).
  *
  * Key rules:
  * - **Eager tool rendering.** `assistant.message.toolRequests` items become tool parts

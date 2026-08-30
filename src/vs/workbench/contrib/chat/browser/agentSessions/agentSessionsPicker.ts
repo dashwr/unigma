@@ -14,7 +14,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { ISessionOpenOptions, openSession } from './agentSessionsOpener.js';
-import { IAgentSession, isAgentHostAgentSessionItem, isLocalAgentSessionItem } from './agentSessionsModel.js';
+import { IAgentSession, isLocalAgentSessionItem } from './agentSessionsModel.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
 import { AgentSessionsSorter, groupAgentSessionsByDate, type IAgentSessionsFilter, sessionDateFromNow } from './agentSessionsViewer.js';
 import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID } from './agentSessions.js';
@@ -67,8 +67,6 @@ export function getSessionButtons(session: IAgentSession, archiveButtons: IAgent
 	if (isLocalAgentSessionItem(session)) {
 		buttons.push(renameButton);
 		buttons.push(deleteButton);
-	} else if (isAgentHostAgentSessionItem(session)) {
-		buttons.push(renameButton);
 	}
 	buttons.push(session.isArchived() ? archiveButtons.unarchive : archiveButtons.archive);
 

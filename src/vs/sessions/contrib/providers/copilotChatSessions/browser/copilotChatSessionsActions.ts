@@ -18,10 +18,9 @@ import { SessionHasGitRepositoryContext, SessionProviderIdContext, SessionTypeCo
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { BranchPicker } from './branchPicker.js';
-import { COPILOT_PROVIDER_ID, CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
+import { COPILOT_PROVIDER_ID, CopilotChatSessionsProvider, CopilotCLISessionType } from './copilotChatSessionsProvider.js';
 import { ModePicker, ModePickerModel } from './modePicker.js';
 import { CopilotPermissionPickerDelegate, PermissionPicker } from './permissionPicker.js';
-import { CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { ISessionContext } from '../../../../services/sessions/browser/sessionContext.js';
 
 const IsActiveSessionCopilotCLI = ContextKeyExpr.equals(SessionTypeContext.key, CopilotCLISessionType.id);

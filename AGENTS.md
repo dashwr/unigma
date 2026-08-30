@@ -12,9 +12,23 @@
 - Documentação, fixture ou mock não converte direção em suporte: critérios só
   passam com comando, teste, artefato e cenário reproduzíveis registrados.
 
-## próximo trabalho — ondas E00–E03
+## próximo trabalho — CLI e SSH remoto
 
-- O plano operacional está em
+- A frente ativa é `docs/planos/2026-08-29-cli-ssh-remoto.md`: etapa A desacopla
+  o Agent Host do CLI Rust e etapa B implementa o SSH remoto (T-050…T-053). Ela
+  emenda em `docs/planos/2026-08-28-ondas-refundacao.md` entre a onda 1 e a
+  colheita da onda 2.
+- **Não remova o Code Server** (`cli/src/tunnels/code_server.rs`,
+  `server_bridge.rs`, `server_multiplexer.rs`, `protocol.rs`, o RPC genérico de
+  `control_server.rs` e o entry point `command-shell`): é a base do extension
+  host remoto, preservada por `D-027`. Só o subsistema `agent_host*`/AHP sai.
+- O servidor do host remoto é o `unigma-server` deste fork, acoplado por commit
+  ao cliente (`D-028`); a forma de entrega é decisão aberta.
+- Os testes de cada etapa ficam concentrados no fim dela, conforme o plano.
+
+## contexto anterior — ondas E00–E03
+
+- O plano operacional histórico está em
   `docs/planos/2026-08-27-e00-e03-ondas.md`; ele é a fonte da ordem interna,
   dependências, lanes paralelas e critérios de saída.
 - A onda 1 (lanes 1A–1F) já foi executada e está consolidada em
@@ -100,7 +114,7 @@ npm run test-build-scripts
   `./scripts/test-web-integration.sh`/`.bat` conforme o alvo.
 - Smoke de desenvolvimento: `npm run smoketest`; depois de build/compilação já
   prontos, use `npm run smoketest-no-compile`. O filtro oficial do unigma exclui
-  `Terminal Profiles`, `Chat` e `Agents Window`; essa exclusão não é suporte.
+  `Terminal Profiles` e `Chat`; essas exclusões não são suporte.
 - CLI Rust: em `cli/`, rode `cargo clippy -- -D warnings` e `cargo test`.
 
 ## builds e ci

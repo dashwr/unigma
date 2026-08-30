@@ -74,8 +74,6 @@ import { getDictationHoverMarkdown } from '../../../../workbench/contrib/chat/br
 import { addMicButtonContextMenuListener, getDictationContextMenuActions } from '../../../../workbench/contrib/chat/browser/speechToText/micButtonMenuActions.js';
 import { SlashCommandHandler } from './slashCommands.js';
 import { VariableCompletionHandler } from './variableCompletions.js';
-import { SessionReferenceCompletionHandler } from './sessionReferenceCompletions.js';
-import { AgentHostInputCompletionHandler } from './agentHostInputCompletions.js';
 import { IChatModelInputState } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, toFileVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -98,8 +96,6 @@ import { ISessionContext, SessionContext } from '../../../services/sessions/brow
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import { IChatStatusItemService } from '../../../../workbench/contrib/chat/browser/chatStatus/chatStatusItemService.js';
 import { handleTerminalCommandPaste, isTerminalCommandInput } from '../../../../workbench/contrib/chat/browser/chatTerminalCommandPaste.js';
-import { IChatPasteTargetService } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { NewChatInputPasteTarget } from './newChatInputPasteTarget.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { ChatSpeechToTextState, DictationSettingId, IChatSpeechToTextService } from '../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
 import { setupDictationMicGlow } from '../../../../workbench/contrib/chat/browser/speechToText/dictationMicGlow.js';
@@ -378,7 +374,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	private readonly _contextAttachments: NewChatContextAttachments;
 
 	// Slash commands
-	private _agentHostInputCompletionHandler: AgentHostInputCompletionHandler | undefined;
 	private readonly _scopedInstantiationService: IInstantiationService;
 	private readonly _newChatModelPickerService = new NewChatModelPickerService();
 	private readonly _modelSelection: SessionModelSelection;
@@ -425,7 +420,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
 		@ITextModelService private readonly textModelService: ITextModelService,
-		@IChatPasteTargetService private readonly chatPasteTargetService: IChatPasteTargetService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILogService private readonly logService: ILogService,
@@ -885,24 +879,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			VariableCompletionHandler, this._editor, this._contextAttachments, () => this.options.getContextFolderUri(),
 		));
 
-		// Session reference completions (#session)
-		this._register(this.instantiationService.createInstance(
-			SessionReferenceCompletionHandler, this._editor, this._contextAttachments,
-		));
-
-		this._agentHostInputCompletionHandler = this._register(this._scopedInstantiationService.createInstance(
-			AgentHostInputCompletionHandler, this._editor, this._contextAttachments,
-		));
-
-		this._register(this.chatPasteTargetService.registerTarget(textModel.uri, new NewChatInputPasteTarget(
-			this._editor,
-			this._contextAttachments,
-			this._agentHostInputCompletionHandler,
-			() => this._getTerminalCommandPrefix(),
-			() => this.options.session.get()?.resource,
-			textModel.uri,
-		)));
-
 		this._register(this._editor.onDidChangeModelContent(() => {
 			this._updateDraftState();
 			this._updateSendButtonState();
@@ -1306,7 +1282,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	private async _send(background = false): Promise<boolean> {
 		const rawQuery = this._editor.getModel()?.getValue() ?? '';
 		const query = rawQuery.trim();
-		const queryOffset = rawQuery.length - rawQuery.trimStart().length;
 		const hasSendableAttachment = this._contextAttachments.attachments.some(isExplicitFileOrImageVariableEntry);
 		const hasAdditionalSendContent = this.options.hasAdditionalSendContent?.get() ?? false;
 		if ((!query && !hasSendableAttachment && !hasAdditionalSendContent) || this._sending) {
@@ -1335,7 +1310,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			return true;
 		}
 
-		const attachments = this._agentHostInputCompletionHandler?.getAttachmentsForSend(query, queryOffset) ?? [...this._contextAttachments.attachments];
+		const attachments = [...this._contextAttachments.attachments];
 		const attachedContext = attachments.length > 0
 			? attachments
 			: undefined;

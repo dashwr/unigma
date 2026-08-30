@@ -23,8 +23,7 @@ import '../media/chatSessionCreatedResult.css';
  * and the session title — that opens the created session. The link comes from
  * the tool call's structured {@link IChatSessionCreatedData} (not the model's
  * prose), so it is always present and clickable. Clicking opens the session
- * through the `agent-host-session://` opener — registered in the Agents window
- * and (for editor-window chat) by the workbench.
+ * through the registered session opener.
  */
 export class ChatSessionCreatedResultSubPart extends BaseChatToolInvocationSubPart {
 

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { CustomizationEnablementKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationEnablementKind } from '../../../common/customizationHarnessService.js';
 import { getRemotePluginDisabledLabel } from '../../../browser/aiCustomization/pluginListWidget.js';
 
 suite('pluginListWidget', () => {

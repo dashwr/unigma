@@ -27,7 +27,7 @@ import { getExplicitFileOrImageAttachmentSummary } from '../common/attachments/c
  * Derives the display label for a chat request. Reads the prompt text the same
  * way the chat list renders it (followup message, else the parsed request
  * parts) rather than relying on `messageText`, which some providers (e.g.
- * agent-host sessions) leave empty. When there is no prompt text, falls back to
+	 * contributed sessions) leave empty. When there is no prompt text, falls back to
  * an attachment summary (matching the chat list) and finally a numbered label.
  * Collapses whitespace so multi-line prompts render on a single row. Returns raw
  * text; callers that render into an icon-parsing surface (e.g. the quick pick)
@@ -289,4 +289,3 @@ export class ChatOutline implements IOutline<ChatOutlineEntry> {
 		this._disposables.dispose();
 	}
 }
-

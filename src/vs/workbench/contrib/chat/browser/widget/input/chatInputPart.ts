@@ -90,13 +90,12 @@ import { AccessibilityCommandId } from '../../../../accessibility/common/accessi
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEditorSelectionStyling } from '../../../../codeEditor/browser/simpleEditorOptions.js';
 import { IChatViewTitleActionContext } from '../../../common/actions/chatActions.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
-import { ChatRequestVariableSet, getImageAttachmentLimit, IChatRequestVariableEntry, isPastedTextArtifact, isAgentHostCompletionVariableEntry, isBrowserViewVariableEntry, isElementVariableEntry, isExplicitFileOrImageVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isStringVariableEntry, OmittedState } from '../../../common/attachments/chatVariableEntries.js';
+import { ChatRequestVariableSet, getImageAttachmentLimit, IChatRequestVariableEntry, isPastedTextArtifact, isBrowserViewVariableEntry, isElementVariableEntry, isExplicitFileOrImageVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isStringVariableEntry, OmittedState } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatMode, getModeNameForTelemetry, IChatMode, IChatModes, IChatModeService } from '../../../common/chatModes.js';
 import { IChatFollowup, IChatPlanReview, IChatQuestionCarousel, IChatService, IChatToolInvocation } from '../../../common/chatService/chatService.js';
-import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, isAgentHostTarget, isIChatSessionFileChange2, localChatSessionType, SessionType } from '../../../common/chatSessionsService.js';
+import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, isIChatSessionFileChange2, localChatSessionType, SessionType } from '../../../common/chatSessionsService.js';
 import { getStoredSelectedModel, storeSelectedModel } from '../../../common/chatSelectedModel.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../common/constants.js';
-import { isAutoApprovePolicyRestricted, isAutoApproveValuePolicyRestricted } from '../../../common/agentHostConfigPolicy.js';
 import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatInputModelSelectionController, IChatInputModelSelectionRuntime } from './chatInputModelSelectionController.js';
@@ -133,10 +132,6 @@ import { IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent, ISess
 import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from '../../chatEditing/chatEditingActions.js';
 import { resizeImage } from '../../chatImageUtils.js';
 import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from '../../chatSessions/chatSessionPickerActionItem.js';
-import { AgentHostChatInputPicker, AgentHostChatInputPickerActionViewItem } from '../../agentSessions/agentHost/agentHostChatInputPicker.js';
-import { getAgentHostPickerProperty, OpenAgentHostAutoApprovePickerAction, OpenAgentHostCodexApprovalsPickerAction, OpenAgentHostModePickerAction, OpenAgentHostPermissionModePickerAction, OpenAgentHostFolderPickerAction } from '../../agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
-import { AgentHostGenericConfigChips } from '../../agentSessions/agentHost/agentHostGenericConfigChips.js';
-import { AgentHostFolderPickerActionItem } from '../../agentSessions/agentHost/agentHostFolderPickerActionItem.js';
 import { IChatPhoneInputPresenter, MobileChatInputCombinedPickerActionItem } from './chatPhoneInputPresenter.js';
 import { IChatContextService } from '../../contextContrib/chatContextService.js';
 import { IDisposableReference } from '../chatContentParts/chatCollections.js';
@@ -1287,7 +1282,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private _getModelPickerPresentationOptions(): IModelPickerPresentationOptions {
 		const sessionType = this.getCurrentSessionType();
-		const useRichPicker = !sessionType || sessionType === localChatSessionType || isAgentHostTarget(sessionType);
+		const useRichPicker = !sessionType || sessionType === localChatSessionType;
 		return {
 			useGroupedModelPicker: useRichPicker,
 			showManageModelsAction: useRichPicker,
@@ -1300,9 +1295,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private _usesHarnessProviderIcon(): boolean {
 		const sessionType = this.getCurrentSessionType();
-		return sessionType === SessionType.Codex
-			|| sessionType === SessionType.AgentHostClaude
-			|| sessionType === SessionType.AgentHostCodex;
+		return sessionType === SessionType.Codex;
 	}
 
 	/**
@@ -1403,9 +1396,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private getPermittedPermissionLevel(level: ChatPermissionLevel): ChatPermissionLevel {
-		if (isAutoApproveValuePolicyRestricted(level, isAutoApprovePolicyRestricted(this.configurationService))) {
-			return ChatPermissionLevel.Default;
-		}
 		return level;
 	}
 
@@ -1893,9 +1883,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * Once a real session exists, the session resource is the authoritative
 	 * source for which models are valid. The picker delegate only describes the
 	 * welcome/new-session selection, which may not match the session that was
-	 * ultimately created (e.g. an agent-host pick that fell back to an
+ * ultimately created (for example, a provider pick that fell back to an
 	 * in-process `local` session). Preferring the delegate in that case lets an
-	 * agent-host model leak into a local session's pool, so we only consult the
+ * mismatched model leak into a local session's pool, so we only consult the
 	 * delegate when there is no session yet (the welcome view has no view model).
 	 */
 	private getCurrentSessionType(): string | undefined {
@@ -2075,8 +2065,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	/**
 	 * Re-apply the session's own persisted custom agent once its mode becomes available.
 	 *
-	 * A restored agent-host session persists its selected custom agent in `mode`, but the agent
-	 * host's custom modes only register after the backend connects. Until then `setChatMode` falls
+ * A restored session persists its selected custom agent in `mode`, but the session's custom
+ * modes only register after the backend connects. Until then `setChatMode` falls
 	 * back to the builtin Agent, so when the custom modes arrive (`modes.onDidChange`) re-apply the
 	 * persisted custom agent. Builtin/default modes are handled by {@link validateCurrentChatMode}.
 	 */
@@ -2716,7 +2706,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const contribution = this.chatSessionsService.getChatSessionContribution(sessionType);
 		if (contribution) {
-			this._widget?.lockToCodingAgent(contribution.name, contribution.displayName, contribution.type, contribution.agentHostProviderId);
+			this._widget?.lockToCodingAgent(contribution.name, contribution.displayName, contribution.type);
 		} else {
 			this._widget?.unlockFromCodingAgent();
 		}
@@ -2758,7 +2748,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (!this._notificationWidget.value) {
 			// Fall back to `getCurrentSessionType()` so the session-type
 			// picker delegate is consulted before any real session exists
-			// (e.g. empty workspace + Copilot CLI [Agent Host] selected). Without
+			// (e.g. empty workspace + Copilot CLI selected). Without
 			// this fallback, `_currentSessionType` stays undefined until
 			// the user creates a session and `sessionTypes`-gated
 			// notifications never render.
@@ -3123,7 +3113,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		// Context usage widget — will be positioned in the toolbar after toolbars are created
 		this.contextUsageWidget = this._register(this.instantiationService.createInstance(ChatContextUsageWidget));
-		this.contextUsageWidget.setChatWidget(widget);
 		this.contextUsageWidget.setSelectedModel(this._currentLanguageModel.get()?.identifier);
 		this.contextUsageWidget.setModelConfigurationResolver(
 			modelId => this.getModelConfiguration(modelId),
@@ -3521,31 +3510,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		// Secondary toolbar (permissions) — below the input box.
-		// Per-action minimum widths (in pixels) for pickers that collapse to an
-		// icon-only label via a CSS container query in `AgentHostChatInputPicker`.
-		// Most pickers reserve ~22px for the icon; the tunnel-sharing toggle has
-		// no chevron, so it can collapse further to 16px.
-		const agentHostShortPickerMinWidths = new Map<string, number>([
-			[OpenAgentHostModePickerAction.ID, 22],
-			['sessions.agentHost.runningSessionModePicker', 22],
-			[OpenAgentHostAutoApprovePickerAction.ID, 22],
-			[OpenAgentHostPermissionModePickerAction.ID, 22],
-			[OpenAgentHostCodexApprovalsPickerAction.ID, 22],
-			[OpenAgentHostFolderPickerAction.ID, 22],
-			['sessions.tunnelHost.toggleSharing', 16],
-		]);
-		// Direct-rendered chip lane for agent-host config properties that
-		// are advertised by the agent's schema but not handled by a
-		// dedicated `MenuId.ChatInputSecondary` action. Sits as a sibling
-		// of the secondary toolbar so the toolbar can take the available
-		// space (`flex: 1 1 0`) while the chips pin to the right next to
-		// the context-usage widget.
-		const genericChipsContainer = dom.$('.chat-secondary-generic-chips');
-		const genericChipsLane = this._register(this.instantiationService.createInstance(
-			AgentHostGenericConfigChips,
-			widget,
-		));
-		genericChipsLane.render(genericChipsContainer);
 		this.secondaryToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, this.secondaryToolbarContainer, MenuId.ChatInputSecondary, {
 			telemetrySource: this.options.menus.telemetrySource,
 			menuOptions: { shouldForwardArgs: true },
@@ -3556,14 +3520,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				kind: 'all',
 				minItems: 1,
 				actionMinWidth: 48,
-				// Agent-host pickers collapse to an icon-only label via a CSS
-				// container query in `AgentHostChatInputPicker` when narrow.
-				// Report a smaller min-width for them so the responsive layout
-				// keeps them visible instead of overflowing into the menu.
-				getActionMinWidth: action => agentHostShortPickerMinWidths.get(action.id),
 			},
 			actionViewItemProvider: (action, options) => {
-				const agentHostPickerProperty = getAgentHostPickerProperty(action.id);
 				const customSecondaryItem = this.options.secondaryToolbarActionViewItemProvider?.(action, options);
 				if (customSecondaryItem) {
 					return customSecondaryItem;
@@ -3635,17 +3593,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						this.permissionWidgetDisposeListener.clear();
 					});
 					return widget;
-				} else if (agentHostPickerProperty && action instanceof MenuItemAction) {
-					if (this.options.isSessionsWindow) {
-						return new HiddenActionViewItem(action);
-					}
-					const picker = this.instantiationService.createInstance(AgentHostChatInputPicker, widget, agentHostPickerProperty);
-					return new AgentHostChatInputPickerActionViewItem(action, picker);
-				} else if (action.id === OpenAgentHostFolderPickerAction.ID && action instanceof MenuItemAction) {
-					if (this.options.isSessionsWindow) {
-						return new HiddenActionViewItem(action);
-					}
-					return this.instantiationService.createInstance(AgentHostFolderPickerActionItem, action, widget, secondaryPickerOptions);
 				} else if (action.id === ChatSessionPrimaryPickerAction.ID && action instanceof MenuItemAction) {
 					// Create all pickers and return a container action view item
 					const widgets = this.createChatSessionPickerWidgets(action, secondaryPickerOptions);
@@ -3660,7 +3607,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 		this.secondaryToolbar.getElement().classList.add('chat-secondary-input-toolbar');
 		this.secondaryToolbar.context = { widget } satisfies IChatExecuteActionContext;
-		dom.append(this.secondaryToolbarContainer, genericChipsContainer);
 		this._register(this.secondaryToolbar.onDidChangeMenuItems(() => {
 			// Update container reference for the pickers when the secondary toolbar hosts one.
 			// Only assign when found so we don't overwrite a valid primary container reference
@@ -3809,7 +3755,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.handleAttachmentNavigation(e);
 		}));
 
-		// Completion references (agent-host skills/commands) render as inline
+		// Completion references (skills/commands) render as inline
 		// decorations rather than attachment pills, so exclude them. Re-index
 		// contiguously over the rendered pills so the focus bookkeeping (which
 		// stores/compares indices and counts) stays aligned with the visible pills
@@ -4000,14 +3946,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.renderAttachedContext();
 	}
 
-	/**
-	 * The attachments that are rendered as pills in the input. Agent-host
-	 * completion entries (skills/commands) live in the model so their `_meta`
-	 * reaches the outgoing message, but they are shown as inline decorations
-	 * rather than pills, so they are excluded here.
-	 */
 	private getRenderableAttachments(): IChatRequestVariableEntry[] {
-		return this.attachmentModel.attachments.filter(attachment => !isAgentHostCompletionVariableEntry(attachment));
+		return [...this.attachmentModel.attachments];
 	}
 
 	private handleAttachmentOpen(index: number, attachment: IChatRequestVariableEntry): void {

@@ -16,7 +16,7 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { ChatContextKeyExprs, ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatEditingSession } from '../../common/editing/chatEditingService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
@@ -294,7 +294,7 @@ export function registerNewChatActions() {
 				f1: true,
 				menu: [{
 					id: MenuId.ChatMessageRestoreCheckpoint,
-					when: ContextKeyExpr.or(ChatContextKeys.lockedToCodingAgent.negate(), ChatContextKeyExprs.isAgentHostSession),
+					when: ChatContextKeys.lockedToCodingAgent.negate(),
 					group: 'navigation',
 					order: -1
 				}]

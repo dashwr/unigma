@@ -119,7 +119,7 @@ export class BlockedSessionsCIFixModel extends Disposable implements ISessionCIF
 
 			// Load the session's chat model in the background (without opening it in
 			// the UI) and submit the prompt. `session.resource.scheme` is the agent
-			// id used for routing (matching the agent-host skill-button flow); an
+			// id used for routing (matching the skill-button flow); an
 			// unknown scheme falls back to the default agent.
 			const ref = await this._chatService.acquireOrLoadSession(session.resource, ChatAgentLocation.Chat, CancellationToken.None, 'BlockedSessionsCIFix');
 			if (!ref) {

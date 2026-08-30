@@ -12,7 +12,6 @@ import { extUri } from '../../../../../base/common/resources.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Range } from '../../../../../editor/common/core/range.js';
-import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -31,7 +30,6 @@ import { ISearchService } from '../../../../../workbench/services/search/common/
 import { registerChatFixtureServices } from '../../../../../workbench/test/browser/componentFixtures/chat/chatFixtureUtils.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { activeSessionViewBackground } from '../../../../common/theme.js';
-import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -146,15 +144,6 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				override addRecentWorkspace(): void { }
 				override removeRecentWorkspace(): void { }
 				override clearCheckedWorkspace(): void { }
-			}());
-			reg.defineInstance(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() { }());
-			reg.defineInstance(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
-				override readonly onDidChange = Event.None;
-				override readonly onDidChangeDiscovering = Event.None;
-				override readonly selectedProviderId = undefined;
-				override readonly hosts = [];
-				override readonly isDiscovering = false;
-				override async rediscover(): Promise<void> { }
 			}());
 			reg.defineInstance(IAquariumService, new class extends mock<IAquariumService>() {
 				override mountToggle() {

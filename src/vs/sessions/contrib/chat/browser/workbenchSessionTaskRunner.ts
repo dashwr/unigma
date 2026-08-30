@@ -16,7 +16,7 @@ import { ITaskEntry } from './sessionsTasksService.js';
  * Default task runner that delegates to the workbench `ITaskService`. Used
  * for sessions whose workspace is a real local folder loaded into the
  * workbench (so the Tasks extension can run them). Acts as the lowest-priority
- * fallback when no specialized runner (e.g. for an agent host) claims the
+ * fallback when no specialized runner claims the
  * session.
  */
 export class WorkbenchSessionTaskRunner implements ISessionTaskRunner {
@@ -34,7 +34,7 @@ export class WorkbenchSessionTaskRunner implements ISessionTaskRunner {
 		// The workbench task service only works against folders loaded into
 		// the workbench workspace. Restrict to file-scheme URIs that resolve
 		// to a known workspace folder so we don't no-op against virtual /
-		// agent-host workspaces.
+		// provider workspaces.
 		if (!cwd || cwd.scheme !== Schemas.file) {
 			return false;
 		}

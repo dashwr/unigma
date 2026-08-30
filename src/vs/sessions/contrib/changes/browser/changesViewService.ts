@@ -11,7 +11,6 @@ import { autorun, derived, derivedObservableWithCache, derivedOpts, IObservable,
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { AGENT_HOST_MERGE_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -25,6 +24,8 @@ import { ActiveSessionState, ChangesViewSection, IChangesDetailsViewState, IChan
 export const ChangesetReviewSupportContext = new RawContextKey<boolean>('sessions.changesetReviewSupport', false);
 export const ChangesetReviewedFilesContext = new RawContextKey<string[]>('sessions.changesetReviewedFiles', []);
 export const ChangesetHasOperationsContext = new RawContextKey<boolean>('sessions.changesetHasOperations', false);
+
+const MERGE_OPERATION_ID = 'merge';
 
 const DEFAULT_SECTION_COLLAPSE_STATE: IChangesViewSectionCollapseState = Object.freeze({
 	otherFiles: false,
@@ -209,7 +210,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			const changeset = this.activeSessionChangesetObs.read(reader);
 			const operations = changeset?.operations.read(reader) ?? [];
 			return activeSessionBaseBranchProtected.read(reader)
-				? operations.filter(operation => operation.id !== AGENT_HOST_MERGE_CHANGESET_OPERATION_ID)
+				? operations.filter(operation => operation.id !== MERGE_OPERATION_ID)
 				: operations;
 		});
 

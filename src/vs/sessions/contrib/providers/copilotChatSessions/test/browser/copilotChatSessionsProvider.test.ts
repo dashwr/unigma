@@ -11,7 +11,7 @@ import { DisposableStore, IDisposable, ImmortalReference, toDisposable } from '.
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
-import { autorun, constObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -37,13 +37,11 @@ import { IGitService } from '../../../../../../workbench/contrib/git/common/gitS
 import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../../../../workbench/contrib/chat/common/constants.js';
-import { CopilotChatSessionsProvider, COPILOT_PROVIDER_ID, CopilotCloudSessionType, ICopilotChatSession } from '../../browser/copilotChatSessionsProvider.js';
+import { CopilotChatSessionsProvider, COPILOT_PROVIDER_ID, CopilotCloudSessionType, CopilotCLISessionType, ICopilotChatSession } from '../../browser/copilotChatSessionsProvider.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { extUri } from '../../../../../../base/common/resources.js';
-import { CopilotCLISessionType } from '../../../agentHost/browser/baseAgentHostSessionsProvider.js';
-import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IGitHubService } from '../../../../github/browser/githubService.js';
 import { GitHubPullRequestModel } from '../../../../github/browser/models/githubPullRequestModel.js';
@@ -144,7 +142,6 @@ interface IExecutedCommand {
 
 interface ICreateProviderOptions {
 	readonly multiChatEnabled?: boolean;
-	readonly agentHostEnabled?: boolean;
 	readonly commandExecutions?: IExecutedCommand[];
 	readonly getOptionGroups?: () => IChatSessionProviderOptionGroup[] | undefined;
 	readonly languageModelsService?: Partial<ILanguageModelsService>;
@@ -235,16 +232,13 @@ function createProviderWithConfig(
 	disposables: DisposableStore,
 	model: MockAgentSessionsModel,
 	opts?: ICreateProviderOptions,
-): { provider: CopilotChatSessionsProvider; configService: TestConfigurationService; agentHostEnabled: ISettableObservable<boolean> } {
+): { provider: CopilotChatSessionsProvider; configService: TestConfigurationService } {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	const configService = new TestConfigurationService();
 	configService.setUserConfiguration('sessions.github.copilot.multiChatSessions', opts?.multiChatEnabled ?? true);
-	const agentHostEnabled = observableValue('agentHostEnabled', opts?.agentHostEnabled ?? true);
-
 	instantiationService.stub(IConfigurationService, configService);
 	instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
-	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: agentHostEnabled, managedSandboxEnforced: constObservable(false) });
 	instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
 	instantiationService.stub(IFileDialogService, {});
 	instantiationService.stub(IDialogService, {
@@ -307,7 +301,7 @@ function createProviderWithConfig(
 	instantiationService.stub(IPullRequestIconCache, opts?.pullRequestIconCache ?? new TestPullRequestIconCache());
 
 	const provider = disposables.add(instantiationService.createInstance(CopilotChatSessionsProvider));
-	return { provider, configService, agentHostEnabled };
+	return { provider, configService };
 }
 
 // ---- Provider factory for send/cancel tests ---------------------------------
@@ -324,7 +318,7 @@ function createProviderForSendTests(
 	disposables: DisposableStore,
 	model: MockAgentSessionsModel,
 	sendRequest: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>,
-	opts?: { onDidCommitSession?: Event<{ original: URI; committed: URI }>; configurationService?: TestConfigurationService; agentHostEnabled?: boolean },
+	opts?: { onDidCommitSession?: Event<{ original: URI; committed: URI }>; configurationService?: TestConfigurationService },
 ): CopilotChatSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
@@ -377,7 +371,6 @@ function createProviderForSendTests(
 		getUriLabel: (uri: URI) => uri.path,
 	});
 	instantiationService.stub(IUriIdentityService, { extUri });
-	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(opts?.agentHostEnabled ?? true), managedSandboxEnforced: constObservable(false) });
 	instantiationService.stub(IContextKeyService, new MockContextKeyService());
 	instantiationService.stub(IGitHubService, new TestGitHubService());
 	instantiationService.stub(IPullRequestIconCache, new TestPullRequestIconCache());
@@ -405,45 +398,12 @@ suite('CopilotChatSessionsProvider', () => {
 	test('has correct id and label', () => {
 		const provider = createProvider(disposables, model);
 		assert.strictEqual(provider.id, COPILOT_PROVIDER_ID);
-		assert.strictEqual(provider.sessionTypes.length, 1);
+		assert.strictEqual(provider.sessionTypes.length, 2);
 	});
 
 	test('sessionTypes excludes Local', () => {
 		const provider = createProvider(disposables, model);
 		assert.ok(!provider.sessionTypes.some(type => type.id === SessionType.Local));
-	});
-
-	test('sessionTypes excludes Extension Host Copilot CLI when Agent Host is available', () => {
-		const provider = createProvider(disposables, model);
-		assert.ok(!provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id));
-	});
-
-	test('sessionTypes includes Extension Host Copilot CLI when Agent Host is unavailable', () => {
-		const provider = createProvider(disposables, model, { agentHostEnabled: false });
-		assert.ok(provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id));
-	});
-
-	test('Agent Host availability is observed in both directions after the provider is created', () => {
-		const { provider, agentHostEnabled } = createProviderWithConfig(disposables, model, { agentHostEnabled: false });
-		let changeCount = 0;
-		disposables.add(provider.onDidChangeSessionTypes(() => changeCount++));
-		const visibleBeforeAvailability = provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id);
-
-		agentHostEnabled.set(true, undefined);
-		const visibleWhileAvailable = provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id);
-		agentHostEnabled.set(false, undefined);
-
-		assert.deepStrictEqual({
-			visibleBeforeAvailability,
-			visibleWhileAvailable,
-			visibleAfterDisablement: provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id),
-			changeCount,
-		}, {
-			visibleBeforeAvailability: true,
-			visibleWhileAvailable: false,
-			visibleAfterDisablement: true,
-			changeCount: 2,
-		});
 	});
 
 	// ---- getSessionTypes -------
@@ -476,7 +436,7 @@ suite('CopilotChatSessionsProvider', () => {
 	test('getSessions does not emit session changes while reading the initial cache', () => {
 		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: '/session' });
 		model.addSession(createMockAgentSession(resource));
-		const provider = createProvider(disposables, model, { agentHostEnabled: false });
+		const provider = createProvider(disposables, model);
 		const changes: ISessionChangeEvent[] = [];
 		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
 
@@ -677,25 +637,25 @@ suite('CopilotChatSessionsProvider', () => {
 		});
 	});
 
-	test('Copilot CLI session maps workspace selection to Agent Host folder config', async () => {
+	test('Copilot CLI session maps workspace selection to session config', async () => {
 		const provider = createProviderForSendTests(disposables, model, async () => ({ kind: 'sent' as const, data: {} as IChatSendRequestData }));
 		const session = provider.createNewSession(URI.file('/test/project'), CopilotCLISessionType.id);
-		const providerSession = provider.getSession(session.sessionId) as ICopilotChatSession & IDisposable & { getAgentHostSessionConfig(): Record<string, unknown> };
+		const providerSession = provider.getSession(session.sessionId) as ICopilotChatSession & IDisposable & { getSessionConfig(): Record<string, unknown> };
 		providerSession.setIsolationMode('workspace');
 
 		assert.strictEqual(providerSession.isolationMode.get(), 'workspace');
-		assert.deepStrictEqual(providerSession.getAgentHostSessionConfig(), { isolation: 'folder' });
+		assert.deepStrictEqual(providerSession.getSessionConfig(), { isolation: 'folder' });
 		providerSession.dispose();
 	});
 
-	test('Copilot CLI session maps worktree selection to Agent Host config', async () => {
+	test('Copilot CLI session maps worktree selection to session config', async () => {
 		const provider = createProviderForSendTests(disposables, model, async () => ({ kind: 'sent' as const, data: {} as IChatSendRequestData }));
 		const session = provider.createNewSession(URI.file('/test/project'), CopilotCLISessionType.id);
-		const providerSession = provider.getSession(session.sessionId)! as ICopilotChatSession & IDisposable & { getAgentHostSessionConfig(): Record<string, unknown> };
+		const providerSession = provider.getSession(session.sessionId)! as ICopilotChatSession & IDisposable & { getSessionConfig(): Record<string, unknown> };
 		providerSession.setIsolationMode('worktree');
 		providerSession.setBranch('main');
 
-		assert.deepStrictEqual(providerSession.getAgentHostSessionConfig(), { isolation: 'worktree', branch: 'main' });
+		assert.deepStrictEqual(providerSession.getSessionConfig(), { isolation: 'worktree', branch: 'main' });
 		providerSession.dispose();
 	});
 
@@ -704,11 +664,11 @@ suite('CopilotChatSessionsProvider', () => {
 		configService.setUserConfiguration('git.branchPrefix', 'users/alice/');
 		const provider = createProviderForSendTests(disposables, model, async () => ({ kind: 'sent' as const, data: {} as IChatSendRequestData }), { configurationService: configService });
 		const session = provider.createNewSession(URI.file('/test/project'), CopilotCLISessionType.id);
-		const providerSession = provider.getSession(session.sessionId)! as ICopilotChatSession & IDisposable & { getAgentHostSessionConfig(): Record<string, unknown> };
+		const providerSession = provider.getSession(session.sessionId)! as ICopilotChatSession & IDisposable & { getSessionConfig(): Record<string, unknown> };
 		providerSession.setIsolationMode('worktree');
 		providerSession.setBranch('main');
 
-		assert.deepStrictEqual(providerSession.getAgentHostSessionConfig(), { isolation: 'worktree', branch: 'main', worktreeBranchPrefix: 'users/alice/' });
+		assert.deepStrictEqual(providerSession.getSessionConfig(), { isolation: 'worktree', branch: 'main', worktreeBranchPrefix: 'users/alice/' });
 		providerSession.dispose();
 	});
 
@@ -717,11 +677,11 @@ suite('CopilotChatSessionsProvider', () => {
 		configService.setUserConfiguration('git.worktreeIncludeFiles', ['product.overrides.json', '**/node_modules/**']);
 		const provider = createProviderForSendTests(disposables, model, async () => ({ kind: 'sent' as const, data: {} as IChatSendRequestData }), { configurationService: configService });
 		const session = provider.createNewSession(URI.file('/test/project'), CopilotCLISessionType.id);
-		const providerSession = provider.getSession(session.sessionId)! as ICopilotChatSession & IDisposable & { getAgentHostSessionConfig(): Record<string, unknown> };
+		const providerSession = provider.getSession(session.sessionId)! as ICopilotChatSession & IDisposable & { getSessionConfig(): Record<string, unknown> };
 		providerSession.setIsolationMode('worktree');
 		providerSession.setBranch('main');
 
-		assert.deepStrictEqual(providerSession.getAgentHostSessionConfig(), {
+		assert.deepStrictEqual(providerSession.getSessionConfig(), {
 			isolation: 'worktree',
 			branch: 'main',
 			worktreeIncludeFiles: ['product.overrides.json', '**/node_modules/**']

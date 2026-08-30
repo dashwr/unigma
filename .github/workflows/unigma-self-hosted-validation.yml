@@ -80,10 +80,9 @@ jobs:
            node --experimental-strip-types build/unigma/audit-distribution.ts $artifact $env:GITHUB_WORKSPACE
 
       - name: run desktop smoke test
-        # O produto não empacota Copilot/AgentHost nem a extensão js-debug que
-        # fornece o perfil de terminal contribuído. As suítes correspondentes
-        # ficam fora do smoke do núcleo; não são suporte declarado do unigma.
-        run: npm run smoketest -- --tracing --f '^(?!.*(?:Terminal Profiles|Chat|Agents Window)).*$'
+        # O smoke de núcleo não cobre Terminal Profiles nem Chat; essas suítes
+        # ficam fora desta validação e não são suporte declarado por este job.
+        run: npm run smoketest -- --tracing --f '^(?!.*(?:Terminal Profiles|Chat)).*$'
 
       - name: write artifact evidence
         run: |

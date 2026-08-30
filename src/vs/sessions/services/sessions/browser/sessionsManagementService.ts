@@ -12,16 +12,10 @@ import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
-import { IRemoteAgentHostService } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IChatWidgetHistoryService } from '../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
-import { buildHostLocalEventsPath, COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME, getCopilotCliSessionRawId } from '../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
-import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { getSessionReferenceResource } from './sessionReference.js';
 import { ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IDeferredNewSessionRequestOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
 import { IDeleteChatOptions, ISessionChangeEvent, ISessionsProvider } from '../common/sessionsProvider.js';
@@ -102,8 +96,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		@IChatService private readonly chatService: IChatService,
 		@IChatWidgetHistoryService private readonly chatWidgetHistoryService: IChatWidgetHistoryService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IPathService private readonly pathService: IPathService,
-		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
@@ -197,10 +189,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	getSessions(): ISession[] {
-		// Dedup only affects the displayed list; lookups (`getSession`,
-		// `getSessionForChatResource`) use the raw merged set so an EH row that is
-		// hidden here can still be resolved and migrated when clicked.
-		return this._dedupeMigratedCopilotCliSessions(this._getMergedSessions());
+		return this._getMergedSessions();
 	}
 
 	private _getMergedSessions(): ISession[] {
@@ -209,44 +198,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			sessions.push(...provider.getSessions());
 		}
 		return sessions;
-	}
-
-	/**
-	 * A legacy Copilot CLI session migrated in place to the agent host is briefly
-	 * listed by BOTH the extension-host provider (`copilotcli:/<id>`) and the
-	 * agent-host provider (`agent-host-copilotcli:/<id>`) for the same underlying
-	 * SDK session id — the workbench agent-session model caches the stale legacy
-	 * entry even after the extension stops reporting it. Drop the legacy entry so
-	 * exactly one row shows per session.
-	 */
-	private _dedupeMigratedCopilotCliSessions(sessions: ISession[]): ISession[] {
-		let migratedRawIds: Set<string> | undefined;
-		for (const session of sessions) {
-			if (session.resource.scheme === COPILOT_CLI_LOCAL_AH_SCHEME) {
-				const rawId = getCopilotCliSessionRawId(session.resource);
-				if (rawId) {
-					(migratedRawIds ??= new Set<string>()).add(rawId);
-				}
-			}
-		}
-		if (!migratedRawIds) {
-			return sessions;
-		}
-		const result = sessions.filter(session => {
-			// Only the legacy extension-host scheme (`copilotcli:`) denotes a stale
-			// entry to drop. Remote agent-host Copilot sessions
-			// (`remote-<authority>-copilotcli:`) share the `copilotcli` session type but
-			// are distinct sessions that must never be deduped against a local migrated
-			// id, and the migrated entry itself uses `agent-host-copilotcli:`.
-			if (session.resource.scheme === COPILOT_CLI_EH_SCHEME) {
-				const rawId = getCopilotCliSessionRawId(session.resource);
-				if (rawId && migratedRawIds!.has(rawId)) {
-					return false;
-				}
-			}
-			return true;
-		});
-		return result;
 	}
 
 	getSession(resource: URI): ISession | undefined {
@@ -622,63 +573,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return provider.createSideChat(session.sessionId, sourceChat, turnId, selection);
 	}
 
-	/**
-	 * For a `/troubleshoot` request, strip any `#session` marker attachments and
-	 * append a `Session log:` line with the resolved host-local `events.jsonl`
-	 * path(s) — the referenced sessions if present, otherwise the current one.
-	 * Returns `options` unchanged when there is nothing to do.
-	 */
-	private _augmentOptionsForTroubleshoot(session: ISession, options: ISendRequestOptions): ISendRequestOptions {
-		// Separate any `#session` reference attachments from the real context.
-		const referencedResources: URI[] = [];
-		let remainingAttachments: IChatRequestVariableEntry[] | undefined;
-		if (options.attachedContext?.length) {
-			const remaining: IChatRequestVariableEntry[] = [];
-			for (const entry of options.attachedContext) {
-				const referenced = getSessionReferenceResource(entry);
-				if (referenced) {
-					referencedResources.push(referenced);
-				} else {
-					remaining.push(entry);
-				}
-			}
-			if (referencedResources.length) {
-				remainingAttachments = remaining;
-			}
-		}
-
-		const isTroubleshoot = /^\s*\/troubleshoot\b/.test(options.query);
-		if (!isTroubleshoot && referencedResources.length === 0) {
-			return options;
-		}
-
-		// Drop the reference attachments (only meaningful to us, not the model).
-		let result = options;
-		if (remainingAttachments) {
-			result = { ...result, attachedContext: remainingAttachments.length ? remainingAttachments : undefined };
-		}
-		if (!isTroubleshoot) {
-			return result;
-		}
-
-		// Resolve the target session(s): referenced ones if present, else the
-		// current session.
-		const targets = referencedResources.length
-			? referencedResources
-			: (getCopilotCliSessionRawId(session.resource) ? [session.resource] : []);
-		const userHome = this.pathService.userHome({ preferLocal: true });
-		const getConnection = (authority: string) => this.remoteAgentHostService.connections.find(c => agentHostAuthority(c.address) === authority);
-		const eventPaths = Array.from(new Set(
-			targets
-				.map(resource => buildHostLocalEventsPath(resource, userHome, getConnection))
-				.filter((path): path is string => !!path)
-		));
-		if (eventPaths.length === 0) {
-			return result;
-		}
-		return { ...result, query: `${result.query}\n\nSession log: ${eventPaths.join(', ')}` };
-	}
-
 	async sendNewChatRequest(session: ISession, options: ISendRequestOptions): Promise<void> {
 		// The session is graduating into the list (being sent),
 		// so the provider keeps owning it — just drop the pointer, do not delete.
@@ -713,7 +607,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// Ask the provider to create the new chat, then send the request.
 		const chat = await provider.createNewChat(session.sessionId, options.query);
 
-		const sendOptions = this._augmentOptionsForTroubleshoot(session, options);
+		const sendOptions = options;
 		const chatResourceKey = chat.resource.toString();
 		this._pendingSendChatResources.add(chatResourceKey);
 		let updatedSession: ISession;
@@ -948,7 +842,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// Suppress the `chatService.onDidSubmitRequest` mirror for this send so
 		// `_onDidSendRequest` is not fired twice for providers that dispatch
 		// through `chatService.sendRequest` (see the mirror in the constructor).
-		const sendOptions = this._augmentOptionsForTroubleshoot(session, options);
+		const sendOptions = options;
 		const chatResourceKey = chat.resource.toString();
 		this._pendingSendChatResources.add(chatResourceKey);
 		const cancellationListener = token.onCancellationRequested(() => {
@@ -1000,7 +894,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// send pair to keep the sent chat active in the visible slot.
 		this._onWillSendRequest.fire(session);
 
-		const sendOptions = this._augmentOptionsForTroubleshoot(session, options);
+		const sendOptions = options;
 		const chatResourceKey = chat.resource.toString();
 		this._pendingSendChatResources.add(chatResourceKey);
 		let updatedSession: ISession;
@@ -1024,7 +918,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	 * visible slot into the sent chat. Errors are propagated to the caller.
 	 */
 	private async _sendRequestInBackground(provider: ISessionsProvider, session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void> {
-		const sendOptions = this._augmentOptionsForTroubleshoot(session, options);
+		const sendOptions = options;
 		const chatResourceKey = chat.resource.toString();
 		this._pendingSendChatResources.add(chatResourceKey);
 		let updatedSession: ISession;

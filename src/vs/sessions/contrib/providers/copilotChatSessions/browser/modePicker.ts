@@ -26,7 +26,7 @@ import { AICustomizationManagementSection } from '../../../../../workbench/contr
 import type { ISession } from '../../../../services/sessions/common/session.js';
 import type { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
-import { CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
+import { CopilotCLISessionType } from './copilotChatSessionsProvider.js';
 import { URI } from '../../../../../base/common/uri.js';
 
 interface IModePickerItem {

@@ -8,8 +8,8 @@
  *
  * These mirror the shape used by the Copilot extension (kept in sync with
  * `extensions/copilot/src/platform/otel/common/otelService.ts`) so the same
- * bridge processor can be ported to the Agent Host without dragging in the
- * extension's full `IOTelService` surface.
+ * bridge processor can be reused without dragging in the extension's full
+ * `IOTelService` surface.
  */
 
 export const enum SpanStatusCode {

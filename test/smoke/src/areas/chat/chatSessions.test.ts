@@ -79,7 +79,6 @@ async function preseedChatSessionProfile(userDataDir: string | undefined, mockSe
 		'chat.mcp.discovery.enabled': false,
 		'chat.mcp.enabled': false,
 		'chat.disableAIFeatures': false,
-		'chat.agentHost.claudeAgent.enabled': true,
 		'github.copilot.chat.backgroundAgent.enabled': true,
 		'chat.tools.riskAssessment.enabled': false,
 	}, undefined, '\t'));

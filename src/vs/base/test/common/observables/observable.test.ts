@@ -1889,7 +1889,7 @@ suite('observables', () => {
 		});
 
 		test('per-key setup fires when items derived through observableFromEvent chain updates', () => {
-			// Mirrors how agentHostSessionHandler uses observableFromEvent →
+			// Mirrors how a session handler uses observableFromEvent →
 			// derived(activeTurn) → derived(responseParts) → autorunPerKeyedItem.
 			// Verifies that incremental upstream Event fires propagate through
 			// the chain and the per-key setup observes the new items.

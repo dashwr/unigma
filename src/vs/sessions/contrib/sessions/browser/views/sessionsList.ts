@@ -77,7 +77,6 @@ import { IWorkbenchAssignmentService } from '../../../../../workbench/services/a
 // =============================================================================
 // eslint-disable-next-line no-restricted-imports
 import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
-import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
 import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../../../browser/dnd.js';
 import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
@@ -1978,7 +1977,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@ISessionsListModelService private readonly _sessionsListModelService: ISessionsListModelService,
 		@ISessionGroupsService private readonly _sessionGroupsService: ISessionGroupsService,
 		@ISessionSectionOrderService private readonly _sessionSectionOrderService: ISessionSectionOrderService,
-		@IAgentHostFilterService private readonly _agentHostFilterService: IAgentHostFilterService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -2019,9 +2017,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const sessionsProvidersService = instantiationService.invokeFunction(accessor => accessor.get(ISessionsProvidersService));
 		this._sessionsProvidersService = sessionsProvidersService;
 		// Re-render so the always-visible "Chats" section appears/disappears when a
-		// quick-chat-capable provider is (de)registered (e.g. agent host toggled),
+		// quick-chat-capable provider is (de)registered asynchronously,
 		// or when a registered provider toggles a capability at runtime (e.g. its
-		// `supportsQuickChats` flips with agent-host enablement).
+		// `supportsQuickChats` changes with provider availability).
 		const providerCapabilityListeners = this._register(new DisposableStore());
 		const subscribeProviderCapabilities = () => {
 			providerCapabilityListeners.clear();
@@ -2349,12 +2347,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		}));
 
-		this._register(this._agentHostFilterService.onDidChange(() => {
-			if (this.visible) {
-				this.update();
-			}
-		}));
-
 		// Re-render when the active session changes.
 		this._register(autorun(reader => {
 			this._sessionsService.activeSession.read(reader);
@@ -2409,10 +2401,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		// Filter by session type and status
 		let filtered = this.sessions.filter(session => !isAutomationSession(session));
-		const hostFilter = this._agentHostFilterService.selectedProviderId;
-		if (hostFilter !== undefined) {
-			filtered = filtered.filter(s => s.providerId === hostFilter);
-		}
 		if (this.excludedSessionTypes.size > 0) {
 			filtered = filtered.filter(s => !this.excludedSessionTypes.has(s.sessionType));
 		}

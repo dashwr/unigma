@@ -10,7 +10,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IChatRequestTranscriptContextVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { localize } from '../../../../nls.js';
-import { ISessionGitHubState, withSessionGitHubState } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { ISessionGitHubState, withSessionGitHubState } from '../../../../platform/sessions/common/sessionGitHubState.js';
 import { IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { GITHUB_REMOTE_FILE_SCHEME, ISession } from '../../../services/sessions/common/session.js';
 import { IGitHubPullRequestContext, IGitHubPullRequestSummary } from '../common/types.js';

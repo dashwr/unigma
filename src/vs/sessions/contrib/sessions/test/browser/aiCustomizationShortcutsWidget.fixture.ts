@@ -15,7 +15,7 @@ import { IMenu, IMenuActionOptions, IMenuService, isIMenuItem, MenuId, MenuItemA
 import { IMcpServer, IMcpService } from '../../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { ILanguageModelToolsService, IToolSet } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { IAgentHostToolSetEnablementService, IToolEnablementState } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
+import { IToolSetEnablementService, IToolEnablementState } from '../../../../../workbench/contrib/chat/browser/aiCustomization/toolSetEnablementService.js';
 import { IAICustomizationItemsModel, ItemsModelSection } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { getChatSessionType } from '../../../../../workbench/contrib/chat/common/model/chatUri.js';
@@ -208,7 +208,7 @@ function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?:
 			reg.defineInstance(ILanguageModelToolsService, new class extends mock<ILanguageModelToolsService>() {
 				override readonly toolSets = observableValue<Iterable<IToolSet>>('mockToolSets', []);
 			}());
-			reg.defineInstance(IAgentHostToolSetEnablementService, new class extends mock<IAgentHostToolSetEnablementService>() {
+			reg.defineInstance(IToolSetEnablementService, new class extends mock<IToolSetEnablementService>() {
 				override observe() { return observableValue<IToolEnablementState>('mockToolEnablement', { toolSets: new Map(), tools: new Map() }); }
 			}());
 			reg.defineInstance(IAutomationService, new class extends mock<IAutomationService>() {

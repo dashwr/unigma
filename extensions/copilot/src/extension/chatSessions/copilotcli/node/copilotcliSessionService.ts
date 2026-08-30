@@ -15,7 +15,6 @@ import { ConfigKey, IConfigurationService } from '../../../../platform/configura
 import { INTEGRATION_ID } from '../../../../platform/endpoint/common/licenseAgreement';
 import { IVSCodeExtensionContext } from '../../../../platform/extContext/common/extensionContext';
 import { IFileSystemService } from '../../../../platform/filesystem/common/fileSystemService';
-import { FileType } from '../../../../platform/filesystem/common/fileTypes';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { deriveCopilotCliOTelEnv } from '../../../../platform/otel/common/agentOTelEnv';
 import { IOTelService } from '../../../../platform/otel/common/otelService';
@@ -29,7 +28,7 @@ import { CancellationToken } from '../../../../util/vs/base/common/cancellation'
 import { Emitter, Event } from '../../../../util/vs/base/common/event';
 import { Lazy } from '../../../../util/vs/base/common/lazy';
 import { Disposable, DisposableMap, IDisposable, IReference, RefCountedDisposable, toDisposable } from '../../../../util/vs/base/common/lifecycle';
-import { dirname, joinPath } from '../../../../util/vs/base/common/resources';
+import { joinPath } from '../../../../util/vs/base/common/resources';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { generateUuid } from '../../../../util/vs/base/common/uuid';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
@@ -54,7 +53,6 @@ import { ICopilotCLIMCPHandler, McpServerMappings, remapCustomAgentTools } from 
 
 
 const COPILOT_CLI_WORKSPACE_JSON_FILE_KEY = 'github.copilot.cli.workspaceSessionFile';
-const AGENT_HOST_COPILOT_CLIENT_NAME = 'vscode-agent-host';
 export const COPILOT_CLI_CHAT_PANEL_SYSTEM_MESSAGE = 'You are an AI assistant using Copilot CLI runtime in VS Code. You help users with software engineering tasks. When asked about your identity, you must state that you are an AI assistant using Copilot CLI runtime in VS Code.';
 
 type SDKPackage = Awaited<ReturnType<ICopilotCLISDK['getPackage']>>;
@@ -333,9 +331,6 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		if (!metadata || token.isCancellationRequested) {
 			return;
 		}
-		if (metadata.clientName === AGENT_HOST_COPILOT_CLIENT_NAME) {
-			return;
-		}
 		await this._sessionTracker.initialize();
 		return await this.constructSessionItem(metadata, token);
 	}
@@ -404,35 +399,6 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 
 	private _sessionLabels: Map<string, string> = new Map();
 
-	/**
-	 * The agent host's `<userDataPath>/agentSessionData/` directory, derived from `globalStorageUri`
-	 * (`<userDataPath>/User/globalStorage/<extId>`). The Extension API doesn't expose `userDataPath` directly.
-	 * `undefined` when no extension context (e.g. tests).
-	 */
-	private _getAgentHostSessionDataDir(): URI | undefined {
-		const globalStorageUri = this._vscodeExtensionContext?.globalStorageUri;
-		if (!globalStorageUri) {
-			return undefined;
-		}
-		const userDataPath = dirname(dirname(dirname(globalStorageUri)));
-		return joinPath(userDataPath, 'agentSessionData');
-	}
-
-	private async _getAgentHostOwnedSessionIds(dataDir: URI | undefined): Promise<ReadonlySet<string>> {
-		if (!dataDir) {
-			return new Set();
-		}
-		try {
-			const entries = await this.fileSystem.readDirectory(dataDir);
-			return new Set(entries
-				.filter(([, type]) => (type & FileType.Directory) !== 0)
-				.map(([name]) => name));
-		} catch (error) {
-			this.logService.trace(`Failed to read Agent Host session data directory: ${error}`);
-			return new Set();
-		}
-	}
-
 	async _getAllSessions(token: CancellationToken): Promise<readonly ICopilotCLISessionItem[]> {
 		this._isGettingSessions++;
 		try {
@@ -441,20 +407,9 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 
 			await this._sessionTracker.initialize();
 
-			// Skip sessions the agent host already lists (both surfaces share `~/.copilot/session-state/`).
-			const agentHostDataDir = this._getAgentHostSessionDataDir();
-			const sessionsWithoutAgentHostClientName = sessionMetadataList.filter(metadata => metadata.clientName !== AGENT_HOST_COPILOT_CLIENT_NAME);
-			const agentHostOwnedSessionIds = sessionsWithoutAgentHostClientName.length > 0
-				? await this._getAgentHostOwnedSessionIds(agentHostDataDir)
-				: new Set<string>();
-
 			// Convert SessionMetadata to ICopilotCLISession
 			const diskSessions: ICopilotCLISessionItem[] = coalesce(await Promise.all(
 				sessionMetadataList.map(async (metadata): Promise<ICopilotCLISessionItem | undefined> => {
-					const sanitizedSessionId = metadata.sessionId.replace(/[^a-zA-Z0-9_.-]/g, '-');
-					if (metadata.clientName === AGENT_HOST_COPILOT_CLIENT_NAME || agentHostOwnedSessionIds.has(sanitizedSessionId)) {
-						return;
-					}
 					const workingDirectory = metadata.context?.cwd ? URI.file(metadata.context.cwd) : undefined;
 					this._sessionWorkingDirectories.set(metadata.sessionId, workingDirectory);
 					if (!await this.shouldShowSession(metadata.sessionId, metadata.context)) {

@@ -199,8 +199,8 @@ export function getCopilotExcludeFilter(platform: string, arch: string): string[
  * app/remote packaging for the target platform.
  *
  * .moduleignore strips all @github/copilot-* platform packages globally.
- * Re-add the selected runtime package so Agent Host can launch its index.js
- * entrypoint and load runtime prebuilds. Keep the standalone SEA executable
+ * Re-add the selected runtime package so the built-in Copilot extension can
+ * load its index.js entrypoint and runtime prebuilds. Keep the standalone SEA executable
  * and optional native payload trees out of the product build.
  */
 export function getCopilotRuntimePrebuildFiles(platform: string, arch: string, nodeModulesRoot = 'node_modules'): string[] {

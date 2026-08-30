@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { sep } from '../../../../../base/common/path.js';
-import { AsyncIterableProducer, DeferredPromise, raceCancellationError } from '../../../../../base/common/async.js';
+import { AsyncIterableProducer, raceCancellationError } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -22,7 +22,6 @@ import { InstantiationType, registerSingleton } from '../../../../../platform/in
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IProgressService } from '../../../../../platform/progress/common/progress.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { isDark } from '../../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
@@ -32,7 +31,7 @@ import { ExtensionsRegistry } from '../../../../services/extensions/common/exten
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { ChatSessionOptionsMap, ChatSessionStatus, ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatNewSessionRequest, IChatSession, IChatSessionCommitEvent, IChatSessionContentProvider, IChatSessionCustomizationItemGroup, IChatSessionCustomizationsProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, IChatInputCompletionsParams, IChatInputCompletionsResult, isSessionInProgressStatus, localChatSessionType, ReadonlyChatSessionOptionsMap, ResolvedChatSessionsExtensionPoint, SessionType } from '../../common/chatSessionsService.js';
+import { ChatSessionOptionsMap, ChatSessionStatus, ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatNewSessionRequest, IChatSession, IChatSessionCommitEvent, IChatSessionContentProvider, IChatSessionCustomizationItemGroup, IChatSessionCustomizationsProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, IChatInputCompletionsParams, IChatInputCompletionsResult, isSessionInProgressStatus, localChatSessionType, ReadonlyChatSessionOptionsMap, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
@@ -43,7 +42,6 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { ChatViewId } from '../chat.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
-import { IAgentHostImportConversationStore, type IAgentHostImportConversation } from '../agentSessions/agentHost/agentHostImportConversationStore.js';
 import { BugIndicatingError, isCancellationError } from '../../../../../base/common/errors.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../../common/model/chatUri.js';
@@ -56,9 +54,6 @@ import { ILanguageModelToolsService } from '../../common/tools/languageModelTool
 import { IChatModel } from '../../common/model/chatModel.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { AgentHostCodexAgentEnabledSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../../platform/agentHost/common/agentService.js';
-import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 
 const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsExtensionPoint[]>({
 	extensionPoint: 'chatSessions',
@@ -255,27 +250,6 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 		}
 	}
 });
-
-const codexExtensionHostAvailableWhen = ContextKeyExpr.and(
-	IsSessionsWindowContext.negate(),
-	ContextKeyExpr.or(
-		AGENT_HOST_ENABLED_CONTEXT_KEY.negate(),
-		ContextKeyExpr.not(`config.${AgentHostCodexAgentEnabledSettingId}`),
-		ContextKeyExpr.not(`config.${CodexPreferAgentHostEditorSettingId}`),
-	),
-)!;
-
-export function applyCodexAgentHostPreference(contribution: IChatSessionsExtensionPoint): IChatSessionsExtensionPoint {
-	if (contribution.type !== SessionType.Codex) {
-		return contribution;
-	}
-
-	const contributedWhen = contribution.when ? ContextKeyExpr.deserialize(contribution.when) : undefined;
-	return {
-		...contribution,
-		when: ContextKeyExpr.and(contributedWhen, codexExtensionHostAvailableWhen)?.serialize(),
-	};
-}
 
 class ContributedChatSessionData extends Disposable {
 
@@ -490,7 +464,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	private registerContribution(contribution: IChatSessionsExtensionPoint, ext: IRelaxedExtensionDescription): IDisposable {
-		contribution = applyCodexAgentHostPreference(contribution);
 		this._logService.trace(`[ChatSessionsService] registerContribution called for type='${contribution.type}', canDelegate=${contribution.canDelegate}, when='${contribution.when}', extension='${ext.identifier.value}'`);
 		if (this._contributions.has(contribution.type)) {
 			this._logService.trace(`[ChatSessionsService] registerContribution: type='${contribution.type}' already registered, skipping`);
@@ -933,7 +906,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		// Programmatically-registered contributions are always considered
 		// available; mark them as such so the autorun in the constructor
 		// registers the in-place "New {0} Session" action for them. Without
-		// this, types like `agent-host-copilotcli` (registered by the local
+		// this, provider-specific session types (registered by the local
 		// agent host) have no `openNewChatSessionInPlace.<type>` command.
 		const disposables = new DisposableStore();
 		this._contributionDisposables.set(contribution.type, disposables);
@@ -1262,7 +1235,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 		let session: IChatSession;
 		const newSessionOptionGroups = isUntitledChatSession(sessionResource) ? await this.getNewChatSessionInputState(resolvedType, sessionResource) : undefined;
-		if (isUntitledChatSession(sessionResource) && (newSessionOptionGroups || resolvedType.startsWith('agent-host-'))) {
+		if (isUntitledChatSession(sessionResource) && newSessionOptionGroups) {
 			const options: ChatSessionOptionsMap = new Map();
 			for (const group of newSessionOptionGroups ?? []) {
 				const selected = group.selected ?? group.items.find(item => item.default) ?? group.items[0];
@@ -1618,12 +1591,6 @@ type NewChatSessionSendOptions = {
 	readonly prompt: string;
 	readonly attachedContext?: IChatRequestVariableEntry[];
 	readonly initialSessionOptions?: ReadonlyChatSessionOptionsMap;
-	/**
-	 * A prior conversation to seed into the new session as real, editable turns
-	 * ("Continue in…" migration). Consumed once when the backend session is
-	 * created; see {@link IAgentHostImportConversationStore}.
-	 */
-	readonly importConversation?: IAgentHostImportConversation;
 };
 
 export type NewChatSessionOpenOptions = {
@@ -1648,37 +1615,14 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 	const editorService = accessor.get(IEditorService);
 	const customizationHarnessService = accessor.get(ICustomizationHarnessService);
 	const toolsService = accessor.get(ILanguageModelToolsService);
-	const importConversationStore = accessor.get(IAgentHostImportConversationStore);
-	const progressService = accessor.get(IProgressService);
 
 	// Determine resource to open
 	const sessionResource = getResourceForNewChatSession(openOptions);
 
-	// Stash any imported ("Continue in…") conversation before the session is
-	// opened: opening can eagerly pre-create the backend session (via the chat
-	// input picker), which consumes this to seed the turns as editable history.
-	if (chatSendOptions?.importConversation && chatSendOptions.importConversation.turns.length > 0) {
-		importConversationStore.set(sessionResource, chatSendOptions.importConversation);
-	}
-
-	// Open chat session. For a sidebar "Continue in…" migration the transition
-	// spans multiple async phases (load → materializing send → untitled→real
-	// rebind), during which the chat widget is transiently empty. Hold the
-	// sessions list suppressed across the whole transition so it never flashes.
-	let sessionsListSuppression: IDisposable | undefined;
-	let transitionProgress: DeferredPromise<void> | undefined;
 	try {
 		switch (openOptions.position) {
 			case ChatSessionPosition.Sidebar: {
 				const view = await viewsService.openView(ChatViewId) as ChatViewPane;
-				if (chatSendOptions?.importConversation) {
-					sessionsListSuppression = view.beginSessionsListSuppression();
-					// Show the chat view's working indicator for the whole transition (the
-					// widget is blank while the backend session materializes) so it does not
-					// look hung. Completed once the migration finishes below.
-					transitionProgress = new DeferredPromise<void>();
-					progressService.withProgress({ location: ChatViewId }, () => transitionProgress!.p);
-				}
 				if (openOptions.type === AgentSessionProviders.Local) {
 					await view.startNewLocalSession();
 				} else {
@@ -1727,8 +1671,6 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 		}
 	} catch (e) {
 		logService.error(`Failed to open '${openOptions.type}' chat session with openOptions: ${JSON.stringify(openOptions)}`, e);
-		sessionsListSuppression?.dispose();
-		transitionProgress?.complete();
 		return;
 	}
 
@@ -1773,11 +1715,6 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 		}
 	}
 
-	// The migration transition is complete (session loaded, request sent and any
-	// untitled→real rebind done); allow the sessions list again and stop the
-	// working indicator.
-	sessionsListSuppression?.dispose();
-	transitionProgress?.complete();
 }
 
 /**

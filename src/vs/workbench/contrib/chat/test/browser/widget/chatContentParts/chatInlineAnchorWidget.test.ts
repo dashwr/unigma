@@ -124,18 +124,18 @@ suite('ChatInlineAnchorWidget Metadata Validation', () => {
 		assert.strictEqual(await failure.p, error);
 	});
 
-	test('renders widget for empty vscode-agent-host link in chat query title', () => {
+	test('renders widget for empty remote link in chat query title', () => {
 		const container = mainWindow.document.createElement('div');
 		const titlePart = disposables.add(instantiationService.createInstance(
 			ChatQueryTitlePart,
 			container,
-			new MarkdownString('Read [](vscode-agent-host://my-host/path/to/foo.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0), lines 1 to 2'),
+			new MarkdownString('Read [](test-remote://my-host/path/to/foo.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0), lines 1 to 2'),
 			undefined,
 		));
 		titlePart.setOptions({ markdownRenderOptions: getChatMarkdownRenderOptions(), renderFileWidgets: true });
 
 		const widget = container.querySelector('.chat-inline-anchor-widget');
-		assert.ok(widget, 'Widget should be rendered for empty vscode-agent-host link in chat query title');
+		assert.ok(widget, 'Widget should be rendered for empty remote link in chat query title');
 		assert.strictEqual(widget.querySelector('.icon-label')?.textContent, 'foo.ts');
 	});
 

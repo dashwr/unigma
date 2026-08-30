@@ -12,7 +12,7 @@ You're working on VS Code itself and you want to:
 3. Optionally attach a debugger via **dap-cli** to set breakpoints in the renderer, extension host, or main process.
 4. Run multiple instances at once without port conflicts.
 
-This skill provides a launcher that clones an authenticated user-data-dir to a throwaway temp folder, picks free ports for every debug surface, and prints them as JSON so you can pick them up programmatically.
+This skill provides a launcher that clones an authenticated user-data-dir to a throwaway temp folder, picks free ports for the available debug surfaces, and prints them as JSON so you can pick them up programmatically.
 
 The clone is **slim**: workspace storage, browser caches, file history, cached VSIX backups, and old logs are excluded by default. On macOS, auth tokens live in the OS keychain plus small files inside `User/globalStorage` - both of which *are* preserved.
 
@@ -94,7 +94,7 @@ Excluded (transient, regenerable, or known-not-needed):
 The script runs pre-launch (electron download, compile-if-missing, built-in extensions) **in the foreground**, then starts Code OSS detached and **blocks until the renderer's CDP endpoint is responding** (up to ~90s) before printing the JSON line on stdout. If anything fails — preLaunch errors, code.sh exits early, CDP never opens — the script exits non-zero and dumps the relevant log tail to stderr.
 
 ```json
-{"pid":12345,"cdpPort":53111,"extHostPort":53112,"mainPort":53113,"agentHostPort":53114,"userDataDir":".../user-data","extensionsDir":".../extensions","sharedDataDir":".../shared-data","runDir":"...","logFile":".../code.log","repo":"...","agents":false}
+{"pid":12345,"cdpPort":53111,"extHostPort":53112,"mainPort":53113,"userDataDir":".../user-data","extensionsDir":".../extensions","sharedDataDir":".../shared-data","runDir":"...","logFile":".../code.log","repo":"...","agents":false}
 ```
 
 Capture it with `jq` — no retry loop needed, CDP is already up when the JSON is printed:
@@ -104,7 +104,6 @@ INFO=$("$LAUNCH" | tail -n1)
 CDP=$(jq -r .cdpPort        <<<"$INFO")
 EXT=$(jq -r .extHostPort    <<<"$INFO")
 MAIN=$(jq -r .mainPort      <<<"$INFO")
-AGENT=$(jq -r .agentHostPort <<<"$INFO")
 LOG=$(jq -r .logFile        <<<"$INFO")
 PID=$(jq -r .pid            <<<"$INFO")
 ```
@@ -116,7 +115,6 @@ $info = & $launch | Select-Object -Last 1 | ConvertFrom-Json
 $cdp = $info.cdpPort
 $ext = $info.extHostPort
 $main = $info.mainPort
-$agent = $info.agentHostPort
 $log = $info.logFile
 $pid = $info.pid
 ```
@@ -128,7 +126,6 @@ $pid = $info.pid
 | `cdpPort` (`--remote-debugging-port`) | Renderer (the workbench window) | `@playwright/cli` over CDP, also Chrome DevTools |
 | `extHostPort` (`--inspect-extensions`) | Extension host (Node) | `dap-cli` (Node inspector protocol) |
 | `mainPort` (`--inspect`) | Electron main process (Node) | `dap-cli` (Node inspector protocol) |
-| `agentHostPort` (`--inspect-agenthost`) | Agent host process (Node) | `dap-cli` (Node inspector protocol) |
 
 ## Drive the UI with @playwright/cli
 
@@ -316,7 +313,6 @@ To set breakpoints in VS Code source while the window is running, attach `dap-cl
 
 - **Extension host** (most common - Copilot Chat extension, built-in extensions, your own extension under development) -> `extHostPort`
 - **Main process** (Electron lifecycle, window/menu wiring, IPC) -> `mainPort`
-- **Local agent host** (`src/vs/platform/agentHost/node/...`, agent session lifecycle, AHP wiring, Claude/Copilot agent providers) -> `agentHostPort`
 - **Renderer** (the workbench itself, `src/vs/workbench/...`) -> `cdpPort`
 
 You can run `@playwright/cli` and `dap-cli` against the **same window simultaneously** - drive the UI with one terminal, hit a breakpoint and inspect state in another.

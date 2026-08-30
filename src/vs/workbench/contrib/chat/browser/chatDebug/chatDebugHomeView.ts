@@ -16,8 +16,8 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IChatDebugService } from '../../common/chatDebugService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
-import { AgentHostAgentDebugLogEnabledSettingId, AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING } from '../../common/promptSyntax/promptTypes.js';
-import { getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../../common/model/chatUri.js';
+import { AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING } from '../../common/promptSyntax/promptTypes.js';
+import { getChatSessionType, LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { IChatWidgetService } from '../chat.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
@@ -58,7 +58,7 @@ export class ChatDebugHomeView extends Disposable {
 		this.scrollContent = DOM.append(this.container, $('div.chat-debug-home-content'));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING) || e.affectsConfiguration(AgentHostAgentDebugLogEnabledSettingId)) {
+			if (e.affectsConfiguration(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING)) {
 				this.render();
 			}
 		}));
@@ -102,19 +102,14 @@ export class ChatDebugHomeView extends Disposable {
 	}
 
 	/**
-	 * The panel is enabled when either local file logging or agent-host (Copilot
-	 * CLI) debug logging is on; each provider self-gates on its own setting, so
-	 * the aggregated session list only contains the sources that are enabled.
+		 * The panel is enabled when local file logging is on.
 	 */
 	private _isDebugEnabled(): boolean {
-		return this.configurationService.getValue<boolean>(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING)
-			|| this.configurationService.getValue<boolean>(AgentHostAgentDebugLogEnabledSettingId);
+		return this.configurationService.getValue<boolean>(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING);
 	}
 
 	private _getFilteredSessionResources(resources: readonly URI[]): URI[] {
-		const cliSessionTypes = new Set(['copilotcli']);
-		return [...resources]
-			.filter(r => !cliSessionTypes.has(getChatSessionType(r)) || !isUntitledChatSession(r));
+		return [...resources];
 	}
 
 	private _renderWithSessions(sessionResources: URI[]): void {

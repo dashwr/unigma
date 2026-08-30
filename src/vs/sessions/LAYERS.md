@@ -20,9 +20,9 @@ The sessions layer sits above `vs/workbench` in the VS Code source code hierarch
 ┌────────────┐  ┌────────────┐  ┌────────────────┐
 │ contrib/*  │  │ contrib/   │  │                │
 │ (chat,     │  │ providers/ │  │  services/*    │
-│  sessions, │  │ (agentHost,│  │                │
-│  changes,  │  │  copilot,  │  │                │
-│  ...)      │  │  remote)   │  │                │
+│  sessions, │  │ (copilot)  │  │                │
+│  changes,  │  │            │  │                │
+│  ...)      │  │            │  │                │
 └─────┬──────┘  └─────┬──────┘  └───────┬────────┘
       │               │                │
       │               │                │
@@ -91,7 +91,7 @@ Feature contributions like `chat`, `sessions`, `changes`, `terminal`, etc.
 
 **Path:** `src/vs/sessions/contrib/providers/*/{browser,common}/**`
 
-Provider implementations (`agentHost`, `copilotChatSessions`, `remoteAgentHost`). These are the compute backends that register with `ISessionsProvidersService`.
+Provider implementations (for example `copilotChatSessions`). These are the compute backends that register with `ISessionsProvidersService`.
 
 **Can import from:**
 - Everything `sessions/contrib/*/~` can import, plus:

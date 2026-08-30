@@ -206,7 +206,7 @@ export function getSelectedModelVendor(
  *
  * BYOK models are served using user-supplied credentials and are flagged as
  * such by their provider via {@link ILanguageModelChatMetadata.isBYOK}. All
- * other models (built-in Copilot, Copilot/Claude CLI, and agent-host models)
+ * other models (built-in Copilot and CLI models)
  * are served through the Copilot (CAPI) service and are therefore not BYOK.
  */
 export function isByokModel(metadata: ILanguageModelChatMetadata): boolean {
@@ -218,7 +218,7 @@ export function isByokModel(metadata: ILanguageModelChatMetadata): boolean {
  * (i.e. not BYOK).
  *
  * When the selection resolves to registered metadata this is the inverse of
- * {@link isByokModel}, so agent-host (CAPI-backed) models count as Copilot.
+ * {@link isByokModel}, so CAPI-backed models count as Copilot.
  * When no model is selected yet (widget not initialized) this returns `true`
  * so quota-style surfaces treat the unknown case as Copilot. As a last
  * resort, an unregistered selection is classified by its vendor prefix.

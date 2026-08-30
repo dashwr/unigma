@@ -1355,27 +1355,10 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 	}
 }
 
-/**
- * Extracts the repository name for an agent session from its metadata or badge.
- * Used for grouping sessions by repository and for determining whether a badge
- * is redundant with the section header.
- */
+/** Extracts the repository name used to group agent sessions. */
 export function getRepositoryName(session: IAgentSession): string | undefined {
 	const metadata = session.metadata;
 	if (metadata) {
-		// Remote agent host sessions: group by folder + remote name (e.g. "myproject [dev-box]")
-		const remoteAgentHost = metadata.remoteAgentHost as string | undefined;
-		if (remoteAgentHost) {
-			const workingDir = metadata.workingDirectoryPath as string | undefined;
-			if (workingDir) {
-				const folderName = extractRepoNameFromPath(workingDir);
-				if (folderName) {
-					return `${folderName} [${remoteAgentHost}]`;
-				}
-			}
-			return remoteAgentHost;
-		}
-
 		// Cloud sessions: metadata.owner + metadata.name
 		const owner = metadata.owner as string | undefined;
 		const name = metadata.name as string | undefined;

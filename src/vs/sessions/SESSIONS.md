@@ -26,8 +26,6 @@ ISessionsManagementService ---------- model orchestration
 ISessionsProvidersService ----------- provider registry
         |
         +--> ISessionsProvider (Copilot Chat)
-        +--> ISessionsProvider (Agent Host)
-        +--> ISessionsProvider (Remote Agent Host)
 ```
 
 The implementation follows the internal import hierarchy in
@@ -245,8 +243,6 @@ the shared provider operations.
 Provider implementation details are documented in:
 
 - [Copilot Chat provider](contrib/providers/copilotChatSessions/COPILOT_CHAT_SESSIONS_PROVIDER.md)
-- [Agent Host provider](contrib/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md)
-- [Remote Agent Host provider](contrib/providers/remoteAgentHost/REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md)
 
 ## Principal lifecycle
 
@@ -368,7 +364,7 @@ Three rules follow:
   has been seeded, and where its model came from. One chat's choice is therefore
   unreachable from another by construction.
 - **A chat that has already run is never given a model.** Its own model may not
-  have arrived yet (an agent-host session hydrates it from the persisted draft),
+ have arrived yet (a provider-backed session hydrates it from the persisted draft),
   and writing a profile-wide preference would change what it runs on. It may show
   one so the picker is not blank. A pick the user makes still applies.
 

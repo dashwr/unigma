@@ -13,7 +13,7 @@ import { LocalChatSessionUri } from '../../../../common/model/chatUri.js';
 import {
 	filterModelsForSession,
 	findBestMatchingModel,
-	getAgentHostByokManageModelsIdentifier,
+	getByokManageModelsIdentifier,
 	hasModelsTargetingSession,
 	isModelHiddenInPicker,
 	isModelSupportedForInlineChat,
@@ -1523,7 +1523,7 @@ suite('ChatInputModelUtils', () => {
 		});
 	});
 
-	suite('BYOK agent-host visibility (isModelHiddenInPicker / getAgentHostByokManageModelsIdentifier)', () => {
+	suite('BYOK visibility (isModelHiddenInPicker / getByokManageModelsIdentifier)', () => {
 
 		// Mirrors the agent-host copy produced by `AgentHostLanguageModelProvider` after a
 		// BYOK model round-trips the bridge: it is surfaced under the agent-host vendor with
@@ -1580,23 +1580,23 @@ suite('ChatInputModelUtils', () => {
 
 		test('returns the carried Manage Models identifier for a groupless BYOK copy', () => {
 			const model = createAgentHostByokModel('anthropic', 'claude-sonnet-4', 'anthropic/claude-sonnet-4');
-			assert.strictEqual(getAgentHostByokManageModelsIdentifier(model.metadata), 'anthropic/claude-sonnet-4');
+			assert.strictEqual(getByokManageModelsIdentifier(model.metadata), 'anthropic/claude-sonnet-4');
 		});
 
 		test('returns the carried grouped identifier verbatim (group name + slashes preserved)', () => {
 			// OpenRouter under a user-configured group "OpenRouter 2"; the model id itself has a slash.
 			const model = createAgentHostByokModel('openrouter', 'ai21/jamba-large-1.7', 'openrouter/OpenRouter 2/ai21/jamba-large-1.7');
-			assert.strictEqual(getAgentHostByokManageModelsIdentifier(model.metadata), 'openrouter/OpenRouter 2/ai21/jamba-large-1.7');
+			assert.strictEqual(getByokManageModelsIdentifier(model.metadata), 'openrouter/OpenRouter 2/ai21/jamba-large-1.7');
 		});
 
 		test('returns undefined for native harness models (no carried identifier)', () => {
 			const model = createNativeAgentHostModel('claude-haiku-4.5');
-			assert.strictEqual(getAgentHostByokManageModelsIdentifier(model.metadata), undefined);
+			assert.strictEqual(getByokManageModelsIdentifier(model.metadata), undefined);
 		});
 
 		test('returns undefined for non-agent-host models', () => {
 			const model = createModel('gpt-5', 'GPT-5');
-			assert.strictEqual(getAgentHostByokManageModelsIdentifier(model.metadata), undefined);
+			assert.strictEqual(getByokManageModelsIdentifier(model.metadata), undefined);
 		});
 
 		test('hides a grouped BYOK copy via its carried registered identifier', () => {

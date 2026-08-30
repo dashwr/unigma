@@ -22,9 +22,7 @@ import { localize } from '../../../../../../../nls.js';
 import { IActionListHeaderLink } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
-import { AgentHostAllowSignedOutWhenUsableSettingId } from '../../../../../../../platform/agentHost/common/agentService.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
@@ -141,7 +139,6 @@ export class ModelPickerWidget extends Disposable {
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
@@ -472,7 +469,7 @@ export class ModelPickerWidget extends Disposable {
 				...presentation,
 				restrictedMode: this.isRestrictedMode(),
 				setupRequired: this.isSetupRequired(),
-				showManageModelsInSetupRequired: this._configurationService.getValue<boolean>(AgentHostAllowSignedOutWhenUsableSettingId) === true,
+				showManageModelsInSetupRequired: true,
 				isUBB: !!this._entitlementService.quotas.usageBasedBilling,
 			},
 			actions: {
@@ -595,7 +592,7 @@ export class ModelPickerWidget extends Disposable {
 		// A "Models" placeholder (no badge) beats a dead-end label while unavailable — the hover and
 		// dropdown carry the Restricted Mode explanation and the Trust Workspace / Sign In action.
 		// "Activating..." is transient while models load after a Trust grant; "No models available"
-		// is the genuinely empty state (e.g. an agent-host session with no Auto fallback).
+		// is the genuinely empty state (for example, a session with no Auto fallback).
 		const modelLabel = unavailable
 			? localize('chat.modelPicker.modelsLabel', "Models")
 			: activating

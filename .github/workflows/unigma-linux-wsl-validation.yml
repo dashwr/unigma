@@ -241,7 +241,7 @@ jobs:
           export NODE_OPTIONS="--max-old-space-size=12288"
           cd "$build"
           xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' \
-            npm run smoketest -- --tracing --f '^(?!.*(?:Terminal Profiles|Chat|Agents Window)).*$'
+            npm run smoketest -- --tracing --f '^(?!.*(?:Terminal Profiles|Chat)).*$'
           '@
           $script = $script -replace "`r`n?", "`n"
           [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))

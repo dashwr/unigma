@@ -26,10 +26,8 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
-import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatConfiguration } from '../../../common/constants.js';
-import { isAgentHostTarget } from '../../../common/chatSessionsService.js';
+import { CHAT_OPEN_SUBAGENT_CHAT_COMMAND_ID, ChatConfiguration } from '../../../common/constants.js';
 import { formatCopilotCredits, IChatHookPart, IChatMarkdownContent, IChatToolInvocation, IChatToolInvocationSerialized, isLegacyChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
-import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { IChatRendererContent, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { IRunSubagentToolInputParams } from '../../../common/tools/builtinTools/runSubagentTool.js';
 import { ChatTreeItem } from '../../chat.js';
@@ -270,7 +268,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		if (!menuAction) {
 			return false;
 		}
-		const actionViewItemProvider = this.actionViewItemService.lookUp(MenuId.ChatSubagentContent, CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID);
+		const actionViewItemProvider = this.actionViewItemService.lookUp(MenuId.ChatSubagentContent, CHAT_OPEN_SUBAGENT_CHAT_COMMAND_ID);
 		if (!actionViewItemProvider) {
 			if (!this._openChatActionViewRegistration.value) {
 				this._openChatActionViewRegistration.value = Event.once(Event.filter(
@@ -304,7 +302,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 
 	private _getOpenChatMenuAction(): MenuItemAction | undefined {
 		for (const [, actions] of this.menuService.getMenuActions(MenuId.ChatSubagentContent, this.contextKeyService, { shouldForwardArgs: true })) {
-			const action = actions.find(action => action.id === CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID);
+			const action = actions.find(action => action.id === CHAT_OPEN_SUBAGENT_CHAT_COMMAND_ID);
 			if (action instanceof MenuItemAction) {
 				return action;
 			}
@@ -341,7 +339,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 			}
 		}
 		this.domNode.classList.toggle('chat-subagent-open-chat-only', openChatOnly);
-		if (openChatOnly || this._shouldReserveOpenChatPresentation()) {
+		if (openChatOnly) {
 			dom.hide(this._collapseButton.element);
 			if (this.contentAnimationContainer) {
 				dom.hide(this.contentAnimationContainer);
@@ -391,10 +389,6 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 
 	private _shouldUseOpenChatPresentation(): boolean {
 		return this.environmentService.isSessionsWindow || this.configurationService.getValue<boolean>(ChatConfiguration.SubagentsUseRichRendering);
-	}
-
-	private _shouldReserveOpenChatPresentation(): boolean {
-		return this._shouldUseOpenChatPresentation() && isAgentHostTarget(getChatSessionType(this.context.element.sessionResource));
 	}
 
 	constructor(

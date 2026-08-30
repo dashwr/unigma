@@ -8,8 +8,6 @@ import { URI } from '../../../../base/common/uri.js';
 import { AgentFeedbackState, IAgentFeedbackService } from './agentFeedbackService.js';
 import { ATTACHMENT_ID_PREFIX, createAgentFeedbackVariableEntry } from './agentFeedbackAttachmentEntry.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 
 /**
  * Keeps the "N feedback items" attachment in the chat input in sync with the
@@ -26,22 +24,13 @@ export class AgentFeedbackAttachmentContribution extends Disposable {
 	constructor(
 		@IAgentFeedbackService private readonly _agentFeedbackService: IAgentFeedbackService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
-		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
 
 		this._store.add(this._agentFeedbackService.onDidChangeFeedback(e => {
-			if (this._isAgentHostSession(e.sessionResource)) {
-				return;
-			}
 			this._updateAttachment(e.sessionResource);
 			this._ensureAcceptListener(e.sessionResource);
 		}));
-	}
-
-	private _isAgentHostSession(sessionResource: URI): boolean {
-		const session = this._sessionsManagementService.getSession(sessionResource);
-		return session ? isAgentHostProviderId(session.providerId) : false;
 	}
 
 	private async _updateAttachment(sessionResource: URI): Promise<void> {

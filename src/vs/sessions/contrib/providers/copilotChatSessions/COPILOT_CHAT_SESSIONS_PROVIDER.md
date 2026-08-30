@@ -2,7 +2,7 @@
 
 **File:** `src/vs/sessions/contrib/providers/copilotChatSessions/browser/copilotChatSessionsProvider.ts`
 
-The default sessions provider, registered with ID `'default-copilot'`. Wraps the existing agent session infrastructure into the extensible provider model. Supports **Copilot CLI** (local) when Agent Host is unavailable and **Copilot Cloud** (remote).
+The default sessions provider, registered with ID `'default-copilot'`. Wraps the existing agent session infrastructure into the extensible provider model. Supports **Copilot CLI** (local) and **Copilot Cloud** (remote).
 
 ## Registration
 
@@ -28,7 +28,7 @@ class DefaultSessionsProviderContribution extends Disposable {
 | `id` | `'default-copilot'` |
 | `label` | `'Copilot Chat'` |
 | `icon` | `Codicon.copilot` |
-| `sessionTypes` | `[CopilotCloudSessionType]`, plus `CopilotCLISessionType` when Agent Host is unavailable |
+| `sessionTypes` | `[CopilotCloudSessionType]` and `CopilotCLISessionType` |
 
 ## Browse Actions
 

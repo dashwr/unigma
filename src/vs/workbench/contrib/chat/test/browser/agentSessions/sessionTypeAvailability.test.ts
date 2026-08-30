@@ -7,8 +7,8 @@ import assert from 'assert';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
-import { getSessionTypeAvailability, getSessionTypePickerAvailability, SessionTypeAvailability } from '../../../browser/agentSessions/sessionTypeAvailability.js';
-import { IChatSessionsService, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../common/chatSessionsService.js';
+import { getSessionTypeAvailability, SessionTypeAvailability } from '../../../browser/agentSessions/sessionTypeAvailability.js';
+import { IChatSessionsService, ResolvedChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 
 interface ITypeConfig {
@@ -22,7 +22,7 @@ interface ITypeConfig {
 	readonly requiresCopilotSignIn?: boolean;
 }
 
-const TYPE = 'agent-host-test';
+const TYPE = 'test-session';
 
 function createChatSessionsService(config: ITypeConfig, sessionType = TYPE): IChatSessionsService {
 	return new class extends mock<IChatSessionsService>() {
@@ -44,16 +44,13 @@ function createChatSessionsService(config: ITypeConfig, sessionType = TYPE): ICh
 	}();
 }
 
-function createEntitlementService(entitlement: ChatEntitlement, anonymous = false, clientByokEnabled = true): IChatEntitlementService {
+function createEntitlementService(entitlement: ChatEntitlement, anonymous = false): IChatEntitlementService {
 	return new class extends mock<IChatEntitlementService>() {
 		override get entitlement(): ChatEntitlement {
 			return entitlement;
 		}
 		override get anonymous(): boolean {
 			return anonymous;
-		}
-		override get clientByokEnabled(): boolean {
-			return clientByokEnabled;
 		}
 	}();
 }
@@ -78,45 +75,9 @@ function createLanguageModelsService(targets: readonly (string | undefined)[]): 
 	}();
 }
 
-function createByokLanguageModelsService(type: string, hidden: readonly string[] = [], sourceRegistered = true): ILanguageModelsService {
-	const sourceIdentifier = 'gemini/gemini-2.5-flash';
-	return new class extends mock<ILanguageModelsService>() {
-		override getLanguageModelIds(): string[] {
-			return sourceRegistered ? ['agent-host-byok', sourceIdentifier] : ['agent-host-byok'];
-		}
-		override lookupLanguageModel(identifier: string): ILanguageModelChatMetadata | undefined {
-			if (identifier === 'agent-host-byok') {
-				return { targetChatSessionType: type, byokModelIdentifier: sourceIdentifier } as ILanguageModelChatMetadata;
-			}
-			if (identifier === sourceIdentifier && sourceRegistered) {
-				return { isBYOK: true } as ILanguageModelChatMetadata;
-			}
-			return undefined;
-		}
-		override isModelHidden(identifier: string): boolean {
-			return hidden.includes(identifier);
-		}
-	}();
-}
-
 suite('getSessionTypeAvailability', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('Copilot Agent Host remains setup-selectable when signed-out operation is enabled', () => {
-		const pickerAvailability = (type: string, allowSignedOutWhenUsable: boolean) => getSessionTypePickerAvailability(type, SessionTypeAvailability.SignInRequired, allowSignedOutWhenUsable);
-		assert.deepStrictEqual({
-			localCopilot: pickerAvailability(SessionType.AgentHostCopilot, true),
-			localClaude: pickerAvailability(SessionType.AgentHostClaude, true),
-			localDisabled: pickerAvailability(SessionType.AgentHostCopilot, false),
-			legacyCopilot: pickerAvailability(SessionType.CopilotCLI, true),
-		}, {
-			localCopilot: SessionTypeAvailability.Available,
-			localClaude: SessionTypeAvailability.SignInRequired,
-			localDisabled: SessionTypeAvailability.SignInRequired,
-			legacyCopilot: SessionTypeAvailability.SignInRequired,
-		});
-	});
 
 	function availability(config: ITypeConfig, entitlement: ChatEntitlement, modelTargets: readonly (string | undefined)[] = [], anonymous = false): SessionTypeAvailability {
 		return getSessionTypeAvailability(
@@ -140,32 +101,10 @@ suite('getSessionTypeAvailability', () => {
 		assert.strictEqual(availability(config, ChatEntitlement.Unknown), SessionTypeAvailability.SignInRequired);
 	});
 
-	test('signed-out user must sign in for a custom-model agent host type', () => {
-		// e.g. an agent host Claude harness: supportsAutoModel=false, requiresCustomModels=true.
+	test('signed-out user must sign in for a custom-model type', () => {
+		// A custom type with no Auto model requires its own authenticated provider.
 		const config: ITypeConfig = { registered: true, supportsAutoModel: false, requiresCustomModels: true, requiresCopilotSignIn: true };
 		assert.strictEqual(availability(config, ChatEntitlement.Unknown), SessionTypeAvailability.SignInRequired);
-	});
-
-	test('local Agent Host Copilot and Claude require sign-in without a usable BYOK model', () => {
-		const config: ITypeConfig = { registered: true, supportsAutoModel: false, requiresCustomModels: true, requiresCopilotSignIn: true };
-		const getAvailability = (type: string, entitlement: ChatEntitlement) => getSessionTypeAvailability(
-			createChatSessionsService(config, type),
-			createEntitlementService(entitlement),
-			createLanguageModelsService([]),
-			type,
-		);
-
-		assert.deepStrictEqual({
-			signedOutCopilot: getAvailability(SessionType.AgentHostCopilot, ChatEntitlement.Unknown),
-			signedOutClaude: getAvailability(SessionType.AgentHostClaude, ChatEntitlement.Unknown),
-			freeClaude: getAvailability(SessionType.AgentHostClaude, ChatEntitlement.Free),
-			proClaude: getAvailability(SessionType.AgentHostClaude, ChatEntitlement.Pro),
-		}, {
-			signedOutCopilot: SessionTypeAvailability.SignInRequired,
-			signedOutClaude: SessionTypeAvailability.SignInRequired,
-			freeClaude: SessionTypeAvailability.UpgradeRequired,
-			proClaude: SessionTypeAvailability.NoModels,
-		});
 	});
 
 	test('signed-out user must sign in for a delegation type (e.g. Cloud)', () => {
@@ -187,7 +126,7 @@ suite('getSessionTypeAvailability', () => {
 	test('anonymous access lets a signed-out user use a Copilot-backed type', () => {
 		// With chat.allowAnonymousAccess enabled, a signed-out user is granted
 		// access without signing in, so a Copilot-backed type (e.g. the local
-		// agent host) stays available rather than prompting to sign in.
+		// provider) stays available rather than prompting to sign in.
 		const config: ITypeConfig = { registered: true, supportsAutoModel: true, requiresCustomModels: true, requiresCopilotSignIn: true };
 		assert.strictEqual(availability(config, ChatEntitlement.Unknown, [], true), SessionTypeAvailability.Available);
 	});
@@ -198,71 +137,9 @@ suite('getSessionTypeAvailability', () => {
 	});
 
 	test('a targeting model does NOT override sign-in for a Copilot-backed type', () => {
-		// A native/CAPI model also targets the harness, but still needs Copilot auth.
+		// A model can target the session type, but it still needs Copilot auth.
 		const config: ITypeConfig = { registered: true, supportsAutoModel: true, requiresCustomModels: true, requiresCopilotSignIn: true };
 		assert.strictEqual(availability(config, ChatEntitlement.Unknown, [TYPE]), SessionTypeAvailability.SignInRequired);
-	});
-
-	test('a visible Agent Host BYOK model overrides sign-in for a Copilot-backed type', () => {
-		const config: ITypeConfig = { registered: true, supportsAutoModel: true, requiresCustomModels: true, requiresCopilotSignIn: true };
-		assert.strictEqual(getSessionTypeAvailability(
-			createChatSessionsService(config),
-			createEntitlementService(ChatEntitlement.Unknown),
-			createByokLanguageModelsService(TYPE),
-			TYPE,
-			true,
-		), SessionTypeAvailability.Available);
-	});
-
-	test('an Agent Host BYOK model does not override sign-in when signed-out operation is disabled', () => {
-		const config: ITypeConfig = { registered: true, supportsAutoModel: true, requiresCustomModels: true, requiresCopilotSignIn: true };
-		assert.strictEqual(getSessionTypeAvailability(
-			createChatSessionsService(config),
-			createEntitlementService(ChatEntitlement.Unknown),
-			createByokLanguageModelsService(TYPE),
-			TYPE,
-			false,
-		), SessionTypeAvailability.SignInRequired);
-	});
-
-	test('an Agent Host BYOK model does not override sign-in when client BYOK is disabled', () => {
-		const config: ITypeConfig = { registered: true, supportsAutoModel: true, requiresCustomModels: true, requiresCopilotSignIn: true };
-		assert.strictEqual(getSessionTypeAvailability(
-			createChatSessionsService(config),
-			createEntitlementService(ChatEntitlement.Unknown, false, false),
-			createByokLanguageModelsService(TYPE),
-			TYPE,
-			true,
-		), SessionTypeAvailability.SignInRequired);
-	});
-
-	test('a hidden Agent Host BYOK copy or source model does not override sign-in', () => {
-		const config: ITypeConfig = { registered: true, supportsAutoModel: true, requiresCustomModels: true, requiresCopilotSignIn: true };
-		const availabilityForHidden = (hidden: readonly string[]) => getSessionTypeAvailability(
-			createChatSessionsService(config),
-			createEntitlementService(ChatEntitlement.Unknown),
-			createByokLanguageModelsService(TYPE, hidden),
-			TYPE,
-			true,
-		);
-		assert.deepStrictEqual({
-			copyHidden: availabilityForHidden(['agent-host-byok']),
-			sourceHidden: availabilityForHidden(['gemini/gemini-2.5-flash']),
-		}, {
-			copyHidden: SessionTypeAvailability.SignInRequired,
-			sourceHidden: SessionTypeAvailability.SignInRequired,
-		});
-	});
-
-	test('a stale Agent Host BYOK copy does not override sign-in after its source is removed', () => {
-		const config: ITypeConfig = { registered: true, supportsAutoModel: true, requiresCustomModels: true, requiresCopilotSignIn: true };
-		assert.strictEqual(getSessionTypeAvailability(
-			createChatSessionsService(config),
-			createEntitlementService(ChatEntitlement.Unknown),
-			createByokLanguageModelsService(TYPE, [], false),
-			TYPE,
-			true,
-		), SessionTypeAvailability.SignInRequired);
 	});
 
 	test('a targeting model keeps the type available on a paid plan', () => {

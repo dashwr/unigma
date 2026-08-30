@@ -21,7 +21,7 @@ import { ContextKeyEqualsExpr, ContextKeyExpr, IContextKeyService } from '../../
 import { IConfirmation, IConfirmationResult, IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestDialogService } from '../../../../../../platform/dialogs/test/common/testDialogService.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
-import { ConfirmationOptionKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ConfirmationOptionKind } from '../../../common/chatConfirmation.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { LanguageModelToolsService } from '../../../browser/tools/languageModelToolsService.js';

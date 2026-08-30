@@ -5,22 +5,15 @@
 
 import { isCancellationError } from '../../base/common/errors.js';
 import { StringSHA1 } from '../../base/common/hash.js';
-import { RemoteAgentHostConnectionStatus } from '../../platform/agentHost/common/remoteAgentHostService.js';
-import { isSSHHostKeyDeniedError } from '../../platform/agentHost/common/sshRemoteAgentHost.js';
-import { PROTOCOL_VERSION } from '../../platform/agentHost/common/state/protocol/version/registry.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
-import { LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from './agentHostSessionsProvider.js';
 
-/** Bounded provider categories emitted by Agents window telemetry. */
-export type SessionsTelemetryProviderId = 'default-copilot' | 'local-agent-host' | 'remote-agent-host' | 'other';
+/** Bounded provider categories emitted by sessions telemetry. */
+export type SessionsTelemetryProviderId = 'default-copilot' | 'other';
 
 /** Removes connection-specific details from a sessions provider identifier. */
 export function getSessionsTelemetryProviderId(providerId: string): SessionsTelemetryProviderId {
-	if (providerId === 'default-copilot' || providerId === LOCAL_AGENT_HOST_PROVIDER_ID) {
+	if (providerId === 'default-copilot') {
 		return providerId;
-	}
-	if (providerId === 'remote-agent-host' || providerId.startsWith(REMOTE_AGENT_HOST_PROVIDER_PREFIX)) {
-		return 'remote-agent-host';
 	}
 	return 'other';
 }
@@ -160,6 +153,12 @@ export type SSHConnectErrorCategory =
 	| 'network'
 	| 'other';
 
+const SSH_HOST_KEY_DENIED_ERROR_NAME = 'SSHHostKeyDenied';
+
+function isSSHHostKeyDeniedError(error: unknown): boolean {
+	return error instanceof Error && error.name === SSH_HOST_KEY_DENIED_ERROR_NAME;
+}
+
 export function categorizeSSHConnectError(err: unknown): SSHConnectErrorCategory {
 	if (isCancellationError(err)) {
 		return 'cancelled';
@@ -167,7 +166,7 @@ export function categorizeSSHConnectError(err: unknown): SSHConnectErrorCategory
 	if (isSSHHostKeyDeniedError(err)) {
 		return 'hostKeyDenied';
 	}
-	if (RemoteAgentHostConnectionStatus.fromConnectError(err, [PROTOCOL_VERSION])) {
+	if (err instanceof Error && (err as Error & { code?: unknown }).code === -32005) {
 		return 'incompatible';
 	}
 	const message = err instanceof Error ? err.message : String(err);
@@ -192,7 +191,7 @@ type SSHConnectAttemptEvent = {
 
 type SSHConnectAttemptClassification = {
 	owner: 'roblourens';
-	comment: 'Tracks SSH agent-host connection attempts so connection and reconnection reliability can be measured.';
+	comment: 'Tracks SSH provider connection attempts so connection and reconnection reliability can be measured.';
 	operation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether this was an explicit connection or a reconnect using a stored SSH config host.' };
 	userInitiated: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the attempt was initiated by an explicit user action rather than automatic connection or reconnection.' };
 	attempt: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Attempt number within the current connection cycle, starting at one.' };

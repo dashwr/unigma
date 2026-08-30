@@ -70,7 +70,7 @@ export async function startLocalOtlpHttpReceiver(
 
 	server.on('request', (req, res) => {
 		handleRequest(req, res, handlers, logService, maxBodyBytes).catch(err => {
-			logService.error(`[agentHost-otel] receiver: unhandled error: ${err instanceof Error ? err.message : String(err)}`);
+			logService.error(`[otel] receiver: unhandled error: ${err instanceof Error ? err.message : String(err)}`);
 			if (!res.headersSent) {
 				writePlain(res, 500, 'internal error');
 			} else if (!res.writableEnded) {
@@ -95,13 +95,13 @@ export async function startLocalOtlpHttpReceiver(
 	}
 	const port = (address as AddressInfo).port;
 	const baseUrl = `http://127.0.0.1:${port}`;
-	logService.info(`[agentHost-otel] receiver listening on ${baseUrl}`);
+	logService.info(`[otel] receiver listening on ${baseUrl}`);
 
 	const disposable = toDisposable(() => {
 		server.closeAllConnections();
 		server.close(err => {
 			if (err) {
-				logService.warn(`[agentHost-otel] receiver close error: ${err.message}`);
+				logService.warn(`[otel] receiver close error: ${err.message}`);
 			}
 		});
 	});
@@ -158,7 +158,7 @@ async function handleRequest(
 		try {
 			body = handlers.transformBody(body);
 		} catch (err) {
-			logService.warn(`[agentHost-otel] transform callback threw: ${err instanceof Error ? err.message : String(err)}`);
+			logService.warn(`[otel] transform callback threw: ${err instanceof Error ? err.message : String(err)}`);
 		}
 	}
 
@@ -169,7 +169,7 @@ async function handleRequest(
 		try {
 			handlers.onForward(body, contentType);
 		} catch (err) {
-			logService.warn(`[agentHost-otel] forward callback threw: ${err instanceof Error ? err.message : String(err)}`);
+			logService.warn(`[otel] forward callback threw: ${err instanceof Error ? err.message : String(err)}`);
 		}
 	}
 
@@ -185,7 +185,7 @@ async function handleRequest(
 	try {
 		handlers.onSpans(result);
 	} catch (err) {
-		logService.warn(`[agentHost-otel] onSpans handler threw: ${err instanceof Error ? err.message : String(err)}`);
+		logService.warn(`[otel] onSpans handler threw: ${err instanceof Error ? err.message : String(err)}`);
 	}
 
 	const responseBody: IOtlpExportTraceServiceResponse = result.rejected > 0

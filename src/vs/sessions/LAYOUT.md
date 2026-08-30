@@ -126,7 +126,7 @@ The titlebar is a standalone implementation (`TitlebarPart`) — not extending `
 
 | Section | Menu ID | Content |
 |---------|---------|---------|
-| Left | `Menus.TitleBarLeftLayout` | Toggle sidebar, new session (when sidebar hidden, A/B experiment), agent host filter |
+| Left | `Menus.TitleBarLeftLayout` | Toggle sidebar, new session (when sidebar hidden, A/B experiment) |
 | Center | `Menus.CommandCenter` | Session picker widget |
 | Right | `Menus.TitleBarUpdate`, `Menus.TitleBarSessionMenu`, `Menus.TitleBarRightLayout` | The leftmost Update indicator, active-session actions (including Create Pull Request for created sessions with changes), remote connections, run script (split button), Open in VS Code, bottom-panel and auxiliary-bar layout toggles, and the account widget |
 
@@ -170,10 +170,6 @@ the Agents implementation resolves the repository display name from session meta
 plain repository name for breadcrumbs and the verbose `repository (branch)` form used by workspace
 projection and the Files view.
 
-### Agent Host Filter (Left)
-
-When multiple remote agent hosts are known, a dropdown pill in the left toolbar scopes the workbench to a specific host. When no hosts are known the pill acts as a re-discover trigger.
-
 ### Blocked Sessions (Center)
 
 When at least one session is **blocked**, the center session picker widget (`SessionsTitleBarWidget`) switches from the active-session pill to a light orange "N sessions require input" state (orange label with a subtle background and border), and blinks gently twice whenever a newly blocked occurrence appears. A session counts as blocked when it needs input, or - while not in progress - has failing CI checks. Pull request comments do not make a session blocked. Raw detection is owned by the `BlockedSessions` model (`contrib/blockedSessions`), which reuses the shared, background-polled GitHub CI models and identifies CI occurrences by commit. The widget refines this into what the title bar surfaces via the `BlockedSessionsIndicatorModel` (`blockedSessionsIndicatorModel.ts`) it instantiates: it acknowledges the current occurrence when the user views the session or explicitly ignores it, applies optimistic approval dismissals, classifies the homogeneous requires-input reason (for the specific message), builds the pill label, and decides when the attention blink plays. Acknowledgement lasts only for that input request or CI failure; a later approval, a new failing commit, or an unblock-to-block transition surfaces the session again. Clicking the widget opens those sessions rendered exactly like the sessions list but flat - no sections, groups or workspace headers - via the reusable `SessionsFlatList` (exported from `sessionsList.ts`) in a dropdown anchored below the command center box using `IContextViewService`; clicking a row opens the session like the main list. Its header toolbar offers **Show All Sessions**, **Ignore All Input Needed**, and a trailing **Close** action whose hover shows the `Escape` keybinding. Its rows use `Menus.BlockedSessionsItem` instead of the main session-item toolbar menu and contribute **Ignore Input Needed** / **Ignore CI Failure** actions with the same bell-slash icon. When no session is blocked, the widget behaves as the normal active-session pill. Whether the widget enters this state is driven by the `BlockedSessionsIndicatorModel`'s `blockedSessions` observable.
@@ -188,7 +184,7 @@ Shows the account profile image, preferring the avatar supplied by the authentic
 
 The remote connections toggle is a global titlebar action (`Menus.TitleBarRightLayout`) rather than a per-chat input action. This keeps tunnel hosting state visually scoped to the Agents window as a whole, so users do not interpret it as a setting that must be enabled separately for each chat session.
 
-This Agents-window placement is intentionally different from the main editor window: outside the Agents window the same toggle remains in `MenuId.ChatInputSecondary` for agent-host chat inputs. Keep both menu items mutually exclusive with `IsSessionsWindowContext` so the editor window keeps its chat-input affordance while the Agents window shows only the titlebar affordance.
+This Agents-window placement is intentionally different from the main editor window: outside the Agents window the same toggle remains in `MenuId.ChatInputSecondary` for session chat inputs. Keep both menu items mutually exclusive with `IsSessionsWindowContext` so the editor window keeps its chat-input affordance while the Agents window shows only the titlebar affordance.
 
 ---
 

@@ -379,7 +379,7 @@ export class ChatSessionContentBuilder {
 	}
 
 	/**
-	 * Convert an absolute agent-host file path to a workspace-relative label.
+	 * Convert an absolute provider file path to a workspace-relative label.
 	 *
 	 * Task paths follow `<workspace-root>/<owner>/<repo>/<path>`, where the root is
 	 * `/tmp/workspace` or `/workspace`.

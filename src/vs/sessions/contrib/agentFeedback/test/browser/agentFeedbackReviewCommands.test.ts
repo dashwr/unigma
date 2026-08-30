@@ -21,7 +21,7 @@ suite('AgentFeedbackReviewCommands', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('routes peer chat review commands to the owning session and preserves session resources', async () => {
-		const sessionResource = URI.parse('agent-host-copilotcli:/session-1');
+		const sessionResource = URI.parse('test-session:/session-1');
 		const peerChatResource = sessionResource.with({ fragment: 'peer-chat-1' });
 		const fileResource = URI.file('/workspace/file.ts');
 		const session = new class extends mock<ISession>() {
@@ -55,8 +55,8 @@ suite('AgentFeedbackReviewCommands', () => {
 				operations.push(`remove:${resource.toString()}:${feedbackId}`);
 			}
 
-			override acceptFeedback(resource: URI, feedbackId: string, options?: { readonly revealToAgent?: boolean }): void {
-				operations.push(`accept:${resource.toString()}:${feedbackId}:${options?.revealToAgent === true}`);
+			override acceptFeedback(resource: URI, feedbackId: string): void {
+				operations.push(`accept:${resource.toString()}:${feedbackId}`);
 			}
 		}();
 		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
@@ -105,7 +105,7 @@ suite('AgentFeedbackReviewCommands', () => {
 				`reveal:${sessionResource.toString()}:comment-1`,
 				`get:${sessionResource.toString()}`,
 				`remove:${sessionResource.toString()}:comment-1`,
-				`accept:${sessionResource.toString()}:comment-1:true`,
+				`accept:${sessionResource.toString()}:comment-1`,
 			],
 		});
 	});

@@ -50,7 +50,6 @@ import { IProxyAuthService } from './auth.js';
 import { AuthInfo, Credentials, IRequestService } from '../../request/common/request.js';
 import { randomPath } from '../../../base/common/extpath.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
-import { AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, AGENT_HOST_DEBUG_LOGS_MAX_STAGED_BYTES } from '../../agentHost/common/agentService.js';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -1445,8 +1444,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 						throw new Error(`ZIP is too large to merge (${archiveSize} bytes; limit ${MAX_MERGED_ZIP_SIZE} bytes)`);
 					}
 					await validateZip(sourceArchive.fsPath, {
-						maxEntries: AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES,
-						maxUncompressedSize: AGENT_HOST_DEBUG_LOGS_MAX_STAGED_BYTES,
+						maxEntries: 1000,
+						maxUncompressedSize: 256 * 1024 * 1024,
 					});
 					await extract(sourceArchive.fsPath, temporaryDirectory, {}, CancellationToken.None);
 					zipFiles.push(...await collectZipFiles(temporaryDirectory));

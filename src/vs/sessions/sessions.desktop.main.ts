@@ -101,12 +101,6 @@ import './contrib/automations/electron-browser/automationStorageService.js';
 
 import { ILocalGitService } from '../platform/git/common/localGitService.js';
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
-import { IRemoteAgentHostService } from '../platform/agentHost/common/remoteAgentHostService.js';
-import { AgentsWindowRemoteAgentHostService } from '../platform/agentHost/browser/remoteAgentHostServiceImpl.js';
-import { IRemoteAgentHostLocationPreferenceService } from '../platform/agentHost/common/remoteAgentHostLocationPreference.js';
-import { RemoteAgentHostLocationPreferenceService } from '../platform/agentHost/browser/remoteAgentHostLocationPreferenceService.js';
-import { ISSHHostKeyTrustService } from '../platform/agentHost/common/sshHostKeyTrust.js';
-import { SSHHostKeyTrustService } from '../platform/agentHost/browser/sshHostKeyTrustService.js';
 import { registerSharedProcessRemoteService } from '../platform/ipc/electron-browser/services.js';
 import { IPluginGitService } from '../workbench/contrib/chat/common/plugins/pluginGitService.js';
 import { NativePluginGitCommandService } from '../workbench/contrib/chat/electron-browser/pluginGitCommandService.js';
@@ -118,9 +112,6 @@ registerSingleton(IUserDataInitializationService, new SyncDescriptor(UserDataIni
 // Override the browser PluginGitCommandService with the native one that always
 // runs git locally via the shared process.
 registerSingleton(IPluginGitService, NativePluginGitCommandService, InstantiationType.Delayed);
-registerSingleton(IRemoteAgentHostService, AgentsWindowRemoteAgentHostService, InstantiationType.Delayed);
-registerSingleton(IRemoteAgentHostLocationPreferenceService, RemoteAgentHostLocationPreferenceService, InstantiationType.Delayed);
-registerSingleton(ISSHHostKeyTrustService, SSHHostKeyTrustService, InstantiationType.Delayed);
 registerSharedProcessRemoteService(ILocalGitService, 'localGit');
 
 
@@ -221,29 +212,9 @@ import '../workbench/contrib/keybindingsExport/electron-browser/keybindingsExpor
 
 import './electron-browser/sessions.desktop.contribution.js';
 
-// Remote Agent Host
-import '../workbench/services/agentHost/electron-browser/agentHostService.js';
-import '../platform/agentHost/electron-browser/sshRemoteAgentHostService.js';
-import '../platform/agentHost/electron-browser/wslRemoteAgentHostService.js';
-import './contrib/providers/remoteAgentHost/browser/remoteAgentHost.contribution.js';
-import './contrib/providers/remoteAgentHost/browser/remoteAgentHostTerminal.contribution.js';
-import './contrib/providers/remoteAgentHost/browser/wslAgentHost.contribution.js';
-// Change Preferred Remote Agent Location (Chat: ... command)
-import './contrib/providers/remoteAgentHost/electron-browser/remoteAgentHostLocationPreferenceCommand.js';
-import './contrib/providers/remoteAgentHost/electron-browser/forgetSSHHostKeyCommand.js';
 // Chat
 import './contrib/agentFeedback/browser/agentFeedback.contribution.js';
 import './contrib/chat/electron-browser/chat.contribution.js';
-
-// Local Agent Host
-import './contrib/providers/agentHost/browser/localAgentHost.contribution.js';
-import './contrib/providers/agentHost/browser/agentSessionSettings.contribution.js';
-import './contrib/providers/agentHost/browser/agentHostSettings.contribution.js';
-import './contrib/providers/agentHost/browser/agentHostSessionBranchActions.js';
-import './contrib/providers/agentHost/browser/agentMergeActions.js';
-import './contrib/providers/agentHost/browser/agentHostSkillButtons.js';
-import './contrib/providers/agentHost/browser/openSubagentChat.js';
-import './contrib/providers/agentHost/electron-browser/agentHost.contribution.js';
 
 //#endregion
 

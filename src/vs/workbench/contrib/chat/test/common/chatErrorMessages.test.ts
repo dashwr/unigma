@@ -12,11 +12,11 @@ import {
 	getChatErrorDetailsFromMeta,
 	getCopilotPlanFromEntitlement,
 	getQuotaMessageForPlan,
+	type ErrorInfo,
 	IChatFetchErrorPayload,
 } from '../../common/chatErrorMessages.js';
 import { ChatEntitlement } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ChatErrorLevel } from '../../common/chatService/chatService.js';
-import type { ErrorInfo } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 
 /** Wraps a `_meta` bag in a minimal {@link ErrorInfo} so the reader sees the right source type. */
 function errorInfo(meta: Record<string, unknown> | undefined): ErrorInfo {
@@ -65,7 +65,7 @@ suite('ChatErrorMessages', () => {
 			assert.strictEqual(details?.message, 'You\'ve reached your monthly chat messages quota. Upgrade to Copilot Pro or wait for your allowance to renew.');
 		});
 
-		// Drift guard: the node layer (platform/agentHost/node/shared/forwardedChatError.ts)
+		// Drift guard: the node layer's forwarded error type
 		// encodes IForwardedChatError independently of this consumer (the layers cannot
 		// share types). This pins the exact payload shape the node side emits — including
 		// every fetchError.type its classifiers can produce — so a shape change on either
