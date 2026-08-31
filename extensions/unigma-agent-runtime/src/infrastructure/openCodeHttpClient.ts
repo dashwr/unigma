@@ -56,6 +56,7 @@ const KNOWN_EVENT_TYPES = new Set([
 	'message.part.removed',
 	'session.diff',
 	'permission.updated',
+	'permission.asked',
 	'permission.replied',
 ]);
 

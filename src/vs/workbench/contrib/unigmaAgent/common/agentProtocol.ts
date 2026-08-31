@@ -160,8 +160,11 @@ export type AgentCommand =
 
 export interface AgentDiffFile {
 	readonly path: string;
-	readonly original: string;
-	readonly modified: string;
+	/** Legacy full-content representation used by fixtures. */
+	readonly original?: string;
+	readonly modified?: string;
+	/** Unified patch representation returned by OpenCode. */
+	readonly patch?: string;
 }
 
 export interface AgentDiff {
@@ -420,13 +423,13 @@ export function isAgentDiff(value: unknown): value is AgentDiff {
 	}
 
 	return value.files.every(file => {
-		if (!isRecord(file) || !hasOnlyKeys(file, ['path', 'original', 'modified'])) {
+		if (!isRecord(file) || !isNonEmptyString(file.path)) {
 			return false;
 		}
-
-		return isNonEmptyString(file.path)
-			&& typeof file.original === 'string'
-			&& typeof file.modified === 'string';
+		if (hasOnlyKeys(file, ['path', 'original', 'modified'])) {
+			return typeof file.original === 'string' && typeof file.modified === 'string';
+		}
+		return hasOnlyKeys(file, ['path', 'patch']) && typeof file.patch === 'string';
 	});
 }
 

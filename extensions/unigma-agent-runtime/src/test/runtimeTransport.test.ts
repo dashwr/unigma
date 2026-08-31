@@ -317,6 +317,37 @@ suite('RuntimeTransportBridge', () => {
 		bridge.dispose();
 	});
 
+	test('translates the documented snapshot diff response', async () => {
+		const requests: OpenCodeRequest[] = [];
+		const ports = portsFor({
+			send: async request => {
+				requests.push(request);
+				if (request.path === '/session') {
+					return { id: 'session-new' };
+				}
+				if (request.path === '/session/session-new/diff') {
+					return [{ file: 'src/file.ts', patch: '@@ -1 +1 @@\n-old\n+new', additions: 1, deletions: 1, status: 'modified' }];
+				}
+				return {};
+			},
+		});
+		const bridge = new RuntimeTransportBridge(ports);
+		const events: TransportEvent[] = [];
+		bridge.onEvent(event => events.push(event));
+		await bridge.send({ version: TRANSPORT_PROTOCOL_VERSION, requestId: 'start-diff', type: TransportCommandType.StartSession, workspaceUri: workspace.uri, localIntegrationPreflight: { accepted: true } });
+		await bridge.send({ version: TRANSPORT_PROTOCOL_VERSION, requestId: 'request-diff', type: TransportCommandType.RequestDiff, sessionId: 'session-new' });
+
+		assert.strictEqual(requests.some(request => request.path.includes('diffId=')), false);
+		assert.deepStrictEqual(events[events.length - 1], {
+			version: TRANSPORT_PROTOCOL_VERSION,
+			type: TransportEventType.Diff,
+			sessionId: 'session-new',
+			requestId: 'request-diff',
+			diff: { diffId: 'diff-session-new', files: [{ path: 'src/file.ts', patch: '@@ -1 +1 @@\n-old\n+new' }] },
+		});
+		bridge.dispose();
+	});
+
 	test('approves a permission request', async () => {
 		const requests: OpenCodeRequest[] = [];
 		const ports = portsFor({
@@ -547,6 +578,25 @@ suite('RuntimeTransportBridge', () => {
 				kind: 'edit',
 				title: 'Apply change to file.ts',
 			},
+		}]);
+		bridge.dispose();
+	});
+
+	test('translates documented permission.asked events', async () => {
+		const ports = portsFor();
+		const bridge = new RuntimeTransportBridge(ports);
+		const events: TransportEvent[] = [];
+		bridge.onEvent(event => events.push(event));
+		ports.eventEmitter.emit('event', {
+			type: 'permission.asked',
+			properties: { id: 'per-1', sessionID: 'session-1', type: 'edit', title: 'Edit file', metadata: {} },
+		});
+
+		assert.deepStrictEqual(events, [{
+			version: TRANSPORT_PROTOCOL_VERSION,
+			type: TransportEventType.Permission,
+			sessionId: 'session-1',
+			permission: { approvalId: 'per-1', kind: 'edit', title: 'Edit file' },
 		}]);
 		bridge.dispose();
 	});

@@ -174,8 +174,11 @@ export type TransportCommand =
 
 export interface TransportDiffFile {
 	readonly path: string;
-	readonly original: string;
-	readonly modified: string;
+	/** Legacy full-content representation used by fixtures. */
+	readonly original?: string;
+	readonly modified?: string;
+	/** Unified patch representation returned by OpenCode 1.18.23. */
+	readonly patch?: string;
 }
 
 export interface TransportDiff {
@@ -467,11 +470,15 @@ function isTransportDiff(value: unknown): value is TransportDiff {
 		return false;
 	}
 
-	return value.files.every(file => isTransportRecord(file)
-		&& hasOnlyKeys(file, ['path', 'original', 'modified'])
-		&& isNonEmptyString(file.path)
-		&& typeof file.original === 'string'
-		&& typeof file.modified === 'string');
+	return value.files.every(file => {
+		if (!isTransportRecord(file) || !isNonEmptyString(file.path)) {
+			return false;
+		}
+		if (hasOnlyKeys(file, ['path', 'original', 'modified'])) {
+			return typeof file.original === 'string' && typeof file.modified === 'string';
+		}
+		return hasOnlyKeys(file, ['path', 'patch']) && typeof file.patch === 'string';
+	});
 }
 
 function isTransportPermissionRequest(value: unknown): value is TransportPermissionRequest {

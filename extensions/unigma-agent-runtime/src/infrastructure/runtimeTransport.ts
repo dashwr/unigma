@@ -280,29 +280,29 @@ export class RuntimeTransportBridge implements RuntimeTransport {
 				this.emitError(requestId, TransportErrorCode.SessionNotFound, 'The requested session is not available.', false);
 				return;
 			}
-			const path = diffId
-				? `/session/${encodeURIComponent(sessionId)}/diff?diffId=${encodeURIComponent(diffId)}`
-				: `/session/${encodeURIComponent(sessionId)}/diff`;
-			const response = await this.ports.openCodeClient.send({ method: 'GET', path });
+			// OpenCode 1.18.23 exposes directory/workspace/messageID query fields,
+			// not diffId. The internal diffId is intentionally not sent over HTTP.
+			void diffId;
+			const response = await this.ports.openCodeClient.send({
+				method: 'GET',
+				path: `/session/${encodeURIComponent(sessionId)}/diff`,
+			});
 			if (Array.isArray(response)) {
-				for (const item of response) {
-					if (isRecord(item)) {
-						this.emitEvent({
-							version: TRANSPORT_PROTOCOL_VERSION,
-							type: TransportEventType.Diff,
-							sessionId,
-							diff: {
-								diffId: typeof item.diffId === 'string' ? item.diffId : `diff-${Date.now()}`,
-								files: Array.isArray(item.files) ? item.files.filter((f: unknown) => isRecord(f)).map((f: Record<string, unknown>) => ({
-									path: typeof f.path === 'string' ? f.path : '',
-									original: typeof f.original === 'string' ? f.original : '',
-									modified: typeof f.modified === 'string' ? f.modified : '',
-								})) : [],
-							},
-							requestId,
-						});
-					}
-				}
+				this.emitEvent({
+					version: TRANSPORT_PROTOCOL_VERSION,
+					type: TransportEventType.Diff,
+					sessionId,
+					diff: {
+						diffId: `diff-${sessionId}`,
+						files: response
+							.filter((item: unknown): item is Record<string, unknown> => isRecord(item) && typeof item.file === 'string')
+							.map(item => ({
+								path: item.file as string,
+								patch: typeof item.patch === 'string' ? item.patch : '',
+							})),
+					},
+					requestId,
+				});
 			}
 		} catch {
 			this.emitError(requestId, TransportErrorCode.Internal, 'The runtime could not retrieve the diff.', false);
@@ -370,7 +370,9 @@ export class RuntimeTransportBridge implements RuntimeTransport {
 			}
 			case 'session.status': {
 				const sessionId = typeof event.properties.sessionID === 'string' ? event.properties.sessionID : typeof event.properties.sessionId === 'string' ? event.properties.sessionId : undefined;
-				const status = typeof event.properties.status === 'string' ? event.properties.status : undefined;
+				const status = typeof event.properties.status === 'string'
+					? event.properties.status
+					: isRecord(event.properties.status) && typeof event.properties.status.type === 'string' ? event.properties.status.type : undefined;
 				if (sessionId && status) {
 					const state = this.mapSessionState(status);
 					if (state) {
@@ -415,7 +417,10 @@ export class RuntimeTransportBridge implements RuntimeTransport {
 			}
 			case 'message.part.updated': {
 				const sessionId = typeof event.properties.sessionID === 'string' ? event.properties.sessionID : typeof event.properties.sessionId === 'string' ? event.properties.sessionId : undefined;
-				const content = typeof event.properties.content === 'string' ? event.properties.content : '';
+				const part = isRecord(event.properties.part) ? event.properties.part : undefined;
+				const content = typeof event.properties.delta === 'string'
+					? event.properties.delta
+					: part && typeof part.text === 'string' ? part.text : typeof event.properties.content === 'string' ? event.properties.content : '';
 				const role = typeof event.properties.role === 'string' ? event.properties.role : 'assistant';
 				if (sessionId && (content || typeof event.properties.delta === 'boolean')) {
 					this.emitEvent({
@@ -433,13 +438,15 @@ export class RuntimeTransportBridge implements RuntimeTransport {
 				const sessionId = typeof event.properties.sessionID === 'string' ? event.properties.sessionID : typeof event.properties.sessionId === 'string' ? event.properties.sessionId : undefined;
 				if (sessionId) {
 					const files: TransportDiffFile[] = [];
-					if (Array.isArray(event.properties.files)) {
-						for (const f of event.properties.files) {
+					const diffFiles = Array.isArray(event.properties.diff) ? event.properties.diff : event.properties.files;
+					if (Array.isArray(diffFiles)) {
+						for (const f of diffFiles) {
 							if (isRecord(f)) {
 								files.push({
-									path: typeof f.path === 'string' ? f.path : '',
-									original: typeof f.original === 'string' ? f.original : '',
-									modified: typeof f.modified === 'string' ? f.modified : '',
+									path: typeof f.file === 'string' ? f.file : typeof f.path === 'string' ? f.path : '',
+									...(typeof f.patch === 'string'
+										? { patch: f.patch }
+										: { original: typeof f.original === 'string' ? f.original : '', modified: typeof f.modified === 'string' ? f.modified : '' }),
 								});
 							}
 						}
@@ -449,13 +456,14 @@ export class RuntimeTransportBridge implements RuntimeTransport {
 						type: TransportEventType.Diff,
 						sessionId,
 						diff: {
-							diffId: typeof event.properties.diffId === 'string' ? event.properties.diffId : `diff-${Date.now()}`,
+							diffId: typeof event.properties.diffId === 'string' ? event.properties.diffId : `diff-${sessionId}`,
 							files,
 						},
 					});
 				}
 				break;
 			}
+			case 'permission.asked':
 			case 'permission.updated': {
 				const sessionId = typeof event.properties.sessionID === 'string' ? event.properties.sessionID : typeof event.properties.sessionId === 'string' ? event.properties.sessionId : undefined;
 				const approvalId = typeof event.properties.permissionID === 'string' ? event.properties.permissionID : typeof event.properties.id === 'string' ? event.properties.id : undefined;
@@ -467,7 +475,8 @@ export class RuntimeTransportBridge implements RuntimeTransport {
 						permission: {
 							approvalId,
 							kind: typeof event.properties.type === 'string' && (event.properties.type === 'edit' || event.properties.type === 'command' || event.properties.type === 'tool') ? event.properties.type : 'tool',
-							title: typeof event.properties.description === 'string' ? event.properties.description : 'Agent action requires approval',
+							title: typeof event.properties.title === 'string' ? event.properties.title : typeof event.properties.description === 'string' ? event.properties.description : 'Agent action requires approval',
+							...(typeof event.properties.title === 'string' && typeof event.properties.description === 'string' && event.properties.description !== event.properties.title ? { description: event.properties.description } : {}),
 						},
 					});
 				}
