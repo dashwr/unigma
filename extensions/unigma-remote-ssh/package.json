@@ -6,8 +6,24 @@
   "publisher": "unigma",
   "license": "MIT",
   "private": true,
+  "enabledApiProposals": [
+    "resolvers"
+  ],
   "engines": {
     "vscode": "^1.134.0"
+  },
+  "extensionKind": [
+    "ui"
+  ],
+  "activationEvents": [
+    "onResolveRemoteAuthority:ssh-remote"
+  ],
+  "main": "./out/extension.js",
+  "capabilities": {
+    "virtualWorkspaces": false,
+    "untrustedWorkspaces": {
+      "supported": false
+    }
   },
   "scripts": {
     "compile": "gulp compile-extension:unigma-remote-ssh",
