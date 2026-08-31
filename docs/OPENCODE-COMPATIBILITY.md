@@ -154,8 +154,8 @@ Eventos usados pelo MVP:
 | `message.part.updated` | Renderizar streaming incremental | `part` e `delta?`. |
 | `message.part.removed` | Remover parte invalidada | `sessionID`, `messageID`, `partID`. |
 | `session.diff` | Atualizar diff da sessao | `sessionID` e `diff: FileDiff[]`. |
-| `permission.updated` | Mostrar pedido de aprovacao | `properties` e `Permission`. |
-| `permission.replied` | Confirmar resposta de aprovacao | `sessionID`, `permissionID`, `response`. |
+| `permission.asked` | Mostrar pedido de aprovacao | `sessionID`, `id`, `permission`, `patterns`, `metadata`, `always`, `tool`. |
+| `permission.replied` | Confirmar resposta de aprovacao | `sessionID`, `requestID`, `reply`. |
 
 Subagentes usam os mesmos eventos de sessao/mensagem. A relacao e identificada
 por `Session.parentID`, sessoes filhas e partes de mensagem documentadas; nao ha
@@ -169,12 +169,13 @@ Regras de parsing:
   persistir seu payload. Um evento desconhecido nao autoriza um fallback.
 - Tratar payload invalido de evento requerido como erro de protocolo da sessao;
   nao tentar adivinhar campos ou renomear eventos.
-- Em `permission.updated`, a UI deve mostrar a decisao explicita. Unigma nao
+- Em `permission.asked`, a UI deve mostrar a decisao explicita. Unigma nao
   autoaprova e nao restaura uma aprovacao pendente depois de restart.
-- A documentacao de plugins lista `permission.asked`, enquanto o SDK gerado
-  atual lista `permission.updated`. O perfil usa somente `permission.updated`;
-  `permission.asked` permanece **nao suportado** ate aparecer explicitamente no
-  `/doc` do binario fixado e passar pelo fixture.
+- O SDK gerado público ainda lista `permission.updated`, mas o `/doc` do binário
+  fixado `1.18.23` expõe `permission.asked`/`permission.replied`; o adaptador
+  valida e usa os formatos observados no `/doc`, com fixtures locais. Eventos
+  legados `permission.updated` continuam aceitos somente para compatibilidade
+  com fixtures já existentes.
 
 O SDK gerado tambem mostra que `/global/event` envolve o evento em
 `{ directory, payload }`. Como esse endpoint nao e usado, o adaptador nao deve

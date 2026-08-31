@@ -600,6 +600,10 @@ estão pendentes.
 
 ### T-032 — renderizar streaming e estados de conexão
 
+> feito: 2026-08-31 — bridge aceita o envelope real de `message.part.updated`,
+> traduz status estruturado e a UI nativa acumula conteúdo por delta; validação
+> do runner e reconexão sem duplicação continuam pendentes.
+
 - **objetivo:** transformar eventos SSE em atualização incremental, com conexão,
   reconexão, erro e cancelamento observáveis.
 - **responsável lógico:** UI nativa + runtime.
@@ -616,6 +620,11 @@ estão pendentes.
 - **bloqueia:** AC-003, AC-014 e parte de AC-015.
 
 ### T-033 — implementar diff e aprovação explícita
+
+> feito: 2026-08-31 — diff `SnapshotFileDiff` e respostas reais de permissão
+> (`permission.asked`/`permission.replied`) atravessam o contrato privado; a UI
+> só retira a pendência após a confirmação do runtime. Runner e bundle oficial
+> ainda não validaram o recorte ponta a ponta.
 
 - **objetivo:** apresentar alteração, decisão do usuário e resultado de
   aprovação/rejeição sem autoaprovação ou restauração de pendência.

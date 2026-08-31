@@ -4,8 +4,9 @@
 > datados desta pasta; este quadro responde **o que está ativo, onde parou e qual
 > é o próximo passo**.
 
-**última atualização:** 2026-08-30
-**foco atual:** fechamento dos gates `E00-A`, `E01-B` e `E01-D` após a etapa A
+**última atualização:** 2026-08-31
+**foco atual:** implementação incremental de `E02/E03` no runtime OpenCode e
+workbench nativo, mantendo os gates `E00/E01` em review/partial
 do CLI Rust **preservando o Code Server**, em
 [`../planos/2026-08-29-cli-ssh-remoto.md`](../planos/2026-08-29-cli-ssh-remoto.md),
 que emenda no plano de ondas
@@ -67,7 +68,7 @@ adiciona uma asserção negativa. `compile-client`, `typecheck-client`, 60 teste
 | `E01-C` / `T-012` | preflight local e bridge workbench↔extension host | regressão/runner | `review` | rodar validação oficial; depois conectar inventário plugin/regra e prova OpenCode real | `E01-B`, runner sequencial | [`LOCAL-INTEGRATIONS-POLICY.md`](../LOCAL-INTEGRATIONS-POLICY.md), [`2026-08-26-campanha.md`](2026-08-26-campanha.md) |
 | `E01-D` / `T-013` | contrato SSH fail-closed | implementação/review | `partial` | provisionar fora do agente `sshd` + host key + `unigma-server` de teste; então executar matriz sem replay ou segredo | host Linux x64 e `unigma-server` autorizados | [`SSH-CONTRACT.md`](../SSH-CONTRACT.md) |
 | `E01-E` | evidência e fechamento de E-00/E-01 | backlog | `blocked` | consolidar runs, artefatos, aceite e status após as frentes acima | E00/E01 pendentes | [`planos/2026-08-26-e00-e01.md`](../planos/2026-08-26-e00-e01.md) |
-| `E02/E03` | runtime OpenCode e workbench nativo funcional | backlog | `blocked` | consolidar os recortes 2A/2B e fechar gates de E-00/E-01 antes da onda 3 | E-00 e E-01 | [`BACKLOG.md`](../BACKLOG.md) |
+| `E02/E03` | runtime OpenCode e workbench nativo funcional | implementação | `in_progress` | fechar streaming incremental, permissões reais e contrato nativo de `@`/`/`; só então colher runner | E-00/E-01 em review/partial; provider/modelo autorizado para prompt real | [`BACKLOG.md`](../BACKLOG.md), [`OPENCODE-COMPATIBILITY.md`](../OPENCODE-COMPATIBILITY.md) |
 | `E09` / `T-095..T-099` | perfil service-only e bundle `unigma+opencode` | backlog | `partial` | auditar superfícies do `serve` e transformar o resultado em patch mínimo, manifesto e artefato aceitos | E-00/T-011 | [`OPENCODE-SERVICE-ONLY.md`](../OPENCODE-SERVICE-ONLY.md) |
 
 ## estados
@@ -124,3 +125,4 @@ adiciona uma asserção negativa. `compile-client`, `typecheck-client`, 60 teste
 | 2026-08-30 | `E01-B` / `T-011` | contrato do cliente validado contra o binário real | `OpenCodeHttpClient` compilado conectou a `/usr/bin/opencode` `1.18.23` (health, OpenAPI `3.1.0`, `/path.directory`, SSE `server.connected`); `GET /provider` (`5 750 600` bytes) era rejeitada pelo limite de 4 MiB e o limite HTTP passou a 16 MiB, com o guarda de evento SSE mantido; teste opt-in `OPENCODE_REAL_E2E=1` adicionado; 61 testes + 1 pending por padrão, 62 com o E2E, `typecheck-client`, `test-build-scripts` 262/262 e eslint passaram sob Node `24.18.0`; prompt/streaming/permissão reais e bundle service-only continuam pendentes |
 | 2026-08-30 | `E01-D` / `T-050/B.2` | scaffold → `partial` | resolver `ssh-remote` fail-closed, parsing sem segredo, probe `ssh -V` e gates locais implementados; transporte, `unigma-server`, host key e conexão real continuam bloqueados |
 | 2026-08-29 | `CLI-001` / `T-110–T-113` | implementação → `review` | CLI Rust sem consumidores AHP, `PROTOCOL_VERSION=4`, módulos removidos, Code Server preservado; `cargo test` 33 testes e compile de `terminal-suggest` passaram; clippy baseline, Node 24/runner e notices pendentes |
+| 2026-08-31 | `E02/E03` / `T-032/T-033` | backlog → implementação incremental | UI nativa passou a renderizar conteúdo/diff e aprovações; bridge mapeia `permission.asked`/`permission.replied` e o diff `SnapshotFileDiff`; compile/teste local anteriores passaram, runner e prompt real continuam pendentes |
