@@ -256,7 +256,49 @@ export class UnigmaAgentViewPane extends ViewPane {
 				? localize('unigmaAgent.loadingMessage', 'Waiting for the agent runtime...')
 				: this.model.state === UNIGMA_AGENT_VIEW_STATES.Result
 					? this.model.result || localize('unigmaAgent.resultEmpty', 'The agent completed without a message.')
-					: localize('unigmaAgent.errorMessage', 'The agent runtime is not connected yet.');
+					: this.model.errorMessage || localize('unigmaAgent.errorMessage', 'The agent runtime is not connected yet.');
+
+		if (this.model.content) {
+			const content = DOM.append(this.stateContainer, DOM.$('pre'));
+			content.textContent = this.model.content;
+			content.style.whiteSpace = 'pre-wrap';
+			content.style.width = '100%';
+			content.style.boxSizing = 'border-box';
+			content.style.margin = '8px 0 0';
+		}
+
+		if (this.model.diff) {
+			const diffContainer = DOM.append(this.stateContainer, DOM.$('.unigma-agent-diff'));
+			diffContainer.style.width = '100%';
+			const diffTitle = DOM.append(diffContainer, DOM.$('strong'));
+			diffTitle.textContent = localize('unigmaAgent.diffTitle', 'Proposed changes');
+			for (const file of this.model.diff.files) {
+				const fileLabel = DOM.append(diffContainer, DOM.$('div'));
+				fileLabel.textContent = file.path;
+				fileLabel.style.fontFamily = 'var(--vscode-editor-font-family)';
+			}
+		}
+
+		if (this.model.permission && this.model.sessionId) {
+			const permissionContainer = DOM.append(this.stateContainer, DOM.$('.unigma-agent-permission'));
+			permissionContainer.style.display = 'flex';
+			permissionContainer.style.flexDirection = 'column';
+			permissionContainer.style.gap = '8px';
+			const permissionTitle = DOM.append(permissionContainer, DOM.$('strong'));
+			permissionTitle.textContent = this.model.permission.title;
+			if (this.model.permission.description) {
+				const permissionDescription = DOM.append(permissionContainer, DOM.$('p'));
+				permissionDescription.textContent = this.model.permission.description;
+				permissionDescription.style.margin = '0';
+			}
+			const permissionActions = DOM.append(permissionContainer, DOM.$('div'));
+			const approve = this.renderDisposables.add(new Button(permissionActions, { ...defaultButtonStyles, ariaLabel: localize('unigmaAgent.approve', 'Approve') }));
+			approve.label = localize('unigmaAgent.approve', 'Approve');
+			const reject = this.renderDisposables.add(new Button(permissionActions, { ...defaultButtonStyles, ariaLabel: localize('unigmaAgent.reject', 'Reject') }));
+			reject.label = localize('unigmaAgent.reject', 'Reject');
+			this.renderDisposables.add(approve.onDidClick(() => void this.runtime.approve(this.model.sessionId!, this.model.permission!.approvalId)));
+			this.renderDisposables.add(reject.onDidClick(() => void this.runtime.reject(this.model.sessionId!, this.model.permission!.approvalId)));
+		}
 
 		if (this.model.state === UNIGMA_AGENT_VIEW_STATES.Loading) {
 			this.agentProgressBar.infinite().show();

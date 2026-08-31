@@ -46,8 +46,22 @@ export interface IUnigmaAgentRuntime {
 	start(preflight: AgentLocalIntegrationPreflight, workspaceUri?: string): Promise<void>;
 	stopSession(sessionId: string): Promise<void>;
 	sendInput(sessionId: string, text: string): Promise<void>;
+	/**
+	 * Requests the current diff of a session. No diff identifier is sent: the
+	 * OpenCode profile documents no such parameter, and the UI must not invent one.
+	 */
+	requestDiff(sessionId: string): Promise<void>;
+	approve(sessionId: string, approvalId: string): Promise<void>;
+	reject(sessionId: string, approvalId: string, reason?: string): Promise<void>;
 	registerTransport(transport: IUnigmaAgentRpcTransport): IDisposable;
 }
+
+/*
+ * `ListWorktrees` and `ApplyConfiguration` exist in the protocol but the runtime
+ * bridge answers both with an explicit error, so the UI service does not expose
+ * them. Surfacing an unsupported capability would be a promise the runtime
+ * cannot keep.
+ */
 
 export const IUnigmaAgentRuntime = createDecorator<IUnigmaAgentRuntime>('unigmaAgentRuntime');
 
@@ -201,6 +215,36 @@ export class UnigmaAgentRuntime extends Disposable implements IUnigmaAgentRuntim
 			requestId: this.nextRequestId(),
 			type: AgentCommandType.StopSession,
 			sessionId,
+		});
+	}
+
+	async requestDiff(sessionId: string): Promise<void> {
+		await this.send({
+			version: AGENT_PROTOCOL_VERSION,
+			requestId: this.nextRequestId(),
+			type: AgentCommandType.RequestDiff,
+			sessionId,
+		});
+	}
+
+	async approve(sessionId: string, approvalId: string): Promise<void> {
+		await this.send({
+			version: AGENT_PROTOCOL_VERSION,
+			requestId: this.nextRequestId(),
+			type: AgentCommandType.Approve,
+			sessionId,
+			approvalId,
+		});
+	}
+
+	async reject(sessionId: string, approvalId: string, reason?: string): Promise<void> {
+		await this.send({
+			version: AGENT_PROTOCOL_VERSION,
+			requestId: this.nextRequestId(),
+			type: AgentCommandType.Reject,
+			sessionId,
+			approvalId,
+			reason,
 		});
 	}
 

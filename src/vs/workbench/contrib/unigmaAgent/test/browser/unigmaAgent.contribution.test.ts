@@ -19,7 +19,7 @@ import { UNIGMA_AGENT_MANIFEST } from '../../browser/unigmaAgentManifest.js';
 import { IUnigmaAgentRpcTransport, UNIGMA_AGENT_RUNTIME_TRANSPORT_COMMAND, UNIGMA_AGENT_RUNTIME_TRANSPORT_EVENT_COMMAND, UnigmaAgentRuntime, UnigmaAgentRuntimeConnectionState } from '../../browser/unigmaAgentRuntime.js';
 import { EMPTY_UNIGMA_AGENT_SESSION, reduceUnigmaAgentSessionEvent, startUnigmaAgentSession } from '../../browser/unigmaAgentSession.js';
 import { getUnigmaAgentStateAccessibility, UNIGMA_AGENT_VIEW_STATES, UnigmaAgentViewPane } from '../../browser/unigmaAgentView.js';
-import { AGENT_PROTOCOL_VERSION, AgentCommandType, AgentErrorCode, AgentEventType, AgentResultStatus, AgentSessionState } from '../../common/agentProtocol.js';
+import { AGENT_PROTOCOL_VERSION, AgentCommandType, AgentErrorCode, AgentEventType, AgentResultStatus, AgentSessionState, validateAgentCommand } from '../../common/agentProtocol.js';
 
 import '../../browser/unigmaAgent.contribution.js';
 
@@ -171,6 +171,68 @@ suite('Unigma Agent contribution', () => {
 		}]);
 
 		eventSubscription.dispose();
+		runtime.dispose();
+	});
+
+	test('serializes diff and approval commands the runtime bridge already implements', async () => {
+		const calls: unknown[][] = [];
+		const commandService = {
+			executeCommand: async (commandId: string, ...args: unknown[]) => {
+				calls.push([commandId, ...args]);
+				return undefined;
+			},
+		} as unknown as ICommandService;
+		const runtime = new UnigmaAgentRuntime(commandService);
+
+		await runtime.requestDiff('session-1');
+		await runtime.approve('session-1', 'approval-1');
+		await runtime.reject('session-1', 'approval-2', 'Not this file.');
+		await runtime.reject('session-1', 'approval-3');
+
+		assert.deepStrictEqual(calls.map(call => call[0]), new Array(4).fill(UNIGMA_AGENT_RUNTIME_TRANSPORT_COMMAND));
+		assert.deepStrictEqual(calls.map(call => call[1]), [
+			// No diffId is sent: the documented OpenCode diff operation declares no such parameter.
+			{ version: AGENT_PROTOCOL_VERSION, requestId: 'unigma-agent-1', type: AgentCommandType.RequestDiff, sessionId: 'session-1' },
+			{ version: AGENT_PROTOCOL_VERSION, requestId: 'unigma-agent-2', type: AgentCommandType.Approve, sessionId: 'session-1', approvalId: 'approval-1' },
+			{ version: AGENT_PROTOCOL_VERSION, requestId: 'unigma-agent-3', type: AgentCommandType.Reject, sessionId: 'session-1', approvalId: 'approval-2', reason: 'Not this file.' },
+			{ version: AGENT_PROTOCOL_VERSION, requestId: 'unigma-agent-4', type: AgentCommandType.Reject, sessionId: 'session-1', approvalId: 'approval-3' },
+		]);
+		for (const call of calls) {
+			assert.strictEqual(validateAgentCommand(call[1]).valid, true, 'every serialized command must satisfy the protocol validator');
+		}
+
+		runtime.dispose();
+	});
+
+	test('fails closed for diff and approval commands without a transport', async () => {
+		const runtime = new UnigmaAgentRuntime();
+		const events: unknown[] = [];
+		const eventSubscription = runtime.onDidReceiveEvent(event => events.push(event));
+
+		await assert.rejects(runtime.requestDiff('session-1'), /No unigma agent RPC transport is registered/);
+		await assert.rejects(runtime.approve('session-1', 'approval-1'), /No unigma agent RPC transport is registered/);
+		await assert.rejects(runtime.reject('session-1', 'approval-1', 'no'), /No unigma agent RPC transport is registered/);
+
+		assert.deepStrictEqual(events, ['unigma-agent-1', 'unigma-agent-2', 'unigma-agent-3'].map(requestId => ({
+			version: AGENT_PROTOCOL_VERSION,
+			type: AgentEventType.Error,
+			requestId,
+			sessionId: 'session-1',
+			error: { code: AgentErrorCode.RuntimeUnavailable, message: 'No unigma agent RPC transport is registered.', retryable: true },
+		})));
+
+		eventSubscription.dispose();
+		runtime.dispose();
+	});
+
+	test('does not expose runtime capabilities the bridge refuses', () => {
+		const runtime = new UnigmaAgentRuntime();
+		const surface = runtime as unknown as Record<string, unknown>;
+
+		// The bridge answers both commands with an explicit error; the UI must not advertise them.
+		assert.strictEqual(surface['listWorktrees'], undefined);
+		assert.strictEqual(surface['applyConfiguration'], undefined);
+
 		runtime.dispose();
 	});
 

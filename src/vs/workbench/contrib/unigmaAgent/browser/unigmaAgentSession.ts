@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AgentEvent, AgentEventType, AgentSessionState } from '../common/agentProtocol.js';
+import { AgentEvent, AgentEventType, AgentSessionState, type AgentDiff, type AgentPermissionRequest } from '../common/agentProtocol.js';
 
 export const UNIGMA_AGENT_VIEW_STATES = {
 	Empty: 'empty',
@@ -17,7 +17,12 @@ export type UnigmaAgentViewState = typeof UNIGMA_AGENT_VIEW_STATES[keyof typeof 
 export interface UnigmaAgentSessionViewModel {
 	readonly state: UnigmaAgentViewState;
 	readonly sessionId?: string;
+	/** Ephemeral transcript; OpenCode remains the source of truth. */
+	readonly content?: string;
 	readonly result?: string;
+	readonly diff?: AgentDiff;
+	readonly permission?: AgentPermissionRequest;
+	readonly errorMessage?: string;
 }
 
 export const EMPTY_UNIGMA_AGENT_SESSION: UnigmaAgentSessionViewModel = Object.freeze({ state: UNIGMA_AGENT_VIEW_STATES.Empty });
@@ -31,7 +36,7 @@ export function reduceUnigmaAgentSessionEvent(model: UnigmaAgentSessionViewModel
 	if (event.type === AgentEventType.Error) {
 		return event.sessionId && (!model.sessionId || event.sessionId !== model.sessionId)
 			? model
-			: { state: UNIGMA_AGENT_VIEW_STATES.Error, sessionId: event.sessionId ?? model.sessionId };
+			: { state: UNIGMA_AGENT_VIEW_STATES.Error, sessionId: event.sessionId ?? model.sessionId, errorMessage: event.error.message };
 	}
 
 	if (!model.sessionId && event.type !== AgentEventType.State) {
@@ -52,9 +57,21 @@ export function reduceUnigmaAgentSessionEvent(model: UnigmaAgentSessionViewModel
 					? { state: UNIGMA_AGENT_VIEW_STATES.Error, sessionId: event.sessionId }
 					: EMPTY_UNIGMA_AGENT_SESSION;
 			}
-			return { state: UNIGMA_AGENT_VIEW_STATES.Empty, sessionId: event.sessionId };
+			return { ...model, state: UNIGMA_AGENT_VIEW_STATES.Empty, sessionId: event.sessionId };
+		case AgentEventType.Content:
+			return {
+				...model,
+				state: UNIGMA_AGENT_VIEW_STATES.Empty,
+				sessionId: event.sessionId,
+				content: event.delta ? `${model.content ?? ''}${event.content}` : event.content,
+			};
+		case AgentEventType.Diff:
+			return { ...model, sessionId: event.sessionId, diff: event.diff };
+		case AgentEventType.Permission:
+			return { ...model, sessionId: event.sessionId, permission: event.permission };
 		case AgentEventType.Result:
 			return {
+				...model,
 				state: UNIGMA_AGENT_VIEW_STATES.Result,
 				sessionId: event.sessionId,
 				result: event.result.content,
