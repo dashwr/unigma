@@ -373,7 +373,15 @@ executada no runner.
 método/path consultados pelo cliente; `/usr/bin/opencode` `1.18.23` foi
 verificado por SHA-256 e passou no probe real isolado de health, OpenAPI,
 workspace, SSE, sessão e operações mínimas. Nenhum provider/modelo é anunciado
-como suportado; a suíte-fonte ainda depende de `mocha`, ausente no checkout.
+como suportado.
+
+> feito: 2026-08-30 — o `OpenCodeHttpClient` compilado foi validado contra o
+> binário real `1.18.23`. `GET /provider`, operação requerida, responde com
+> `5 750 600` bytes e era rejeitada pelo limite único de 4 MiB; o limite de
+> resposta HTTP subiu para 16 MiB e o guarda de evento SSE ficou em 4 MiB. Um
+> teste de integração opt-in (`OPENCODE_REAL_E2E=1` mais versão exata) cobre
+> health, `/doc`, `/path`, SSE e as operações do perfil; a suíte padrão continua
+> sem depender do executável externo.
 
 - **objetivo:** enumerar versão/protocolo HTTP/SSE, endpoints usados, eventos,
   tratamento de reinício e conjunto inicial de providers/modelos permitido.

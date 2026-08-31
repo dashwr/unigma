@@ -51,6 +51,7 @@ interface FixtureOptions {
 	readonly healthVersion?: string;
 	readonly workspacePath?: string;
 	readonly workspaceResponse?: unknown;
+	readonly providerPaddingBytes?: number;
 	readonly onEvent?: (response: ServerResponse, index: number) => void;
 }
 
@@ -100,6 +101,9 @@ async function createFixture(options: FixtureOptions = {}): Promise<Fixture> {
 		}
 		if (request.method === 'POST' && (/^\/session\/[^/]+\/prompt_async$/.test(requestPath) || requestPath === '/session')) {
 			return json(response, { ok: true });
+		}
+		if (requestPath === '/provider' && options.providerPaddingBytes) {
+			return json(response, { providers: [], padding: 'x'.repeat(options.providerPaddingBytes) });
 		}
 		if (requestPath.startsWith('/session/') || requestPath === '/provider' || requestPath === '/config/providers') {
 			return json(response, {});
@@ -260,6 +264,25 @@ suite('Unigma OpenCode HTTP/SSE client', () => {
 		try {
 			await assert.rejects(client.connect(processFor(fixture.endpoint)), /missing a required operation: POST \/session/);
 			assert.ok(!fixture.requests.some(request => request.path === '/event'));
+		} finally {
+			await client.disconnect();
+			await fixture.close();
+		}
+	});
+
+	test('accepts a required response larger than the SSE event guard', async function () {
+		/*
+		 * OpenCode 1.18.23 answers `GET /provider` with more than 5 MiB on a bare
+		 * workspace, so the HTTP guard must not reject a required operation.
+		 */
+		this.timeout(20_000);
+		const fixture = await createFixture({ providerPaddingBytes: 6 * 1024 * 1024 });
+		const client = new OpenCodeHttpClient({ requestTimeoutMs: 15_000, startupTimeoutMs: 1000 });
+
+		try {
+			await client.connect(processFor(fixture.endpoint));
+			const providers = await client.send({ method: 'GET', path: '/provider' });
+			assert.ok(providers && typeof providers === 'object');
 		} finally {
 			await client.disconnect();
 			await fixture.close();

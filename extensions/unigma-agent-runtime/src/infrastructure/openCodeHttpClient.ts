@@ -62,7 +62,14 @@ const KNOWN_EVENT_TYPES = new Set([
 const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 const DEFAULT_STARTUP_TIMEOUT_MS = 15_000;
 const DEFAULT_HEALTH_CHECK_INTERVAL_MS = 30_000;
-const MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
+/*
+ * `GET /provider` is a required operation of the profile and the observed
+ * OpenCode 1.18.23 response is larger than 5 MiB on a bare workspace, so the
+ * HTTP guard must admit it while still bounding memory.
+ */
+const MAX_RESPONSE_BYTES = 16 * 1024 * 1024;
+/* A single SSE event stays under the smaller guard; no observed event needs more. */
+const MAX_EVENT_BUFFER_BYTES = 4 * 1024 * 1024;
 export const SUPPORTED_OPENCODE_VERSION = '1.18.23';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -357,7 +364,7 @@ export class OpenCodeHttpClient implements OpenCodeClient<OpenCodeRequest, OpenC
 
 	private consumeSseChunk(chunk: string): void {
 		this.eventBuffer += chunk;
-		if (Buffer.byteLength(this.eventBuffer) > MAX_RESPONSE_BYTES) {
+		if (Buffer.byteLength(this.eventBuffer) > MAX_EVENT_BUFFER_BYTES) {
 			this.failEventStream(new Error('OpenCode event is too large.'));
 			return;
 		}

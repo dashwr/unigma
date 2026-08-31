@@ -461,3 +461,60 @@ reconectado pelo adaptador, eventos de prompt/streaming, diff não vazio e uma
 permissão pendente real. Esses cenários exigem a suíte local compilada ou um
 provider local explicitamente autorizado; não devem ser simulados como suporte
 de provider nem avançam T-012.
+
+## evidência T-011 — contrato do cliente contra o binário real em 2026-08-30
+
+O `OpenCodeHttpClient` compilado foi executado contra `/usr/bin/opencode`
+`1.18.23` iniciado com `serve --pure --port <porta-reservada> --hostname
+127.0.0.1`, em workspace e `HOME`/XDG temporários, sem provider, credencial ou
+plugin externo. `connect()` passou: health `200` com `healthy: true` e
+`version: "1.18.23"`, OpenAPI `3.1.0` com 162 paths e os 14 pares requeridos,
+`/path` com `directory` igual ao workspace e primeiro evento SSE
+`server.connected`. O SHA-256 de `/doc` continua
+`dfb7d42a555389f0c662fa2b4a8af1d61633c96710cf54bce3ff2404e2e7d896`.
+
+Uma incompatibilidade real do adaptador foi encontrada e corrigida:
+`GET /provider` é `documentado / requerido`, mas a release responde
+`200` com `5 750 600` bytes num workspace vazio, acima do limite único de
+4 MiB que o cliente aplicava a toda resposta HTTP. O `send()` falhava com
+`OpenCode response is too large.`. O limite HTTP passou a 16 MiB e o guarda de
+buffer de um único evento SSE permaneceu em 4 MiB, porque nenhum evento
+observado se aproxima desse tamanho. Nenhum endpoint foi inventado e nenhum
+provider/modelo foi promovido a suportado.
+
+Fatos adicionais observados na mesma release, sem alteração de código:
+
+| Fato | Observação |
+| --- | --- |
+| `serve --port 0` | Não usa porta efêmera: o processo anuncia `opencode server listening on http://127.0.0.1:4096`. O runtime continua reservando e passando uma porta explícita, que o servidor respeita e anuncia. |
+| Anúncio de endpoint | A porta efetiva aparece no **stdout** do filho, junto de `Warning: OPENCODE_SERVER_PASSWORD is not set; server is unsecured.`; o `stderr` fica vazio. |
+| `/path` | Campos `home`, `state`, `config`, `worktree` e `directory`; fora de um repositório Git `worktree` é `/`, confirmando que só `directory` é autoridade de workspace. |
+| Envelope SSE | O evento traz `id` além de `type` e `properties`; o adaptador ignora o campo extra sem erro. |
+| Encerramento | `SIGTERM` encerra o processo em ~19 ms; a política de posse do supervisor não precisa de `SIGKILL` no caminho feliz. |
+| Rota desconhecida | `GET /not-in-profile` responde `200` (fallback de UI web do binário atual). O cliente continua bloqueando por allowlist do `/doc`, não por status HTTP. |
+| `POST /session/{id}/prompt_async` com `parts: []` | `204` sem corpo; `abort` responde `200` com `true`; `permissions/{id}` inválido responde `400` sem autoaprovação. |
+
+O teste de integração `openCodeRealE2E.test.ts` reproduz esse cenário, mas só
+executa com `OPENCODE_REAL_E2E=1` e quando `/usr/bin/opencode --version`
+retorna exatamente `1.18.23`. A suíte padrão não depende do executável externo
+e nenhuma fixture é apresentada como prova de binário suportado.
+
+Comandos executados nesta rodada, sob Node `24.18.0`:
+
+```text
+npm run gulp compile-extension:unigma-agent-runtime   # 0 erros
+npm --prefix extensions/unigma-agent-runtime test     # 61 passing, 1 pending
+OPENCODE_REAL_E2E=1 npm --prefix extensions/unigma-agent-runtime test  # 62 passing
+npm run typecheck-client                              # sem erro
+npm run test-build-scripts                            # 262/262
+npm exec -- eslint <arquivos alterados>               # sem achado
+git diff --check                                      # limpo
+```
+
+**Estado desta rodada: parcial.** O contrato HTTP/SSE do cliente compilado agora
+é executado contra o binário real e o limite de resposta deixou de bloquear uma
+operação requerida. Continuam sem evidência: prompt real com provider, streaming
+de mensagem, diff não vazio, permissão pendente real, queda e reconexão do SSE
+provocadas pelo servidor real, execução em Windows e o bundle service-only. Nada
+disso pode ser suprido por fixture, e o probe externo continua não sendo prova de
+release suportada.
