@@ -16,6 +16,7 @@ import {
 	type AgentLocalIntegrationPreflight,
 	AgentEvent,
 	AgentEventType,
+	type AgentCatalogResult,
 	validateAgentEvent,
 } from '../common/agentProtocol.js';
 
@@ -54,6 +55,8 @@ export interface IUnigmaAgentRuntime {
 	approve(sessionId: string, approvalId: string): Promise<void>;
 	reject(sessionId: string, approvalId: string, reason?: string): Promise<void>;
 	registerTransport(transport: IUnigmaAgentRpcTransport): IDisposable;
+	/** The pinned OpenCode `/doc` does not yet authorize catalog routes. */
+	getCatalog(): Promise<AgentCatalogResult>;
 }
 
 /*
@@ -197,6 +200,17 @@ export class UnigmaAgentRuntime extends Disposable implements IUnigmaAgentRuntim
 			workspaceUri,
 			localIntegrationPreflight: preflight,
 		});
+	}
+
+	async getCatalog(): Promise<AgentCatalogResult> {
+		return {
+			available: false,
+			error: {
+				code: AgentErrorCode.CapabilityUnavailable,
+				message: 'OpenCode catalog capability is unavailable until /doc confirms /command and /skill.',
+				retryable: false,
+			},
+		};
 	}
 
 	async sendInput(sessionId: string, text: string): Promise<void> {

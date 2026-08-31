@@ -70,7 +70,30 @@ export const enum AgentErrorCode {
 	WorktreeNotFound = 'worktreeNotFound',
 	ConfigurationInvalid = 'configurationInvalid',
 	Internal = 'internal',
+	CapabilityUnavailable = 'capabilityUnavailable',
 }
+
+/** Transient, sanitized entries returned by a documented OpenCode catalog. */
+export type AgentCatalogEntryKind = 'command' | 'skill';
+
+export interface AgentCatalogEntry {
+	readonly id: string;
+	readonly name: string;
+	readonly description: string;
+	readonly kind: AgentCatalogEntryKind;
+}
+
+export interface AgentCatalogUnavailable {
+	readonly available: false;
+	readonly error: AgentError;
+}
+
+export interface AgentCatalogAvailable {
+	readonly available: true;
+	readonly entries: readonly AgentCatalogEntry[];
+}
+
+export type AgentCatalogResult = AgentCatalogAvailable | AgentCatalogUnavailable;
 
 export const enum AgentApprovalKind {
 	Edit = 'edit',
@@ -210,6 +233,22 @@ export interface AgentError {
 	readonly code: AgentErrorCode;
 	readonly message: string;
 	readonly retryable: boolean;
+}
+
+export function validateAgentCatalog(value: unknown): AgentValidationResult<readonly AgentCatalogEntry[]> {
+	if (!Array.isArray(value)) {
+		return { valid: false, error: { code: AgentErrorCode.InvalidPayload, message: 'Catalog must be an array.', retryable: false } };
+	}
+	const entries: AgentCatalogEntry[] = [];
+	for (const entry of value) {
+		if (!isRecord(entry) || !hasOnlyKeys(entry, ['id', 'name', 'description', 'kind'])
+			|| !isNonEmptyString(entry.id) || !isNonEmptyString(entry.name) || typeof entry.description !== 'string'
+			|| (entry.kind !== 'command' && entry.kind !== 'skill')) {
+			return { valid: false, error: { code: AgentErrorCode.InvalidPayload, message: 'Catalog entry is invalid.', retryable: false } };
+		}
+		entries.push({ id: entry.id, name: entry.name, description: entry.description, kind: entry.kind });
+	}
+	return { valid: true, value: entries };
 }
 
 export interface AgentEventBase {
