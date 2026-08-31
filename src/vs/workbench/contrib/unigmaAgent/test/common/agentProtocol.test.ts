@@ -143,6 +143,40 @@ suite('AgentProtocol', () => {
 		assert.strictEqual(eventError.valid, false);
 	});
 
+	test('accepts only documented permission replies', () => {
+		for (const reply of ['once', 'always', 'reject'] as const) {
+			const resolved: AgentEvent = {
+				version: AGENT_PROTOCOL_VERSION,
+				type: AgentEventType.PermissionResolved,
+				sessionId: 'session-1',
+				resolution: { approvalId: 'approval-1', reply },
+			};
+			assert.strictEqual(validateAgentEvent(resolved).valid, true);
+			assert.strictEqual(isAgentEvent(resolved), true);
+		}
+
+		// An undocumented reply, a missing approval, or an extra field must fail closed.
+		for (const resolution of [
+			{ approvalId: 'approval-1', reply: 'maybe' },
+			{ approvalId: '', reply: 'once' },
+			{ reply: 'once' },
+			{ approvalId: 'approval-1', reply: 'once', reason: 'extra' },
+		]) {
+			assert.strictEqual(validateAgentEvent({
+				version: AGENT_PROTOCOL_VERSION,
+				type: AgentEventType.PermissionResolved,
+				sessionId: 'session-1',
+				resolution,
+			}).valid, false);
+		}
+
+		assert.strictEqual(validateAgentEvent({
+			version: AGENT_PROTOCOL_VERSION,
+			type: AgentEventType.PermissionResolved,
+			resolution: { approvalId: 'approval-1', reply: 'once' },
+		}).valid, false, 'a resolution without a session must be rejected');
+	});
+
 	test('accepts stateful errors emitted by the application layer', () => {
 		for (const code of [AgentErrorCode.DuplicateRequestId, AgentErrorCode.SessionNotFound]) {
 			const errorEvent: AgentEvent = {

@@ -290,6 +290,57 @@ suite('Unigma Agent contribution', () => {
 		assert.strictEqual(lateError, loading);
 	});
 
+	test('retires an approval only after the runtime reports the real reply', () => {
+		const permission = { approvalId: 'per-1', kind: AgentApprovalKind.Tool, title: 'bash' };
+		const started = reduceUnigmaAgentSessionEvent(startUnigmaAgentSession(), {
+			version: AGENT_PROTOCOL_VERSION,
+			type: AgentEventType.State,
+			sessionId: 'session-1',
+			state: AgentSessionState.Starting,
+		});
+		const asked = reduceUnigmaAgentSessionEvent(started, {
+			version: AGENT_PROTOCOL_VERSION,
+			type: AgentEventType.Permission,
+			sessionId: 'session-1',
+			permission,
+		});
+		assert.deepStrictEqual(asked.permission, permission);
+
+		// A reply for another approval or another session leaves the request pending.
+		const otherApproval = reduceUnigmaAgentSessionEvent(asked, {
+			version: AGENT_PROTOCOL_VERSION,
+			type: AgentEventType.PermissionResolved,
+			sessionId: 'session-1',
+			resolution: { approvalId: 'per-2', reply: 'once' },
+		});
+		const otherSession = reduceUnigmaAgentSessionEvent(asked, {
+			version: AGENT_PROTOCOL_VERSION,
+			type: AgentEventType.PermissionResolved,
+			sessionId: 'session-2',
+			resolution: { approvalId: 'per-1', reply: 'once' },
+		});
+		assert.strictEqual(otherApproval, asked);
+		assert.strictEqual(otherSession, asked);
+
+		const replied = reduceUnigmaAgentSessionEvent(asked, {
+			version: AGENT_PROTOCOL_VERSION,
+			type: AgentEventType.PermissionResolved,
+			sessionId: 'session-1',
+			resolution: { approvalId: 'per-1', reply: 'reject' },
+		});
+		assert.strictEqual(Object.hasOwn(replied, 'permission'), false, 'the pending approval must be removed, not blanked');
+		assert.strictEqual(replied.sessionId, 'session-1');
+		assert.strictEqual(replied.state, asked.state);
+
+		// A repeated reply is idempotent and never resurrects the approval.
+		assert.strictEqual(reduceUnigmaAgentSessionEvent(replied, {
+			version: AGENT_PROTOCOL_VERSION,
+			type: AgentEventType.PermissionResolved,
+			sessionId: 'session-1',
+			resolution: { approvalId: 'per-1', reply: 'reject' },
+		}), replied);
+	});
+
 	test('serializes Cancel clicks while stopSession is pending', async () => {
 		let resolveStop!: () => void;
 		let stopCalls = 0;

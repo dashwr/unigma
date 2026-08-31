@@ -84,6 +84,10 @@
 
 ## comandos focados
 
+- **não rode typecheck amplo nesta máquina**. Para validações de tipos, prefira
+  o runner self-hosted disponível; localmente só use um alvo mínimo de poucos
+  arquivos quando for indispensável e autorizado.
+
 Rode a partir da raiz, na ordem mínima afetada:
 
 ```bash

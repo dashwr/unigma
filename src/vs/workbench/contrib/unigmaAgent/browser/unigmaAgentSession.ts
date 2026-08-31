@@ -69,6 +69,17 @@ export function reduceUnigmaAgentSessionEvent(model: UnigmaAgentSessionViewModel
 			return { ...model, sessionId: event.sessionId, diff: event.diff };
 		case AgentEventType.Permission:
 			return { ...model, sessionId: event.sessionId, permission: event.permission };
+		case AgentEventType.PermissionResolved: {
+			/*
+			 * The approval is retired only when the runtime reports the real reply for
+			 * that same request; a local click never clears it.
+			 */
+			if (model.permission?.approvalId !== event.resolution.approvalId) {
+				return model;
+			}
+			const { permission, ...withoutPermission } = model;
+			return { ...withoutPermission, sessionId: event.sessionId };
+		}
 		case AgentEventType.Result:
 			return {
 				...model,

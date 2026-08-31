@@ -43,6 +43,7 @@ export const enum AgentEventType {
 	Content = 'content',
 	Diff = 'diff',
 	Permission = 'permission',
+	PermissionResolved = 'permissionResolved',
 	Worktrees = 'worktrees',
 	Result = 'result',
 	Error = 'error',
@@ -180,6 +181,18 @@ export interface AgentPermissionRequest {
 	readonly diffId?: string;
 }
 
+/** The reply values documented by the pinned OpenCode release. */
+export type AgentPermissionReply = 'once' | 'always' | 'reject';
+
+/**
+ * Reports how a permission request was actually answered by the runtime.
+ * The UI must not retire an approval before receiving this.
+ */
+export interface AgentPermissionResolution {
+	readonly approvalId: string;
+	readonly reply: AgentPermissionReply;
+}
+
 export interface AgentWorktree {
 	readonly id: string;
 	readonly label: string;
@@ -232,6 +245,11 @@ export interface AgentPermissionEvent extends AgentSessionEventBase {
 	readonly permission: AgentPermissionRequest;
 }
 
+export interface AgentPermissionResolvedEvent extends AgentSessionEventBase {
+	readonly type: AgentEventType.PermissionResolved;
+	readonly resolution: AgentPermissionResolution;
+}
+
 export interface AgentWorktreesEvent extends AgentSessionEventBase {
 	readonly type: AgentEventType.Worktrees;
 	readonly worktrees: readonly AgentWorktree[];
@@ -254,6 +272,7 @@ export type AgentEvent =
 	| AgentContentEvent
 	| AgentDiffEvent
 	| AgentPermissionEvent
+	| AgentPermissionResolvedEvent
 	| AgentWorktreesEvent
 	| AgentResultEvent
 	| AgentErrorEvent;
@@ -447,6 +466,13 @@ function isAgentPermissionRequest(value: unknown): value is AgentPermissionReque
 	return true;
 }
 
+function isAgentPermissionResolution(value: unknown): value is AgentPermissionResolution {
+	return isRecord(value)
+		&& hasOnlyKeys(value, ['approvalId', 'reply'])
+		&& isNonEmptyString(value.approvalId)
+		&& (value.reply === 'once' || value.reply === 'always' || value.reply === 'reject');
+}
+
 function isAgentWorktree(value: unknown): value is AgentWorktree {
 	return isRecord(value)
 		&& hasOnlyKeys(value, ['id', 'label', 'branch', 'isCurrent'])
@@ -561,6 +587,12 @@ function getAgentEventError(value: unknown): AgentError | undefined {
 				&& isAgentPermissionRequest(event.permission)
 				? undefined
 				: invalidPayload('Permission event requires a sessionId and valid permission.');
+		case AgentEventType.PermissionResolved:
+			return hasOnlyKeys(event, ['version', 'type', 'requestId', 'sessionId', 'resolution'])
+				&& sessionIdIsValid
+				&& isAgentPermissionResolution(event.resolution)
+				? undefined
+				: invalidPayload('Permission resolved event requires a sessionId and valid resolution.');
 		case AgentEventType.Worktrees:
 			return hasOnlyKeys(event, ['version', 'type', 'requestId', 'sessionId', 'worktrees'])
 				&& sessionIdIsValid

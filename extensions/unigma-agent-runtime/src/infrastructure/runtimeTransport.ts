@@ -303,7 +303,9 @@ export class RuntimeTransportBridge implements RuntimeTransport {
 					},
 					requestId,
 				});
+				return;
 			}
+			this.emitError(requestId, TransportErrorCode.InvalidPayload, 'The runtime returned an invalid diff.', false);
 		} catch {
 			this.emitError(requestId, TransportErrorCode.Internal, 'The runtime could not retrieve the diff.', false);
 		}
@@ -468,6 +470,14 @@ export class RuntimeTransportBridge implements RuntimeTransport {
 				const sessionId = typeof event.properties.sessionID === 'string' ? event.properties.sessionID : typeof event.properties.sessionId === 'string' ? event.properties.sessionId : undefined;
 				const approvalId = typeof event.properties.permissionID === 'string' ? event.properties.permissionID : typeof event.properties.id === 'string' ? event.properties.id : undefined;
 				if (sessionId && approvalId) {
+					/*
+					 * `permission.asked` documents `permission` as the only descriptive
+					 * field. `title`/`description` are read for the legacy
+					 * `permission.updated` shape and are not required to exist.
+					 */
+					const documentedPermission = typeof event.properties.permission === 'string' && event.properties.permission.length > 0
+						? event.properties.permission
+						: undefined;
 					this.emitEvent({
 						version: TRANSPORT_PROTOCOL_VERSION,
 						type: TransportEventType.Permission,
@@ -475,9 +485,28 @@ export class RuntimeTransportBridge implements RuntimeTransport {
 						permission: {
 							approvalId,
 							kind: typeof event.properties.type === 'string' && (event.properties.type === 'edit' || event.properties.type === 'command' || event.properties.type === 'tool') ? event.properties.type : 'tool',
-							title: typeof event.properties.title === 'string' ? event.properties.title : typeof event.properties.description === 'string' ? event.properties.description : 'Agent action requires approval',
+							title: typeof event.properties.title === 'string' ? event.properties.title : documentedPermission ?? (typeof event.properties.description === 'string' ? event.properties.description : 'Agent action requires approval'),
 							...(typeof event.properties.title === 'string' && typeof event.properties.description === 'string' && event.properties.description !== event.properties.title ? { description: event.properties.description } : {}),
 						},
+					});
+				}
+				break;
+			}
+			case 'permission.replied': {
+				/*
+				 * Documented shape of OpenCode 1.18.23: `{ sessionID, requestID, reply }`
+				 * with `reply` limited to `once`, `always`, or `reject`. Anything else is
+				 * dropped so the UI never clears an approval it cannot prove was answered.
+				 */
+				const sessionId = typeof event.properties.sessionID === 'string' ? event.properties.sessionID : undefined;
+				const approvalId = typeof event.properties.requestID === 'string' ? event.properties.requestID : undefined;
+				const reply = event.properties.reply;
+				if (sessionId && approvalId && (reply === 'once' || reply === 'always' || reply === 'reject')) {
+					this.emitEvent({
+						version: TRANSPORT_PROTOCOL_VERSION,
+						type: TransportEventType.PermissionResolved,
+						sessionId,
+						resolution: { approvalId, reply },
 					});
 				}
 				break;

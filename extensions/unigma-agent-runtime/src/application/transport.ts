@@ -45,6 +45,7 @@ export const enum TransportEventType {
 	Content = 'content',
 	Diff = 'diff',
 	Permission = 'permission',
+	PermissionResolved = 'permissionResolved',
 	Worktrees = 'worktrees',
 	Result = 'result',
 	Error = 'error',
@@ -192,6 +193,15 @@ export interface TransportPermissionRequest {
 	readonly title: string;
 	readonly description?: string;
 	readonly diffId?: string;
+}
+
+/** The reply values documented by OpenCode 1.18.23 for a permission request. */
+export type TransportPermissionReply = 'once' | 'always' | 'reject';
+
+/** Reports how a permission request was actually answered; never inferred locally. */
+export interface TransportPermissionResolution {
+	readonly approvalId: string;
+	readonly reply: TransportPermissionReply;
 }
 
 export interface TransportWorktree {
@@ -384,6 +394,11 @@ export interface TransportPermissionEvent extends TransportSessionEventBase {
 	readonly permission: TransportPermissionRequest;
 }
 
+export interface TransportPermissionResolvedEvent extends TransportSessionEventBase {
+	readonly type: TransportEventType.PermissionResolved;
+	readonly resolution: TransportPermissionResolution;
+}
+
 export interface TransportWorktreesEvent extends TransportSessionEventBase {
 	readonly type: TransportEventType.Worktrees;
 	readonly worktrees: readonly TransportWorktree[];
@@ -405,6 +420,7 @@ export type TransportEvent =
 	| TransportContentEvent
 	| TransportDiffEvent
 	| TransportPermissionEvent
+	| TransportPermissionResolvedEvent
 	| TransportWorktreesEvent
 	| TransportResultEvent
 	| TransportErrorEvent;
@@ -415,6 +431,7 @@ function isTransportEventType(value: unknown): value is TransportEventType {
 		case TransportEventType.Content:
 		case TransportEventType.Diff:
 		case TransportEventType.Permission:
+		case TransportEventType.PermissionResolved:
 		case TransportEventType.Worktrees:
 		case TransportEventType.Result:
 		case TransportEventType.Error:
@@ -491,6 +508,13 @@ function isTransportPermissionRequest(value: unknown): value is TransportPermiss
 		&& isOptionalString(value.diffId);
 }
 
+function isTransportPermissionResolution(value: unknown): value is TransportPermissionResolution {
+	return isTransportRecord(value)
+		&& hasOnlyKeys(value, ['approvalId', 'reply'])
+		&& isNonEmptyString(value.approvalId)
+		&& (value.reply === 'once' || value.reply === 'always' || value.reply === 'reject');
+}
+
 function isTransportWorktree(value: unknown): value is TransportWorktree {
 	return isTransportRecord(value)
 		&& hasOnlyKeys(value, ['id', 'label', 'branch', 'isCurrent'])
@@ -561,6 +585,12 @@ function getTransportEventError(value: unknown): TransportError | undefined {
 				&& isTransportPermissionRequest(event.permission)
 				? undefined
 				: invalidPayload('Permission event requires a sessionId and valid permission.');
+		case TransportEventType.PermissionResolved:
+			return hasOnlyKeys(event, ['version', 'type', 'requestId', 'sessionId', 'resolution'])
+				&& sessionIdIsValid
+				&& isTransportPermissionResolution(event.resolution)
+				? undefined
+				: invalidPayload('Permission resolved event requires a sessionId and valid resolution.');
 		case TransportEventType.Worktrees:
 			return hasOnlyKeys(event, ['version', 'type', 'requestId', 'sessionId', 'worktrees'])
 				&& sessionIdIsValid

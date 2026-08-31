@@ -52,12 +52,12 @@ function portsFor(options: {
 		},
 		processManager: {
 			ensureStarted: async workspace => options.ensureStarted?.(workspace) ?? processHandle,
-			stopOwned: async () => {},
+			stopOwned: async () => { },
 		},
 		localIntegrationPreflight: options.preflight ?? ((_workspace, requested) => requested ?? ({ accepted: true })),
 		openCodeClient: {
-			connect: options.connect ?? (async () => {}),
-			disconnect: async () => {},
+			connect: options.connect ?? (async () => { }),
+			disconnect: async () => { },
 			send: options.send ?? (async request => request.path === '/session' ? { id: 'session-new' } : {}),
 			onEvent: options.onEvent ?? (listener => {
 				eventEmitter.on('event', listener);
@@ -66,11 +66,11 @@ function portsFor(options: {
 		},
 		sessionReferenceStore: {
 			read: async () => undefined,
-			write: async (_reference: SessionReference) => {},
-			remove: async (_workspace: WorkspaceReference) => {},
+			write: async (_reference: SessionReference) => { },
+			remove: async (_workspace: WorkspaceReference) => { },
 		},
 		diagnostics: {
-			record: () => {},
+			record: () => { },
 		},
 		eventEmitter,
 	};
@@ -381,7 +381,7 @@ suite('RuntimeTransportBridge', () => {
 		assert.deepStrictEqual(requests[1], {
 			method: 'POST',
 			path: '/session/session-new/permissions/approval-1',
-		body: { response: 'once' },
+			body: { response: 'once' },
 		});
 		assert.strictEqual(events.length, 1); // Only the start event, no approve event
 		bridge.dispose();
@@ -419,7 +419,7 @@ suite('RuntimeTransportBridge', () => {
 		assert.deepStrictEqual(requests[1], {
 			method: 'POST',
 			path: '/session/session-new/permissions/approval-1',
-		body: { response: 'reject' },
+			body: { response: 'reject' },
 		});
 		bridge.dispose();
 	});
@@ -598,6 +598,74 @@ suite('RuntimeTransportBridge', () => {
 			sessionId: 'session-1',
 			permission: { approvalId: 'per-1', kind: 'edit', title: 'Edit file' },
 		}]);
+		bridge.dispose();
+	});
+
+	test('uses the documented permission field as the title of permission.asked', async () => {
+		const ports = portsFor();
+		const bridge = new RuntimeTransportBridge(ports);
+		const events: TransportEvent[] = [];
+		bridge.onEvent(event => events.push(event));
+
+		// Exact shape documented by OpenCode 1.18.23: no title, description, or type.
+		ports.eventEmitter.emit('event', {
+			type: 'permission.asked',
+			properties: {
+				id: 'per-1',
+				sessionID: 'session-1',
+				permission: 'bash',
+				patterns: ['rm *'],
+				metadata: {},
+				always: [],
+				tool: { messageID: 'msg-1', callID: 'call-1' },
+			},
+		});
+
+		assert.deepStrictEqual(events, [{
+			version: TRANSPORT_PROTOCOL_VERSION,
+			type: TransportEventType.Permission,
+			sessionId: 'session-1',
+			permission: { approvalId: 'per-1', kind: 'tool', title: 'bash' },
+		}]);
+		bridge.dispose();
+	});
+
+	test('translates documented permission.replied events', async () => {
+		for (const reply of ['once', 'always', 'reject'] as const) {
+			const ports = portsFor();
+			const bridge = new RuntimeTransportBridge(ports);
+			const events: TransportEvent[] = [];
+			bridge.onEvent(event => events.push(event));
+
+			ports.eventEmitter.emit('event', {
+				type: 'permission.replied',
+				properties: { sessionID: 'session-1', requestID: 'per-1', reply },
+			});
+
+			assert.deepStrictEqual(events, [{
+				version: TRANSPORT_PROTOCOL_VERSION,
+				type: TransportEventType.PermissionResolved,
+				sessionId: 'session-1',
+				resolution: { approvalId: 'per-1', reply },
+			}]);
+			bridge.dispose();
+		}
+	});
+
+	test('drops permission.replied payloads that are not documented', async () => {
+		const ports = portsFor();
+		const bridge = new RuntimeTransportBridge(ports);
+		const events: TransportEvent[] = [];
+		bridge.onEvent(event => events.push(event));
+
+		// An undocumented reply, a missing requestID, or a missing session resolves nothing.
+		ports.eventEmitter.emit('event', { type: 'permission.replied', properties: { sessionID: 'session-1', requestID: 'per-1', reply: 'maybe' } });
+		ports.eventEmitter.emit('event', { type: 'permission.replied', properties: { sessionID: 'session-1', reply: 'once' } });
+		ports.eventEmitter.emit('event', { type: 'permission.replied', properties: { requestID: 'per-1', reply: 'once' } });
+		// The legacy field name is not the documented one and must not be accepted either.
+		ports.eventEmitter.emit('event', { type: 'permission.replied', properties: { sessionID: 'session-1', permissionID: 'per-1', reply: 'once' } });
+
+		assert.deepStrictEqual(events, []);
 		bridge.dispose();
 	});
 
