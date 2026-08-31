@@ -242,6 +242,54 @@ prova:           a remoção das dependências da raiz e do remote não quebrou 
 não prova:       notice root regenerado, clearance legal de terceiros, sessão
                  OpenCode real ou qualquer capacidade SSH.
 
+### matriz oficial — contrato OpenCode/SSH — 2026-08-31
+
+data:            2026-08-31
+tarefa/gate:     `E01-B` / `E01-D` — contratos OpenCode e SSH fail-closed
+run id:          `33345230165` (rerun)
+workflow:        `unigma-self-hosted-validation.yml`
+commit/head:     `d00521d65c9a4bed25d1d54c4056701033ee08fc`
+plataforma:      windows-x64 — runner self-hosted
+node/npm:        `v24.18.0` / npm 11.x
+passos:
+  1 `install dependencies`                     ok
+  2 `compile unigma agent runtime`             ok
+  3 `run focused upstream checks`              ok
+  4 `build windows x64 package`                ok
+  5 `audit windows x64 package`                ok
+  6 `run desktop smoke test`                   ok
+  7 `write artifact evidence`                  ok
+  8 `upload windows evidence`                  ok
+artefato:        `unigma-windows-x64-33345230165` (id `9742391434`, `251783295` bytes)
+hashes:          registrados no artefato pelo passo `write artifact evidence`
+prova:           o patch OpenCode/SSH compila e não regrede o pacote Windows,
+                 auditoria ou smoke de núcleo.
+não prova:       conexão SSH real, `unigma-server`, provider/modelo real,
+                 streaming/diff real, bundle service-only ou notices root.
+
+data:            2026-08-31
+tarefa/gate:     `E01-B` / `E01-D` — contratos OpenCode e SSH fail-closed
+run id:          `33347302898`
+workflow:        `unigma-linux-wsl-validation.yml`
+commit/head:     `d00521d65c9a4bed25d1d54c4056701033ee08fc`
+plataforma:      linux-x64 — Ubuntu WSL2 sobre o runner Windows
+node/npm:        `v24.18.0` / npm 11.x
+passos:
+  1 `install Linux dependencies and Node in WSL`  ok
+  2 `install dependencies in WSL`                 ok
+  3 `compile unigma agent runtime in WSL`         ok
+  4 `build Linux x64 package in WSL`              ok
+  5 `audit Linux x64 package in WSL`              ok
+  6 `run Linux desktop smoke test in WSL`         ok
+  7 `write Linux artifact evidence`               ok
+  8 `upload Linux evidence`                       ok
+artefato:        `unigma-linux-x64-33347302898` (id `9742755123`, `178649969` bytes)
+hashes:          registrados no artefato pelo passo `write Linux artifact evidence`
+prova:           o mesmo patch também passa por pacote, auditoria e smoke em
+                 Linux/WSL2.
+não prova:       conexão SSH real, `unigma-server`, provider/modelo real,
+                 streaming/diff real, bundle service-only ou notices root.
+
 data:            2026-08-30
 tarefa/gate:     `OVN-BRANDING-PACKAGE` / `D-032` — dependências e About
 run id:          `33341927790`

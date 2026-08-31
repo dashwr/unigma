@@ -70,6 +70,11 @@
 > raiz e de `remote/`. Artefatos: Windows `9740716863` / `251764464` bytes;
 > Linux `9741090425` / `178618673` bytes.
 >
+> validado: 2026-08-31 — o patch de contrato real OpenCode e a fronteira SSH
+> fail-closed passaram novamente no mesmo head `d00521d6`: Windows
+> `33345230165` e Linux/WSL2 `33347302898`; artefatos `9742391434` /
+> `251783295` bytes e `9742755123` / `178649969` bytes.
+>
 > feito: 2026-08-29 — auditoria somente-leitura do CLI Rust registrada em
 > [`status/2026-08-29-cli-audit.md`](status/2026-08-29-cli-audit.md). Ela separa o
 > Code Server (necessário ao SSH remoto, preservado) do Agent Host/AHP herdado

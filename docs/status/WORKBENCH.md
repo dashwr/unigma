@@ -14,8 +14,8 @@ entre a onda 1 e a colheita da onda 2. `CLI-001` está em `review`: os testes Ru
 e a compilação de `terminal-suggest` passaram localmente; os gates de runner da
 etapa A estão verdes.
 `OVN-D024` fechou a matriz oficial em 2026-08-30 no head `91867fb1`; a matriz
-final de remoção de dependências Copilot fechou no head `ac74acec`: Windows
-`33340526388` e Linux/WSL2 `33341927790` concluíram todos os passos, incluindo
+final de contratos OpenCode/SSH fechou no head `d00521d6`: Windows
+`33345230165` e Linux/WSL2 `33347302898` concluíram todos os passos, incluindo
 instalação limpa, pacote, auditoria de distribuição, smoke e evidência de
 artefato. As entradas formais estão em [`EVIDENCE.md`](EVIDENCE.md); o que
 continua em aberto é o inventário de terceiros da raiz, clearance legal e
