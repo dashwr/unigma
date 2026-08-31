@@ -757,6 +757,12 @@ estão pendentes.
 
 ## E-05 — remoto SSH
 
+> feito parcial: 2026-08-30 — `unigma-remote-ssh` passou a registrar a autoridade
+> `ssh-remote`, validar aliases/targets sem segredo, testar disponibilidade do
+> OpenSSH apenas com `ssh -V` e aplicar gates fail-closed antes de qualquer
+> conexão. O transporte, o `unigma-server`, a host key e a matriz real continuam
+> bloqueados: este ambiente não possui servidor nem host keys configuradas.
+
 ### T-050 — criar/adaptar autoridade remota OpenSSH
 
 - **objetivo:** integrar `unigma-remote-ssh` ao modelo de autoridade remota do
