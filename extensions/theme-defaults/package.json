@@ -20,6 +20,12 @@
         "path": "./themes/2026-light.json"
       },
       {
+        "id": "Vesper Violet",
+        "label": "%vesperVioletThemeLabel%",
+        "uiTheme": "vs-dark",
+        "path": "./themes/vesper-violet.json"
+      },
+      {
         "id": "Dark 2026",
         "label": "%dark2026ThemeLabel%",
         "uiTheme": "vs-dark",
