@@ -1,0 +1,87 @@
+name: build OpenCode Linux artifact
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-opencode-linux-x64:
+    name: build fixed OpenCode Linux x64
+    runs-on: self-hosted
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: powershell
+    env:
+      OPENCODE_COMMIT: c2eacd72afc4a4984564c393e15ab30011057269
+
+    steps:
+      - name: checkout Unigma workflow ref
+        uses: actions/checkout@v4
+
+      - name: prepare WSL paths
+        run: |
+          $workspace = $env:GITHUB_WORKSPACE -replace '\', '/'
+          if ($workspace -notmatch '^([A-Za-z]):/(.+)$') {
+            throw "Unsupported Windows workspace path: $env:GITHUB_WORKSPACE"
+          }
+          $drive = $matches[1].ToLowerInvariant()
+          $path = $matches[2]
+          [System.IO.File]::AppendAllText($env:GITHUB_ENV, "WSL_OUTPUT=/mnt/$drive/$path/opencode-artifact`n")
+
+      - name: build fixed OpenCode in WSL
+        run: |
+          $scriptPath = Join-Path $env:RUNNER_TEMP 'unigma-build-opencode.sh'
+          $script = @'
+          set -euo pipefail
+
+          output="$1"
+          commit="$2"
+          if ! command -v bun >/dev/null 2>&1; then
+            echo "bun is unavailable in WSL; refusing to install a toolchain implicitly" >&2
+            exit 1
+          fi
+
+          source="$(mktemp -d)"
+          trap 'rm -rf "$source"' EXIT
+          git init --quiet "$source"
+          git -C "$source" remote add origin https://github.com/anomalyco/opencode.git
+          git -C "$source" fetch --depth 1 origin "$commit"
+          git -C "$source" checkout --detach --quiet FETCH_HEAD
+          test "$(git -C "$source" rev-parse HEAD)" = "$commit"
+
+          cd "$source"
+          bun install --frozen-lockfile
+          bun run --cwd packages/opencode build -- --single --skip-install
+
+          binary="packages/opencode/dist/opencode-linux-x64/bin/opencode"
+          test -x "$binary"
+          rm -rf "$output"
+          mkdir -p "$output/bin"
+          install -m 0755 "$binary" "$output/bin/opencode"
+          install -m 0644 LICENSE "$output/LICENSE-opencode.txt"
+          {
+            printf 'source=https://github.com/anomalyco/opencode\n'
+            printf 'commit=%s\n' "$commit"
+            printf 'version=%s\n' "$(bun -e "console.log((await Bun.file('./packages/opencode/package.json').json()).version)")"
+            printf 'license=MIT\n'
+            sha256sum "$output/bin/opencode"
+          } > "$output/PROVENANCE.txt"
+          '@
+          $script = $script -replace "`r`n?", "`n"
+          [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))
+          $scriptPathWsl = "/mnt/$($scriptPath.Substring(0, 1).ToLowerInvariant())/$($scriptPath.Substring(3).Replace('\', '/'))"
+          & wsl.exe -d Ubuntu --user dasher -- bash $scriptPathWsl $env:WSL_OUTPUT $env:OPENCODE_COMMIT
+          $exitCode = $LASTEXITCODE
+          Remove-Item -Force $scriptPath -ErrorAction SilentlyContinue
+          if ($exitCode -ne 0) { exit $exitCode }
+
+      - name: upload OpenCode Linux x64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: opencode-linux-x64-c2eacd72
+          path: opencode-artifact
+          if-no-files-found: error
+          retention-days: 7
