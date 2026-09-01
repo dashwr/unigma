@@ -110,9 +110,11 @@ jobs:
           test "$(git -C "$source" rev-parse HEAD)" = "$commit"
 
           cd "$source"
+          df -h "$HOME" "$source"
+          df -i "$HOME" "$source"
           install_log="${output}.install.log"
           rm -f "$install_log"
-          if ! bun install --frozen-lockfile 2>&1 | tee "$install_log"; then
+          if ! bun install --frozen-lockfile --verbose 2>&1 | tee "$install_log"; then
             tail -n 250 "$install_log" >&2
             exit 1
           fi
