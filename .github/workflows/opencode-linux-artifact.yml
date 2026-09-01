@@ -111,7 +111,12 @@ jobs:
 
           cd "$source"
           bun install --frozen-lockfile
-          OPENCODE_VERSION=1.18.23 bun run --cwd packages/opencode build -- --single --skip-install
+          build_log="${output}.log"
+          rm -f "$build_log"
+          if ! OPENCODE_VERSION=1.18.23 bun run --cwd packages/opencode build -- --single --skip-install 2>&1 | tee "$build_log"; then
+            tail -n 250 "$build_log" >&2
+            exit 1
+          fi
 
           binary="packages/opencode/dist/opencode-linux-x64/bin/opencode"
           test -x "$binary"
@@ -141,4 +146,13 @@ jobs:
           name: opencode-linux-x64-c2eacd72
           path: opencode-artifact
           if-no-files-found: error
+          retention-days: 7
+
+      - name: upload OpenCode build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: opencode-linux-build-log-${{ github.run_id }}
+          path: opencode-artifact.log
+          if-no-files-found: warn
           retention-days: 7
