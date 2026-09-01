@@ -717,6 +717,11 @@ estão pendentes.
 
 ### T-043 — integrar atalhos de ferramentas e skills
 
+> parcial: 2026-08-31 — parser nativo de `@`/`/`, catálogo RPC sanitizado e
+> consulta comprovada a `/command` + `/skill` foram implementados. `@` permanece
+> referência textual de arquivo/agente sem catálogo especulativo; a validação
+> de build/teste no runner aguarda publicação da branch.
+
 - **objetivo:** oferecer `@` para ferramentas e `/` para skills na superfície
   nativa do agente, encaminhando a seleção pelo contrato do OpenCode.
 - **responsável lógico:** workbench nativo + runtime OpenCode.
