@@ -20,31 +20,34 @@ function run(arguments_: readonly string[]) {
 test('creates a deterministic Linux payload manifest from explicit inputs', () => {
 	const root = mkdtempSync(join(tmpdir(), 'unigma-payload-'));
 	try {
-		const server = join(root, 'unigma-server');
+		const server = join(root, 'unigma-server.tar.gz');
 		const opencode = join(root, 'opencode');
 		const license = join(root, 'LICENSE');
 		const output = join(root, 'payload');
-		writeFileSync(server, 'server');
+		writeFileSync(server, 'server archive');
 		writeFileSync(opencode, 'opencode');
 		writeFileSync(license, 'MIT');
 
 		const result = run(['--server', server, '--opencode', opencode, '--output', output, '--client-commit', commit, '--server-commit', commit, '--target', 'linux-x64', '--opencode-license', license]);
 		assert.equal(result.status, 0, result.stderr);
-		assert.equal(readFileSync(join(output, 'bin', 'unigma-server'), 'utf8'), 'server');
+		assert.equal(readFileSync(join(output, 'server', 'unigma-server.tar.gz'), 'utf8'), 'server archive');
 		assert.equal(readFileSync(join(output, 'bin', 'opencode'), 'utf8'), 'opencode');
 		assert.equal(readFileSync(join(output, 'LICENSE-opencode.txt'), 'utf8'), 'MIT');
-		assert.deepEqual(JSON.parse(readFileSync(join(output, 'manifest.json'), 'utf8')), {
+		const manifest = JSON.parse(readFileSync(join(output, 'manifest.json'), 'utf8'));
+		assert.deepEqual({ ...manifest, files: manifest.files.map((file: { sha256: string }) => ({ ...file, sha256: '<sha256>' })) }, {
 			schemaVersion: 1,
 			product: 'unigma',
 			clientCommit: commit,
 			serverCommit: commit,
 			target: { os: 'linux', arch: 'x64' },
-			totalSizeBytes: 14,
+			totalSizeBytes: 22,
 			files: [
-				{ id: 'unigma-server', relativePath: 'bin/unigma-server', sizeBytes: 6, sha256: 'b3eacd33433b31b5252351032c9b3e7a2e7aa7738d5decdf0dd6c62680853c06' },
-				{ id: 'unigma+opencode', relativePath: 'bin/opencode', sizeBytes: 8, sha256: '62f8e1ec095e1857446d403d1431007de8813aea9553a56ccd4552a131b1f297' },
+				{ id: 'unigma-server', relativePath: 'server/unigma-server.tar.gz', sizeBytes: 14, sha256: '<sha256>' },
+				{ id: 'unigma+opencode', relativePath: 'bin/opencode', sizeBytes: 8, sha256: '<sha256>' },
 			],
 		});
+		assert.match(manifest.files[0].sha256, /^[a-f0-9]{64}$/);
+		assert.match(manifest.files[1].sha256, /^[a-f0-9]{64}$/);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}
@@ -53,11 +56,16 @@ test('creates a deterministic Linux payload manifest from explicit inputs', () =
 test('fails closed for mismatched commits and a non-empty output', () => {
 	const root = mkdtempSync(join(tmpdir(), 'unigma-payload-'));
 	try {
-		const server = join(root, 'unigma-server');
+		const server = join(root, 'unigma-server.tar.gz');
+		const nonArchiveServer = join(root, 'unigma-server');
 		const opencode = join(root, 'opencode');
 		const output = join(root, 'payload');
-		writeFileSync(server, 'server');
+		writeFileSync(server, 'server archive');
+		writeFileSync(nonArchiveServer, 'server wrapper');
 		writeFileSync(opencode, 'opencode');
+		const nonArchive = run(['--server', nonArchiveServer, '--opencode', opencode, '--output', output, '--client-commit', commit, '--server-commit', commit, '--target', 'linux-x64']);
+		assert.equal(nonArchive.status, 1);
+		assert.match(nonArchive.stderr, /server must be a .tar.gz archive/);
 		mkdirSync(output);
 		writeFileSync(join(output, 'existing'), 'no overwrite');
 

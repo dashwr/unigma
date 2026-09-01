@@ -41,10 +41,12 @@ function main(): void {
 	if (clientCommit !== serverCommit || !sha1.test(clientCommit) || !sha1.test(serverCommit)) { throw new Error('commits must be equal 40-character SHA-1 values'); }
 	if (argument(values, '--target') !== 'linux-x64') { throw new Error('target must be linux-x64'); }
 	regularFile(server); regularFile(opencode);
+	if (!server.endsWith('.tar.gz')) { throw new Error('server must be a .tar.gz archive'); }
 	if (server === opencode || server === output || opencode === output) { throw new Error('payload sources and output must be distinct'); }
 	if (existsSync(output) && (lstatSync(output).isSymbolicLink() || !lstatSync(output).isDirectory() || readdirSync(output).length > 0)) { throw new Error('output must be new or empty'); }
 	const bin = join(output, 'bin'); mkdirSync(bin, { recursive: true });
-	const files = [{ id: 'unigma-server', source: server, relativePath: 'bin/unigma-server' }, { id: 'unigma+opencode', source: opencode, relativePath: 'bin/opencode' }];
+	const serverDirectory = join(output, 'server'); mkdirSync(serverDirectory, { recursive: true });
+	const files = [{ id: 'unigma-server', source: server, relativePath: 'server/unigma-server.tar.gz' }, { id: 'unigma+opencode', source: opencode, relativePath: 'bin/opencode' }];
 	for (const item of files) { cpSync(item.source, join(output, item.relativePath)); }
 	const manifestFiles = files.map(item => { const path = join(output, item.relativePath); return { id: item.id, relativePath: item.relativePath, sizeBytes: statSync(path).size, sha256: digest(path) }; });
 	const license = values.get('--opencode-license');

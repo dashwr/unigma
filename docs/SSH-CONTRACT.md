@@ -171,6 +171,12 @@ e exige confirmação explícita para aquele host. O payload entra em diretório
 versionado pertencente ao usuário remoto; somente após validar o manifesto ocorre
 a ativação atômica. A versão anterior não é apagada por este fluxo.
 
+No payload local v1, `unigma-server` é o arquivo `server/unigma-server.tar.gz`:
+um tar.gz da distribuição Linux x64 completa do servidor deste fork. O wrapper
+`bin/unigma-server` não pode ser transportado isoladamente, porque depende da
+árvore de runtime e extensões do servidor. A extração no staging remoto pertence
+ao transporte/ativação de T-050 e ainda não está implementada.
+
 Não há CDN, `updateUrl`, download automático, elevação ou instalação global. A
 entrega ainda precisa de artefato local aceito, manifesto/hashes e testes de
 interrupção/rollback; sem esses insumos o provisionamento falha fechado.
