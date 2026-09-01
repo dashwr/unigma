@@ -111,7 +111,7 @@ jobs:
 
           cd "$source"
           bun install --frozen-lockfile
-          bun run --cwd packages/opencode build -- --single --skip-install
+          OPENCODE_VERSION=1.18.23 bun run --cwd packages/opencode build -- --single --skip-install
 
           binary="packages/opencode/dist/opencode-linux-x64/bin/opencode"
           test -x "$binary"
