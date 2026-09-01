@@ -796,6 +796,12 @@ estão pendentes.
 > tamanhos, commit/target e caminhos seguros. Ainda não há gerador de artefato,
 > conexão, cópia, escrita ou ativação remota.
 
+> extensão: 2026-09-01 — `build/unigma/make-payload.ts` monta localmente o
+> par a partir de dois binários explícitos, copia a licença OpenCode somente se
+> ela for fornecida e gera `manifest.json` com SHA-256. A fonte auditada é
+> OpenCode `1.18.23`/MIT no commit `c2eacd72…`; build do checkout, notices e
+> qualquer distribuição continuam pendentes.
+
 - **objetivo:** integrar `unigma-remote-ssh` ao modelo de autoridade remota do
   Code - OSS usando OpenSSH existente.
 - **responsável lógico:** engenharia remota.
