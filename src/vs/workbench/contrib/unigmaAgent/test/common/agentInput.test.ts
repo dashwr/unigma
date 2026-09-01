@@ -10,13 +10,13 @@ import { getUnigmaAgentInputAction, parseUnigmaAgentInput } from '../../common/a
 suite('Unigma agent input parser', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('parses a final @ reference and preserves preceding text', () => {
+	test('parses a final @ reference without treating commands as agents', () => {
 		assert.deepStrictEqual(parseUnigmaAgentInput('explain this @main', [
 			{ id: 'main', name: 'Main agent', description: 'agent', kind: 'command' },
 			{ id: 'deploy', name: 'Deploy', description: 'skill', kind: 'skill' },
 		]), {
 			trigger: 'reference', marker: '@', filter: 'main', text: 'explain this ',
-			entries: [{ id: 'main', name: 'Main agent', description: 'agent', kind: 'command' }],
+			entries: [],
 		});
 	});
 

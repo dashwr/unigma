@@ -27,7 +27,8 @@ import { IViewDescriptorService } from '../../../common/views.js';
 import { UNIGMA_AGENT_MANIFEST } from './unigmaAgentManifest.js';
 import { IUnigmaAgentRuntime } from './unigmaAgentRuntime.js';
 import { evaluateWorkbenchLocalIntegrationPreflight } from '../common/localIntegrationPreflight.js';
-import type { AgentLocalIntegrationPreflight } from '../common/agentProtocol.js';
+import type { AgentCatalogEntry, AgentLocalIntegrationPreflight } from '../common/agentProtocol.js';
+import { getUnigmaAgentInputAction, parseUnigmaAgentInput } from '../common/agentInput.js';
 import {
 	EMPTY_UNIGMA_AGENT_SESSION,
 	reduceUnigmaAgentSessionEvent,
@@ -61,6 +62,9 @@ export class UnigmaAgentViewPane extends ViewPane {
 	private inputValue = '';
 	private isSubmitting = false;
 	private isStopping = false;
+	private catalogEntries: readonly AgentCatalogEntry[] = [];
+	private catalogSessionId: string | undefined;
+	private catalogUnavailable = false;
 	private disposed = false;
 
 	constructor(
@@ -83,8 +87,40 @@ export class UnigmaAgentViewPane extends ViewPane {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this._register(this.runtime.onDidReceiveEvent(event => {
 			this.model = reduceUnigmaAgentSessionEvent(this.model, event);
+			if (!this.model.sessionId) {
+				this.catalogSessionId = undefined;
+				this.catalogEntries = [];
+				this.catalogUnavailable = false;
+			}
+			if (this.model.sessionId && this.model.sessionId !== this.catalogSessionId) {
+				void this.loadCatalog(this.model.sessionId);
+			}
 			this.renderState();
 		}));
+	}
+
+	private async loadCatalog(sessionId: string): Promise<void> {
+		this.catalogSessionId = sessionId;
+		this.catalogEntries = [];
+		this.catalogUnavailable = false;
+		try {
+			const result = await this.runtime.getCatalog(sessionId);
+			if (this.catalogSessionId !== sessionId || this.disposed) {
+				return;
+			}
+			if (result.available) {
+				this.catalogEntries = result.entries;
+			} else {
+				this.catalogUnavailable = true;
+			}
+		} catch {
+			if (this.catalogSessionId === sessionId) {
+				this.catalogUnavailable = true;
+			}
+		}
+		if (!this.disposed) {
+			this.renderState();
+		}
 	}
 
 	protected override renderBody(parent: HTMLElement): void {
@@ -388,17 +424,56 @@ export class UnigmaAgentViewPane extends ViewPane {
 				this.stateContainer?.focus();
 			});
 		};
+		const suggestions = DOM.append(inputContainer, DOM.$('.unigma-agent-suggestions'));
+		const suggestionDisposables = this.renderDisposables.add(new DisposableStore());
+		suggestions.setAttribute('role', 'listbox');
+		suggestions.setAttribute('aria-label', localize('unigmaAgent.suggestions', 'Agent suggestions'));
+		const renderSuggestions = (): void => {
+			suggestionDisposables.clear();
+			DOM.clearNode(suggestions);
+			const parsed = parseUnigmaAgentInput(input.value, this.catalogEntries);
+			if (!parsed || this.catalogUnavailable || !parsed.entries.length) {
+				suggestions.hidden = true;
+				return;
+			}
+			suggestions.hidden = false;
+			for (const entry of parsed.entries) {
+				const option = suggestionDisposables.add(new Button(suggestions, { ...defaultButtonStyles, ariaLabel: entry.name }));
+				option.label = `${parsed.marker}${entry.name}`;
+				option.element.setAttribute('role', 'option');
+				suggestionDisposables.add(option.onDidClick(() => {
+					this.inputValue = `${parsed.text}${parsed.marker}${entry.id} `;
+					renderSuggestions();
+					input.value = this.inputValue;
+					input.focus();
+				}));
+			}
+		};
+		renderSuggestions();
 		this.renderDisposables.add(DOM.addDisposableListener(input, DOM.EventType.INPUT, () => {
 			this.inputValue = input.value;
 			submitButton.enabled = !!this.model.sessionId && !this.isSubmitting && !!this.inputValue.trim();
+			renderSuggestions();
 		}));
 		this.renderDisposables.add(submitButton.onDidClick(submit));
 		this.renderDisposables.add(DOM.addDisposableListener(input, DOM.EventType.KEY_DOWN, (event: KeyboardEvent) => {
-			if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+			const action = getUnigmaAgentInputAction(event.key, event.shiftKey);
+			if (action === 'dismiss') {
+				suggestions.hidden = true;
+				event.preventDefault();
+				return;
+			}
+			if (action === 'submit' && !event.isComposing) {
 				event.preventDefault();
 				submit();
 			}
 		}));
+		if (this.catalogUnavailable) {
+			const unavailable = DOM.append(inputContainer, DOM.$('p'));
+			unavailable.setAttribute('role', 'status');
+			unavailable.textContent = localize('unigmaAgent.catalogUnavailable', 'Agent suggestions are unavailable.');
+			unavailable.style.color = 'var(--vscode-descriptionForeground)';
+		}
 	}
 
 	override dispose(): void {

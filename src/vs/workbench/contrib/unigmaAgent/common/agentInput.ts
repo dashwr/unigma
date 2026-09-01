@@ -46,7 +46,6 @@ export function parseUnigmaAgentInput(value: string, entries: readonly AgentCata
 	}
 
 	const trigger = marker === '@' ? 'reference' : 'command';
-	const kind = marker === '@' ? 'command' : 'skill';
 	const filter = value.slice(markerIndex + 1);
 	const normalizedFilter = filter.toLocaleLowerCase();
 	return {
@@ -54,7 +53,10 @@ export function parseUnigmaAgentInput(value: string, entries: readonly AgentCata
 		marker,
 		filter,
 		text: value.slice(0, markerIndex),
-		entries: entries.filter(entry => entry.kind === kind
+		// `@` is an OpenCode file/agent reference, not the `/command` catalog.
+		// Resolving it needs a separate documented reference source; do not pretend
+		// that command entries are tools or agents.
+		entries: entries.filter(entry => marker === '/' && entry.kind === 'skill'
 			&& (entry.id.toLocaleLowerCase().includes(normalizedFilter) || entry.name.toLocaleLowerCase().includes(normalizedFilter))),
 	};
 }
