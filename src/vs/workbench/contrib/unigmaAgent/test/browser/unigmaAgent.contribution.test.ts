@@ -19,7 +19,7 @@ import { UNIGMA_AGENT_MANIFEST } from '../../browser/unigmaAgentManifest.js';
 import { IUnigmaAgentRpcTransport, UNIGMA_AGENT_RUNTIME_TRANSPORT_COMMAND, UNIGMA_AGENT_RUNTIME_TRANSPORT_EVENT_COMMAND, UnigmaAgentRuntime, UnigmaAgentRuntimeConnectionState } from '../../browser/unigmaAgentRuntime.js';
 import { EMPTY_UNIGMA_AGENT_SESSION, reduceUnigmaAgentSessionEvent, startUnigmaAgentSession } from '../../browser/unigmaAgentSession.js';
 import { getUnigmaAgentStateAccessibility, UNIGMA_AGENT_VIEW_STATES, UnigmaAgentViewPane } from '../../browser/unigmaAgentView.js';
-import { AGENT_PROTOCOL_VERSION, AgentCommandType, AgentErrorCode, AgentEventType, AgentResultStatus, AgentSessionState, validateAgentCatalog, validateAgentCommand } from '../../common/agentProtocol.js';
+import { AGENT_PROTOCOL_VERSION, AgentApprovalKind, AgentCommandType, AgentErrorCode, AgentEventType, AgentResultStatus, AgentSessionState, validateAgentCatalog, validateAgentCommand } from '../../common/agentProtocol.js';
 
 import '../../browser/unigmaAgent.contribution.js';
 

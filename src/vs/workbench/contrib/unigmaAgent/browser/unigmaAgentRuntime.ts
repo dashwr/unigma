@@ -17,7 +17,6 @@ import {
 	type AgentLocalIntegrationPreflight,
 	AgentEvent,
 	AgentEventType,
-	type AgentCatalogResult,
 	validateAgentEvent,
 } from '../common/agentProtocol.js';
 
