@@ -23,7 +23,7 @@ jobs:
 
       - name: prepare WSL paths
         run: |
-          $workspace = $env:GITHUB_WORKSPACE -replace '\', '/'
+          $workspace = $env:GITHUB_WORKSPACE.Replace('\', '/')
           if ($workspace -notmatch '^([A-Za-z]):/(.+)$') {
             throw "Unsupported Windows workspace path: $env:GITHUB_WORKSPACE"
           }
