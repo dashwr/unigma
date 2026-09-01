@@ -63,7 +63,7 @@ jobs:
             )
             [ "${#asset[@]}" -eq 2 ] || { echo "invalid Bun release metadata" >&2; exit 1; }
             curl --fail --location --proto '=https' --tlsv1.2 --retry 3 --silent --show-error "${asset[0]}" --output "$temporary/bun.zip"
-            printf '%s  %s\n' "${asset[1]}" "$temporary/bun.zip" | sha256sum --check --status
+            printf '%s  %s\n' "${asset[1]}" "$temporary/bun.zip" | sha256sum --check
             python3 - "$temporary/bun.zip" "$temporary/extracted" <<'PY'
           from pathlib import Path
           import sys
@@ -78,7 +78,10 @@ jobs:
                       raise SystemExit('unsafe Bun archive path')
                   bundle.extract(entry, root)
           PY
-            test -x "$temporary/extracted/bun-linux-x64/bun"
+            if [ ! -x "$temporary/extracted/bun-linux-x64/bun" ]; then
+              echo "verified Bun archive has an unexpected layout" >&2
+              exit 1
+            fi
             mkdir -p "$(dirname "$toolchain")"
             rm -rf "$toolchain"
             mv "$temporary/extracted/bun-linux-x64" "$toolchain"
