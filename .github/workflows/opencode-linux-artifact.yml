@@ -78,13 +78,18 @@ jobs:
                       raise SystemExit('unsafe Bun archive path')
                   bundle.extract(entry, root)
           PY
-            if [ ! -x "$temporary/extracted/bun-linux-x64/bun" ]; then
-              echo "verified Bun archive has an unexpected layout" >&2
-              exit 1
-            fi
-            mkdir -p "$(dirname "$toolchain")"
+            bun_binary="$(python3 - "$temporary/extracted" <<'PY'
+          from pathlib import Path
+          import sys
+          matches = [path for path in Path(sys.argv[1]).rglob('bun') if path.is_file()]
+          if len(matches) != 1:
+              raise SystemExit('verified Bun archive must contain exactly one bun executable')
+          print(matches[0])
+          PY
+            )"
             rm -rf "$toolchain"
-            mv "$temporary/extracted/bun-linux-x64" "$toolchain"
+            mkdir -p "$toolchain/bin"
+            install -m 0755 "$bun_binary" "$toolchain/bin/bun"
             rm -rf "$temporary"
             trap - EXIT
           fi
