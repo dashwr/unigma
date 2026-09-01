@@ -720,7 +720,7 @@ estão pendentes.
 > parcial: 2026-08-31 — parser nativo de `@`/`/`, catálogo RPC sanitizado e
 > consulta comprovada a `/command` + `/skill` foram implementados. `@` permanece
 > referência textual de arquivo/agente sem catálogo especulativo; a validação
-> de build/teste no runner aguarda publicação da branch.
+> de build/teste passou no Windows `33465962415` e Linux/WSL `33465963804`.
 
 - **objetivo:** oferecer `@` para ferramentas e `/` para skills na superfície
   nativa do agente, encaminhando a seleção pelo contrato do OpenCode.
