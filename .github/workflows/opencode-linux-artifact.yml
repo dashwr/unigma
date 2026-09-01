@@ -110,7 +110,12 @@ jobs:
           test "$(git -C "$source" rev-parse HEAD)" = "$commit"
 
           cd "$source"
-          bun install --frozen-lockfile
+          install_log="${output}.install.log"
+          rm -f "$install_log"
+          if ! bun install --frozen-lockfile 2>&1 | tee "$install_log"; then
+            tail -n 250 "$install_log" >&2
+            exit 1
+          fi
           build_log="${output}.log"
           rm -f "$build_log"
           if ! OPENCODE_VERSION=1.18.23 bun run --cwd packages/opencode build -- --single --skip-install 2>&1 | tee "$build_log"; then
@@ -153,6 +158,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: opencode-linux-build-log-${{ github.run_id }}
-          path: opencode-artifact.log
+          path: opencode-artifact*.log
           if-no-files-found: warn
           retention-days: 7
