@@ -784,6 +784,11 @@ estão pendentes.
 
 ### T-050 — criar/adaptar autoridade remota OpenSSH
 
+> feito parcial: 2026-09-01 — `bootstrapManifest` valida em memória o contrato
+> estrito v1 do par `unigma-server` + `unigma+opencode`, incluindo hashes,
+> tamanhos, commit/target e caminhos seguros. Ainda não há gerador de artefato,
+> conexão, cópia, escrita ou ativação remota.
+
 - **objetivo:** integrar `unigma-remote-ssh` ao modelo de autoridade remota do
   Code - OSS usando OpenSSH existente.
 - **responsável lógico:** engenharia remota.
