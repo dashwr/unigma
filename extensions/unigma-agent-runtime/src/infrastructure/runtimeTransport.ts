@@ -16,6 +16,7 @@ import {
 	validateTransportCommand,
 	type RuntimeTransport,
 	type TransportCommand,
+	type TransportCatalogEntry,
 	type TransportDiffFile,
 	type TransportEvent,
 } from '../application/transport';
@@ -84,6 +85,8 @@ export class RuntimeTransportBridge implements RuntimeTransport {
 				return this.handleReject(validCommand.requestId, validCommand.sessionId, validCommand.approvalId, validCommand.reason);
 			case TransportCommandType.ListWorktrees:
 				return this.handleListWorktrees(validCommand.requestId, validCommand.sessionId);
+			case TransportCommandType.ListCatalog:
+				return this.handleListCatalog(validCommand.requestId, validCommand.sessionId);
 			case TransportCommandType.ApplyConfiguration:
 				return this.emitError(validCommand.requestId, TransportErrorCode.Internal, 'Configuration is not yet supported.', false);
 			default:
@@ -351,6 +354,47 @@ export class RuntimeTransportBridge implements RuntimeTransport {
 			return;
 		}
 		this.emitError(requestId, TransportErrorCode.Internal, 'Worktrees are managed by Git, not the OpenCode transport.', false);
+	}
+
+	private async handleListCatalog(requestId: string, sessionId: string): Promise<void> {
+		const workspaceUri = this.knownSessionWorkspaces.get(sessionId);
+		const workspace = workspaceUri ? this.workspaceFromUri(workspaceUri) : undefined;
+		if (!workspace || !this.isKnownSession(sessionId) || !this.ports.workspaceTrust.isTrusted(workspace)) {
+			this.emitError(requestId, TransportErrorCode.WorkspaceUntrusted, 'The workspace is not trusted.', false);
+			return;
+		}
+		const preflight = this.ports.localIntegrationPreflight(workspace, { accepted: true });
+		if (!preflight.accepted) {
+			this.emitError(requestId, TransportErrorCode.CapabilityUnavailable, 'Catalog capability is unavailable after local integration preflight.', false);
+			return;
+		}
+		try {
+			await this.ensureConnected();
+			const [commands, skills] = await Promise.all([
+				this.ports.openCodeClient.send({ method: 'GET', path: '/command' }),
+				this.ports.openCodeClient.send({ method: 'GET', path: '/skill' }),
+			]);
+			const entries = [...this.sanitizeCatalog(commands, 'command'), ...this.sanitizeCatalog(skills, 'skill')];
+			if (!Array.isArray(commands) || !Array.isArray(skills) || entries.length !== commands.length + skills.length) {
+				this.emitError(requestId, TransportErrorCode.CapabilityUnavailable, 'OpenCode returned an invalid catalog.', false);
+				return;
+			}
+			this.emitEvent({ version: TRANSPORT_PROTOCOL_VERSION, type: TransportEventType.Catalog, sessionId, requestId, entries });
+		} catch {
+			this.emitError(requestId, TransportErrorCode.CapabilityUnavailable, 'OpenCode catalog capability is unavailable.', false);
+		}
+	}
+
+	private sanitizeCatalog(value: unknown, kind: 'command' | 'skill'): TransportCatalogEntry[] {
+		if (!Array.isArray(value)) {
+			return [];
+		}
+		return value.flatMap(entry => {
+			if (!isRecord(entry) || typeof entry.name !== 'string' || entry.name.length === 0 || typeof entry.description !== 'string') {
+				return [];
+			}
+			return [{ id: entry.name, name: entry.name, description: entry.description, kind }];
+		});
 	}
 
 	private handleOpenCodeEvent(event: OpenCodeEvent): void {

@@ -16,6 +16,7 @@ export const enum AgentCommandType {
 	Reject = 'reject',
 	ListWorktrees = 'worktrees',
 	ApplyConfiguration = 'configure',
+	ListCatalog = 'catalog',
 }
 
 /** Sanitized result from the local integration preflight. */
@@ -47,6 +48,7 @@ export const enum AgentEventType {
 	Worktrees = 'worktrees',
 	Result = 'result',
 	Error = 'error',
+	Catalog = 'catalog',
 }
 
 export const enum AgentSessionState {
@@ -172,6 +174,10 @@ export interface AgentApplyConfigurationCommand extends AgentCommandBase {
 	readonly configuration: AgentConfiguration;
 }
 
+export interface AgentListCatalogCommand extends AgentSessionCommandBase {
+	readonly type: AgentCommandType.ListCatalog;
+}
+
 export type AgentCommand =
 	| AgentStartSessionCommand
 	| AgentStopSessionCommand
@@ -180,7 +186,13 @@ export type AgentCommand =
 	| AgentApproveCommand
 	| AgentRejectCommand
 	| AgentListWorktreesCommand
-	| AgentApplyConfigurationCommand;
+	| AgentApplyConfigurationCommand
+	| AgentListCatalogCommand;
+
+export interface AgentCatalogEvent extends AgentSessionEventBase {
+	readonly type: AgentEventType.Catalog;
+	readonly entries: readonly AgentCatalogEntry[];
+}
 
 export interface AgentDiffFile {
 	readonly path: string;
@@ -314,7 +326,8 @@ export type AgentEvent =
 	| AgentPermissionResolvedEvent
 	| AgentWorktreesEvent
 	| AgentResultEvent
-	| AgentErrorEvent;
+	| AgentErrorEvent
+	| AgentCatalogEvent;
 
 export interface AgentValidationSuccess<T> {
 	readonly valid: true;
@@ -456,6 +469,7 @@ function isAgentErrorCode(value: unknown): value is AgentErrorCode {
 		case AgentErrorCode.WorktreeNotFound:
 		case AgentErrorCode.ConfigurationInvalid:
 		case AgentErrorCode.Internal:
+		case AgentErrorCode.CapabilityUnavailable:
 			return true;
 		default:
 			return false;
@@ -529,6 +543,15 @@ function isAgentResult(value: unknown): value is AgentResult {
 		&& isOptionalString(value.diffId);
 }
 
+function isAgentCatalogEntry(value: unknown): value is AgentCatalogEntry {
+	return isRecord(value)
+		&& hasOnlyKeys(value, ['id', 'name', 'description', 'kind'])
+		&& isNonEmptyString(value.id)
+		&& isNonEmptyString(value.name)
+		&& typeof value.description === 'string'
+		&& (value.kind === 'command' || value.kind === 'skill');
+}
+
 function isAgentError(value: unknown): value is AgentError {
 	return isRecord(value)
 		&& hasOnlyKeys(value, ['code', 'message', 'retryable'])
@@ -554,6 +577,7 @@ function getAgentCommandError(value: unknown): AgentError | undefined {
 				: invalidPayload('Start command has an invalid sessionId, workspaceUri, or local integration preflight.');
 		case AgentCommandType.StopSession:
 		case AgentCommandType.ListWorktrees:
+		case AgentCommandType.ListCatalog:
 			return hasOnlyKeys(command, ['version', 'requestId', 'type', 'sessionId'])
 				&& isNonEmptyString(command.sessionId)
 				? undefined
@@ -645,6 +669,13 @@ function getAgentEventError(value: unknown): AgentError | undefined {
 				&& isAgentResult(event.result)
 				? undefined
 				: invalidPayload('Result event requires a sessionId and valid result.');
+		case AgentEventType.Catalog:
+			return hasOnlyKeys(event, ['version', 'type', 'requestId', 'sessionId', 'entries'])
+				&& sessionIdIsValid
+				&& Array.isArray(event.entries)
+				&& event.entries.every(isAgentCatalogEntry)
+				? undefined
+				: invalidPayload('Catalog event requires a sessionId and sanitized entries.');
 		case AgentEventType.Error:
 			return hasOnlyKeys(event, ['version', 'type', 'requestId', 'sessionId', 'error'])
 				&& isOptionalString(event.sessionId)

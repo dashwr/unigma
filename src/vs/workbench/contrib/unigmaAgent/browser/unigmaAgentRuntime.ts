@@ -9,6 +9,7 @@ import { CommandsRegistry, ICommandService } from '../../../../platform/commands
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import {
 	AGENT_PROTOCOL_VERSION,
+	type AgentCatalogResult,
 	AgentCommand,
 	AgentCommandType,
 	AgentErrorCode,
@@ -56,7 +57,7 @@ export interface IUnigmaAgentRuntime {
 	reject(sessionId: string, approvalId: string, reason?: string): Promise<void>;
 	registerTransport(transport: IUnigmaAgentRpcTransport): IDisposable;
 	/** The pinned OpenCode `/doc` does not yet authorize catalog routes. */
-	getCatalog(): Promise<AgentCatalogResult>;
+	getCatalog(sessionId: string): Promise<AgentCatalogResult>;
 }
 
 /*
@@ -107,6 +108,7 @@ function serializeAgentCommand(command: AgentCommand): Record<string, unknown> {
 			};
 		case AgentCommandType.StopSession:
 		case AgentCommandType.ListWorktrees:
+		case AgentCommandType.ListCatalog:
 			return { ...envelope, sessionId: command.sessionId };
 		case AgentCommandType.SendInput:
 			return { ...envelope, sessionId: command.sessionId, text: command.text };
@@ -154,13 +156,16 @@ export class UnigmaAgentRuntime extends Disposable implements IUnigmaAgentRuntim
 	private transport: IUnigmaAgentRpcTransport | undefined;
 	private transportSubscription: IDisposable | undefined;
 	private requestSequence = 0;
+	private readonly pendingCatalog = new Map<string, (result: AgentCatalogResult) => void>();
 
 	constructor();
 	constructor(commandService: ICommandService);
 	constructor(@ICommandService commandService?: ICommandService) {
 		super();
 		this._register(CommandsRegistry.registerCommand(UNIGMA_AGENT_RUNTIME_TRANSPORT_EVENT_COMMAND, (_accessor, event: unknown) => {
-			this._onDidReceiveEvent.fire(translateUnigmaAgentRpcEvent(event));
+			const translated = translateUnigmaAgentRpcEvent(event);
+			this.resolveCatalog(translated);
+			this._onDidReceiveEvent.fire(translated);
 		}));
 		if (commandService) {
 			this._register(this.registerTransport(new CommandAgentRpcTransport(commandService)));
@@ -177,7 +182,11 @@ export class UnigmaAgentRuntime extends Disposable implements IUnigmaAgentRuntim
 		}
 
 		this.transport = transport;
-		this.transportSubscription = transport.onDidReceiveEvent(event => this._onDidReceiveEvent.fire(translateUnigmaAgentRpcEvent(event)));
+		this.transportSubscription = transport.onDidReceiveEvent(event => {
+			const translated = translateUnigmaAgentRpcEvent(event);
+			this.resolveCatalog(translated);
+			this._onDidReceiveEvent.fire(translated);
+		});
 		this._onDidChangeConnectionState.fire(this.connectionState);
 		return {
 			dispose: () => {
@@ -202,15 +211,16 @@ export class UnigmaAgentRuntime extends Disposable implements IUnigmaAgentRuntim
 		});
 	}
 
-	async getCatalog(): Promise<AgentCatalogResult> {
-		return {
-			available: false,
-			error: {
-				code: AgentErrorCode.CapabilityUnavailable,
-				message: 'OpenCode catalog capability is unavailable until /doc confirms /command and /skill.',
-				retryable: false,
-			},
-		};
+	async getCatalog(sessionId: string): Promise<AgentCatalogResult> {
+		const requestId = this.nextRequestId();
+		const result = new Promise<AgentCatalogResult>(resolve => this.pendingCatalog.set(requestId, resolve));
+		try {
+			await this.send({ version: AGENT_PROTOCOL_VERSION, requestId, type: AgentCommandType.ListCatalog, sessionId });
+			return result;
+		} catch {
+			this.pendingCatalog.delete(requestId);
+			return { available: false, error: { code: AgentErrorCode.CapabilityUnavailable, message: 'Catalog capability is unavailable.', retryable: false } };
+		}
 	}
 
 	async sendInput(sessionId: string, text: string): Promise<void> {
@@ -264,6 +274,19 @@ export class UnigmaAgentRuntime extends Disposable implements IUnigmaAgentRuntim
 
 	private nextRequestId(): string {
 		return `unigma-agent-${++this.requestSequence}`;
+	}
+
+	private resolveCatalog(event: AgentEvent): void {
+		if (!event.requestId) {
+			return;
+		}
+		if (event.type === AgentEventType.Catalog) {
+			this.pendingCatalog.get(event.requestId)?.({ available: true, entries: event.entries });
+			this.pendingCatalog.delete(event.requestId);
+		} else if (event.type === AgentEventType.Error) {
+			this.pendingCatalog.get(event.requestId)?.({ available: false, error: event.error });
+			this.pendingCatalog.delete(event.requestId);
+		}
 	}
 
 	private async send(command: AgentCommand): Promise<void> {

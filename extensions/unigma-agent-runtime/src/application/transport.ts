@@ -38,6 +38,7 @@ export const enum TransportCommandType {
 	Reject = 'reject',
 	ListWorktrees = 'worktrees',
 	ApplyConfiguration = 'configure',
+	ListCatalog = 'catalog',
 }
 
 export const enum TransportEventType {
@@ -49,6 +50,7 @@ export const enum TransportEventType {
 	Worktrees = 'worktrees',
 	Result = 'result',
 	Error = 'error',
+	Catalog = 'catalog',
 }
 
 export const enum TransportSessionState {
@@ -72,6 +74,7 @@ export const enum TransportErrorCode {
 	WorktreeNotFound = 'worktreeNotFound',
 	ConfigurationInvalid = 'configurationInvalid',
 	Internal = 'internal',
+	CapabilityUnavailable = 'capabilityUnavailable',
 }
 
 export interface TransportCommandBase {
@@ -157,6 +160,10 @@ export interface TransportApplyConfigurationCommand extends TransportCommandBase
 	readonly configuration: TransportConfiguration;
 }
 
+export interface TransportListCatalogCommand extends TransportSessionCommandBase {
+	readonly type: TransportCommandType.ListCatalog;
+}
+
 export interface TransportConfiguration {
 	readonly provider?: string;
 	readonly model?: string;
@@ -171,7 +178,15 @@ export type TransportCommand =
 	| TransportApproveCommand
 	| TransportRejectCommand
 	| TransportListWorktreesCommand
-	| TransportApplyConfigurationCommand;
+	| TransportApplyConfigurationCommand
+	| TransportListCatalogCommand;
+
+export interface TransportCatalogEntry {
+	readonly id: string;
+	readonly name: string;
+	readonly description: string;
+	readonly kind: 'command' | 'skill';
+}
 
 export interface TransportDiffFile {
 	readonly path: string;
@@ -316,6 +331,7 @@ function getTransportCommandError(value: unknown): TransportError | undefined {
 				: invalidPayload('Start command requires a workspace and local integration preflight.');
 		case TransportCommandType.StopSession:
 		case TransportCommandType.ListWorktrees:
+		case TransportCommandType.ListCatalog:
 			return hasOnlyKeys(command, ['version', 'requestId', 'type', 'sessionId'])
 				&& isNonEmptyString(command.sessionId)
 				? undefined
@@ -409,6 +425,11 @@ export interface TransportResultEvent extends TransportSessionEventBase {
 	readonly result: TransportResult;
 }
 
+export interface TransportCatalogEvent extends TransportSessionEventBase {
+	readonly type: TransportEventType.Catalog;
+	readonly entries: readonly TransportCatalogEntry[];
+}
+
 export interface TransportErrorEvent extends TransportEventBase {
 	readonly type: TransportEventType.Error;
 	readonly sessionId?: string;
@@ -423,6 +444,7 @@ export type TransportEvent =
 	| TransportPermissionResolvedEvent
 	| TransportWorktreesEvent
 	| TransportResultEvent
+	| TransportCatalogEvent
 	| TransportErrorEvent;
 
 function isTransportEventType(value: unknown): value is TransportEventType {
@@ -476,6 +498,7 @@ function isTransportErrorCode(value: unknown): value is TransportErrorCode {
 		case TransportErrorCode.WorktreeNotFound:
 		case TransportErrorCode.ConfigurationInvalid:
 		case TransportErrorCode.Internal:
+		case TransportErrorCode.CapabilityUnavailable:
 			return true;
 		default:
 			return false;
@@ -530,6 +553,15 @@ function isTransportResult(value: unknown): value is TransportResult {
 		&& isTransportResultStatus(value.status)
 		&& isOptionalString(value.content)
 		&& isOptionalString(value.diffId);
+}
+
+function isTransportCatalogEntry(value: unknown): value is TransportCatalogEntry {
+	return isTransportRecord(value)
+		&& hasOnlyKeys(value, ['id', 'name', 'description', 'kind'])
+		&& isNonEmptyString(value.id)
+		&& isNonEmptyString(value.name)
+		&& typeof value.description === 'string'
+		&& (value.kind === 'command' || value.kind === 'skill');
 }
 
 function isTransportError(value: unknown): value is TransportError {
@@ -604,6 +636,13 @@ function getTransportEventError(value: unknown): TransportError | undefined {
 				&& isTransportResult(event.result)
 				? undefined
 				: invalidPayload('Result event requires a sessionId and valid result.');
+		case TransportEventType.Catalog:
+			return hasOnlyKeys(event, ['version', 'type', 'requestId', 'sessionId', 'entries'])
+				&& sessionIdIsValid
+				&& Array.isArray(event.entries)
+				&& event.entries.every(isTransportCatalogEntry)
+				? undefined
+				: invalidPayload('Catalog event requires a sessionId and sanitized entries.');
 		case TransportEventType.Error:
 			return hasOnlyKeys(event, ['version', 'type', 'requestId', 'sessionId', 'error'])
 				&& isOptionalString(event.sessionId)

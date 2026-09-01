@@ -247,11 +247,11 @@ suite('Unigma Agent contribution', () => {
 
 	test('reports catalog capability unavailable until documented routes are confirmed', async () => {
 		const runtime = new UnigmaAgentRuntime();
-		assert.deepStrictEqual(await runtime.getCatalog(), {
+		assert.deepStrictEqual(await runtime.getCatalog('session-1'), {
 			available: false,
 			error: {
 				code: AgentErrorCode.CapabilityUnavailable,
-				message: 'OpenCode catalog capability is unavailable until /doc confirms /command and /skill.',
+				message: 'Catalog capability is unavailable.',
 				retryable: false,
 			},
 		});
