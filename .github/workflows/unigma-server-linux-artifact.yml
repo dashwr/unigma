@@ -1,0 +1,99 @@
+name: build unigma Linux server artifact
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build unigma-server Linux x64
+    runs-on: self-hosted
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - name: checkout workflow ref
+        uses: actions/checkout@v4
+
+      - name: prepare WSL paths
+        run: |
+          $workspace = $env:GITHUB_WORKSPACE -replace '\', '/'
+          if ($workspace -notmatch '^([A-Za-z]):/(.+)$') { throw "Unsupported Windows workspace path: $env:GITHUB_WORKSPACE" }
+          $drive = $matches[1].ToLowerInvariant()
+          $path = $matches[2]
+          [System.IO.File]::AppendAllText($env:GITHUB_ENV, "WSL_SOURCE=/mnt/$drive/$path`n")
+          [System.IO.File]::AppendAllText($env:GITHUB_ENV, "WSL_OUTPUT=/mnt/$drive/$path/unigma-server-artifact`n")
+
+      - name: build fixed unigma-server in WSL
+        run: |
+          $scriptPath = Join-Path $env:RUNNER_TEMP 'unigma-build-server.sh'
+          $script = @'
+          set -euo pipefail
+
+          source="$1"
+          output="$2"
+          commit="$3"
+          node_version="$(tr -d '[:space:]' < "$source/.nvmrc")"
+          toolchain="$HOME/.local/share/unigma-toolchains/node-$node_version"
+          if [ ! -x "$toolchain/bin/node" ]; then
+            temporary="$(mktemp -d)"
+            trap 'rm -rf "$temporary"' EXIT
+            archive="node-v${node_version}-linux-x64.tar.xz"
+            curl --fail --location --proto '=https' --tlsv1.2 --retry 3 --silent --show-error "https://nodejs.org/dist/v${node_version}/${archive}" --output "$temporary/$archive"
+            curl --fail --location --proto '=https' --tlsv1.2 --retry 3 --silent --show-error "https://nodejs.org/dist/v${node_version}/SHASUMS256.txt" --output "$temporary/SHASUMS256.txt"
+            grep " ${archive}$" "$temporary/SHASUMS256.txt" > "$temporary/expected.sha256"
+            (cd "$temporary" && sha256sum --check expected.sha256)
+            mkdir -p "$toolchain"
+            tar -xJf "$temporary/$archive" -C "$temporary"
+            mv "$temporary/node-v${node_version}-linux-x64"/* "$toolchain"
+            rm -rf "$temporary"
+            trap - EXIT
+          fi
+          export PATH="$toolchain/bin:$PATH"
+          node --version | grep -Fx "v$node_version"
+          npm --version | grep -Ev '^(1[2-9]|[2-9][0-9])\.'
+
+          build="$(mktemp -d)"
+          trap 'rm -rf "$build"' EXIT
+          tar --exclude=.git --exclude=node_modules --exclude=.build -C "$source" -cf - . | tar -C "$build" -xf -
+          cd "$build"
+          export BUILD_SOURCEVERSION="$commit"
+          export NODE_OPTIONS="--max-old-space-size=12288"
+          export UV_THREADPOOL_SIZE=12
+          export CMAKE_BUILD_PARALLEL_LEVEL=12
+          export MAKEFLAGS=-j12
+          npm ci --no-audit --no-fund
+          node --experimental-strip-types --max-old-space-size=12288 ./node_modules/gulp/bin/gulp.js vscode-reh-linux-x64-min-ci
+          server_root="$build/../vscode-reh-linux-x64"
+          test -x "$server_root/bin/unigma-server"
+          test -f "$server_root/LICENSE.txt"
+          rm -rf "$output"
+          mkdir -p "$output/server"
+          tar --owner=0 --group=0 -czf "$output/server/unigma-server.tar.gz" -C "$(dirname "$server_root")" "$(basename "$server_root")"
+          cp "$server_root/LICENSE.txt" "$output/LICENSE-unigma-server.txt"
+          {
+            printf 'source=unigma\n'
+            printf 'commit=%s\n' "$commit"
+            printf 'target=linux-x64\n'
+            printf 'node=%s\n' "$node_version"
+            printf 'serverArchive=server/unigma-server.tar.gz\n'
+          } > "$output/PROVENANCE.txt"
+          '@
+          $script = $script -replace "`r`n?", "`n"
+          [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))
+          $scriptPathWsl = "/mnt/$($scriptPath.Substring(0, 1).ToLowerInvariant())/$($scriptPath.Substring(3).Replace('\', '/'))"
+          & wsl.exe -d Ubuntu --user dasher -- bash $scriptPathWsl $env:WSL_SOURCE $env:WSL_OUTPUT $env:GITHUB_SHA
+          $exitCode = $LASTEXITCODE
+          Remove-Item -Force $scriptPath -ErrorAction SilentlyContinue
+          if ($exitCode -ne 0) { exit $exitCode }
+
+      - name: upload unigma-server Linux x64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: unigma-server-linux-x64-${{ github.sha }}
+          path: unigma-server-artifact
+          if-no-files-found: error
+          retention-days: 7
