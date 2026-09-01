@@ -39,10 +39,42 @@ jobs:
 
           output="$1"
           commit="$2"
-          if ! command -v bun >/dev/null 2>&1; then
-            echo "bun is unavailable in WSL; refusing to install a toolchain implicitly" >&2
-            exit 1
+          bun_version="1.3.14"
+          toolchain="$HOME/.local/share/unigma-toolchains/bun-$bun_version"
+          if [ ! -x "$toolchain/bin/bun" ]; then
+            command -v curl >/dev/null 2>&1 || { echo "curl is required for verified Bun bootstrap" >&2; exit 1; }
+            command -v python3 >/dev/null 2>&1 || { echo "python3 is required for verified Bun bootstrap" >&2; exit 1; }
+            command -v sha256sum >/dev/null 2>&1 || { echo "sha256sum is required for verified Bun bootstrap" >&2; exit 1; }
+            command -v unzip >/dev/null 2>&1 || { echo "unzip is required for verified Bun bootstrap" >&2; exit 1; }
+            temporary="$(mktemp -d)"
+            trap 'rm -rf "$temporary"' EXIT
+            curl --fail --location --proto '=https' --tlsv1.2 --retry 3 --silent --show-error \
+              "https://api.github.com/repos/oven-sh/bun/releases/tags/bun-v$bun_version" \
+              --output "$temporary/release.json"
+            mapfile -t asset < <(python3 - "$temporary/release.json" <<'PY'
+          import json
+          import sys
+          release = json.load(open(sys.argv[1], encoding='utf-8'))
+          matches = [item for item in release.get('assets', []) if item.get('name') == 'bun-linux-x64.zip']
+          if len(matches) != 1 or not isinstance(matches[0].get('digest'), str) or not matches[0]['digest'].startswith('sha256:'):
+              raise SystemExit('expected Bun Linux x64 asset with SHA-256 digest is unavailable')
+          print(matches[0]['browser_download_url'])
+          print(matches[0]['digest'].removeprefix('sha256:'))
+          PY
+            )
+            [ "${#asset[@]}" -eq 2 ] || { echo "invalid Bun release metadata" >&2; exit 1; }
+            curl --fail --location --proto '=https' --tlsv1.2 --retry 3 --silent --show-error "${asset[0]}" --output "$temporary/bun.zip"
+            printf '%s  %s\n' "${asset[1]}" "$temporary/bun.zip" | sha256sum --check --status
+            unzip -q "$temporary/bun.zip" -d "$temporary"
+            test -x "$temporary/bun-linux-x64/bun"
+            mkdir -p "$(dirname "$toolchain")"
+            rm -rf "$toolchain"
+            mv "$temporary/bun-linux-x64" "$toolchain"
+            rm -rf "$temporary"
+            trap - EXIT
           fi
+          export PATH="$toolchain/bin:$PATH"
+          bun --version | grep -Fx "$bun_version"
 
           source="$(mktemp -d)"
           trap 'rm -rf "$source"' EXIT
