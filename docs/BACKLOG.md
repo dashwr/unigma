@@ -794,7 +794,8 @@ estão pendentes.
   adaptadores OpenSSH e testes; do lado do servidor, `cli/src/tunnels/code_server.rs`
   e o entry point `command-shell`, preservados por `D-027`.
 - **servidor remoto:** `unigma-server` construído deste fork (`D-028`), acoplado
-  por commit ao cliente; a forma de entrega é a questão aberta `Q-2` do plano.
+  por commit ao cliente; `D-032` exige push SSH confirmado do par
+  `unigma-server` + `unigma+opencode`, com manifesto/hashes e ativação atômica.
 - **critérios de aceite:** usa `known_hosts` e agente/chaves do usuário; não
   solicita nem persiste segredos; host remoto possui extension host compatível;
   falhas são observáveis.

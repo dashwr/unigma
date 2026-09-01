@@ -164,13 +164,16 @@ servidor Code - OSS upstream: o extension host remoto precisa das extensões
 internas do unigma. `product.json` já fixa
 `serverApplicationName: "unigma-server"` e `serverDataFolderName: ".unigma-server"`.
 
-O mecanismo de entrega — pré-instalado pelo responsável, enviado pelo cliente
-pela própria sessão OpenSSH ou baixado de um endpoint próprio — permanece aberto
-como `Q-2` em
-[`planos/2026-08-29-cli-ssh-remoto.md`](planos/2026-08-29-cli-ssh-remoto.md).
-Enquanto não houver decisão, nenhum download automático é permitido: o fork não
-define `updateUrl`, `downloadUrl`, `quality` nem `commit`, e publicar o servidor
-é distribuição, sujeita a `E00-A`/`E00-B`.
+O mecanismo aprovado por `D-032` é enviar pela sessão OpenSSH já validada o par
+`unigma-server` + `unigma+opencode` correspondente ao commit do cliente. Antes
+de qualquer escrita, a UI mostra host, versão, tamanho total e hash do manifesto
+e exige confirmação explícita para aquele host. O payload entra em diretório
+versionado pertencente ao usuário remoto; somente após validar o manifesto ocorre
+a ativação atômica. A versão anterior não é apagada por este fluxo.
+
+Não há CDN, `updateUrl`, download automático, elevação ou instalação global. A
+entrega ainda precisa de artefato local aceito, manifesto/hashes e testes de
+interrupção/rollback; sem esses insumos o provisionamento falha fechado.
 
 ### Recusado pelo contrato
 
@@ -180,9 +183,10 @@ define `updateUrl`, `downloadUrl`, `quality` nem `commit`, e publicar o servidor
 - usar root, elevação, credencial administrativa ou instalação global;
 - provisionar silenciosamente em segundo plano ou por simples abertura de
   workspace não confiável;
-- instalar ou baixar automaticamente `opencode`, provider, MCP, plugin, regra
-  ou qualquer credencial. A disponibilidade e a versão de OpenCode pertencem ao
-  contrato de integração OpenCode, não a T-013;
+- instalar ou baixar separadamente `opencode`, provider, MCP, plugin, regra ou
+  qualquer credencial. Somente o `unigma+opencode` já empacotado e compatível com
+  o `unigma-server` pode integrar o payload aprovado; providers/plugins/OAuth
+  continuam configurados pelo usuário no host remoto;
 - copiar workspace, `.git`, worktrees, arquivos de configuração sensíveis,
   diretórios `.ssh`, chaves, tokens, prompts, diffs ou resultados para bootstrap;
 - tentar um host Windows remoto, uma arquitetura fora de x64 ou uma versão
