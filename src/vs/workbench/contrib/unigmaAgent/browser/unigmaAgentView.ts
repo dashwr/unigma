@@ -27,7 +27,7 @@ import { IViewDescriptorService } from '../../../common/views.js';
 import { UNIGMA_AGENT_MANIFEST } from './unigmaAgentManifest.js';
 import { IUnigmaAgentRuntime } from './unigmaAgentRuntime.js';
 import { evaluateWorkbenchLocalIntegrationPreflight } from '../common/localIntegrationPreflight.js';
-import type { AgentCatalogEntry, AgentLocalIntegrationPreflight, AgentModelEntry } from '../common/agentProtocol.js';
+import { AgentEventType, type AgentCatalogEntry, type AgentLocalIntegrationPreflight, type AgentModelEntry } from '../common/agentProtocol.js';
 import { getUnigmaAgentInputAction, parseUnigmaAgentInput } from '../common/agentInput.js';
 import {
 	EMPTY_UNIGMA_AGENT_SESSION,
@@ -67,6 +67,7 @@ export class UnigmaAgentViewPane extends ViewPane {
 	private catalogUnavailable = false;
 	private modelsRequestedSession: string | undefined;
 	private modelsUnavailable = false;
+	private configurationError: string | undefined;
 	private disposed = false;
 
 	constructor(
@@ -88,6 +89,9 @@ export class UnigmaAgentViewPane extends ViewPane {
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this._register(this.runtime.onDidReceiveEvent(event => {
+			if (event.type === AgentEventType.Configuration) {
+				this.configurationError = undefined;
+			}
 			this.model = reduceUnigmaAgentSessionEvent(this.model, event);
 			if (!this.model.sessionId) {
 				this.catalogSessionId = undefined;
@@ -513,6 +517,11 @@ export class UnigmaAgentViewPane extends ViewPane {
 			unavailable.textContent = localize('unigmaAgent.modelsUnavailable', 'Models are unavailable.');
 			return;
 		}
+		if (this.configurationError) {
+			const error = DOM.append(container, DOM.$('p'));
+			error.setAttribute('role', 'alert');
+			error.textContent = this.configurationError;
+		}
 		const configured = this.configurationService.getValue<unknown>('unigma.agent.hiddenModels');
 		const hiddenModels = new Set(Array.isArray(configured) ? configured.filter((id): id is string => typeof id === 'string' && /^[^/]+\/[^/]+$/.test(id)) : []);
 		const models = this.model.models ?? [];
@@ -544,6 +553,19 @@ export class UnigmaAgentViewPane extends ViewPane {
 		this.renderDisposables.add(toggle.onDidClick(() => {
 			const next = isHidden ? [...hiddenModels].filter(value => value !== id) : [...hiddenModels, id];
 			void this.configurationService.updateValue('unigma.agent.hiddenModels', next, ConfigurationTarget.USER).then(() => this.renderState(), () => undefined);
+		}));
+		const active = this.model.activeModel?.providerId === model.providerId && this.model.activeModel.modelId === model.modelId;
+		const use = this.renderDisposables.add(new Button(row, { ...defaultButtonStyles, ariaLabel: active ? localize('unigmaAgent.activeModel', 'Active model') : localize('unigmaAgent.useModel', 'Use model'), disabled: active }));
+		use.label = active ? localize('unigmaAgent.active', 'Active') : localize('unigmaAgent.use', 'Use');
+		this.renderDisposables.add(use.onDidClick(() => {
+			if (!active && this.model.sessionId) {
+				void this.runtime.applyModel(this.model.sessionId, model.providerId, model.modelId).then(result => {
+					if (!result.selected) {
+						this.configurationError = result.error.message;
+						this.renderState();
+					}
+				});
+			}
 		}));
 	}
 

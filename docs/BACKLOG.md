@@ -726,8 +726,8 @@ estão pendentes.
 > `GET /provider` por workspace, sem expor credenciais, headers, options ou
 > custos. O painel/toggle global `unigma.agent.hiddenModels` foi integrado no
 > escopo de usuário. O runtime aceita seleção por sessão apenas para par já
-> descoberto e o envia no schema `prompt_async.model`; o controle de seleção na
-> UI e a validação no runner continuam pendentes.
+> descoberto e o envia no schema `prompt_async.model`; a UI só mostra ativo após
+> o ACK do runtime. A validação no runner continua pendente.
 
 - **objetivo:** oferecer `@` para ferramentas e `/` para skills na superfície
   nativa do agente, encaminhando a seleção pelo contrato do OpenCode.

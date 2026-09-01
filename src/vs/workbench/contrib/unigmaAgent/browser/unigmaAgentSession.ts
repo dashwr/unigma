@@ -24,6 +24,7 @@ export interface UnigmaAgentSessionViewModel {
 	readonly permission?: AgentPermissionRequest;
 	readonly errorMessage?: string;
 	readonly models?: readonly AgentModelEntry[];
+	readonly activeModel?: { readonly providerId: string; readonly modelId: string };
 }
 
 export const EMPTY_UNIGMA_AGENT_SESSION: UnigmaAgentSessionViewModel = Object.freeze({ state: UNIGMA_AGENT_VIEW_STATES.Empty });
@@ -90,6 +91,8 @@ export function reduceUnigmaAgentSessionEvent(model: UnigmaAgentSessionViewModel
 			};
 		case AgentEventType.Models:
 			return { ...model, sessionId: event.sessionId, models: event.entries };
+		case AgentEventType.Configuration:
+			return { ...model, sessionId: event.sessionId, activeModel: event.selection };
 		default:
 			return model;
 	}

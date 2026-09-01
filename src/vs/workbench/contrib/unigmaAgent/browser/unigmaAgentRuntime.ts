@@ -10,6 +10,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import {
 	AGENT_PROTOCOL_VERSION,
 	type AgentCatalogResult,
+	type AgentError,
 	AgentCommand,
 	AgentCommandType,
 	AgentErrorCode,
@@ -24,6 +25,10 @@ export const enum UnigmaAgentRuntimeConnectionState {
 	Disconnected = 'disconnected',
 	Connected = 'connected',
 }
+
+export type AgentModelSelectionResult =
+	| { readonly selected: true }
+	| { readonly selected: false; readonly error: AgentError };
 
 /** Serializable internal channel from the workbench to the extension host. */
 export const UNIGMA_AGENT_RUNTIME_TRANSPORT_COMMAND = 'unigma.agent.runtime.transport.send';
@@ -58,6 +63,7 @@ export interface IUnigmaAgentRuntime {
 	/** The pinned OpenCode `/doc` does not yet authorize catalog routes. */
 	getCatalog(sessionId: string): Promise<AgentCatalogResult>;
 	requestModels(sessionId: string): Promise<void>;
+	applyModel(sessionId: string, providerId: string, modelId: string): Promise<AgentModelSelectionResult>;
 }
 
 /*
@@ -158,6 +164,7 @@ export class UnigmaAgentRuntime extends Disposable implements IUnigmaAgentRuntim
 	private transportSubscription: IDisposable | undefined;
 	private requestSequence = 0;
 	private readonly pendingCatalog = new Map<string, (result: AgentCatalogResult) => void>();
+	private readonly pendingModelSelection = new Map<string, (result: AgentModelSelectionResult) => void>();
 
 	constructor();
 	constructor(commandService: ICommandService);
@@ -166,6 +173,7 @@ export class UnigmaAgentRuntime extends Disposable implements IUnigmaAgentRuntim
 		this._register(CommandsRegistry.registerCommand(UNIGMA_AGENT_RUNTIME_TRANSPORT_EVENT_COMMAND, (_accessor, event: unknown) => {
 			const translated = translateUnigmaAgentRpcEvent(event);
 			this.resolveCatalog(translated);
+			this.resolveModelSelection(translated);
 			this._onDidReceiveEvent.fire(translated);
 		}));
 		if (commandService) {
@@ -186,6 +194,7 @@ export class UnigmaAgentRuntime extends Disposable implements IUnigmaAgentRuntim
 		this.transportSubscription = transport.onDidReceiveEvent(event => {
 			const translated = translateUnigmaAgentRpcEvent(event);
 			this.resolveCatalog(translated);
+			this.resolveModelSelection(translated);
 			this._onDidReceiveEvent.fire(translated);
 		});
 		this._onDidChangeConnectionState.fire(this.connectionState);
@@ -226,6 +235,24 @@ export class UnigmaAgentRuntime extends Disposable implements IUnigmaAgentRuntim
 
 	async requestModels(sessionId: string): Promise<void> {
 		await this.send({ version: AGENT_PROTOCOL_VERSION, requestId: this.nextRequestId(), type: AgentCommandType.ListModels, sessionId });
+	}
+
+	async applyModel(sessionId: string, providerId: string, modelId: string): Promise<AgentModelSelectionResult> {
+		const requestId = this.nextRequestId();
+		const result = new Promise<AgentModelSelectionResult>(resolve => this.pendingModelSelection.set(requestId, resolve));
+		try {
+			await this.send({
+				version: AGENT_PROTOCOL_VERSION,
+				requestId,
+				type: AgentCommandType.ApplyConfiguration,
+				sessionId,
+				configuration: { provider: providerId, model: modelId },
+			});
+			return result;
+		} catch {
+			this.pendingModelSelection.delete(requestId);
+			return { selected: false, error: { code: AgentErrorCode.CapabilityUnavailable, message: 'Model selection is unavailable.', retryable: false } };
+		}
 	}
 
 	async sendInput(sessionId: string, text: string): Promise<void> {
@@ -294,6 +321,19 @@ export class UnigmaAgentRuntime extends Disposable implements IUnigmaAgentRuntim
 		}
 	}
 
+	private resolveModelSelection(event: AgentEvent): void {
+		if (!event.requestId) {
+			return;
+		}
+		if (event.type === AgentEventType.Configuration) {
+			this.pendingModelSelection.get(event.requestId)?.({ selected: true });
+			this.pendingModelSelection.delete(event.requestId);
+		} else if (event.type === AgentEventType.Error) {
+			this.pendingModelSelection.get(event.requestId)?.({ selected: false, error: event.error });
+			this.pendingModelSelection.delete(event.requestId);
+		}
+	}
+
 	private async send(command: AgentCommand): Promise<void> {
 		if (!this.transport) {
 			this.fireError(command, {
@@ -324,7 +364,10 @@ export class UnigmaAgentRuntime extends Disposable implements IUnigmaAgentRuntim
 			error,
 		};
 		const sessionId = command.sessionId;
-		this._onDidReceiveEvent.fire(sessionId === undefined ? event : { ...event, sessionId });
+		const scopedEvent = sessionId === undefined ? event : { ...event, sessionId };
+		this.resolveCatalog(scopedEvent);
+		this.resolveModelSelection(scopedEvent);
+		this._onDidReceiveEvent.fire(scopedEvent);
 	}
 
 	override dispose(): void {
