@@ -31,6 +31,11 @@ jobs:
           $path = $matches[2]
           [System.IO.File]::AppendAllText($env:GITHUB_ENV, "WSL_OUTPUT=/mnt/$drive/$path/opencode-artifact`n")
 
+      - name: install node-gyp prerequisite in WSL
+        run: |
+          & wsl.exe -d Ubuntu --user root -- bash -lc 'export DEBIAN_FRONTEND=noninteractive; apt-get update; apt-get install -y --no-install-recommends node-gyp'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: build fixed OpenCode in WSL
         run: |
           $scriptPath = Join-Path $env:RUNNER_TEMP 'unigma-build-opencode.sh'
