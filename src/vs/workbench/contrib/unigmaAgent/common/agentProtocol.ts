@@ -51,6 +51,7 @@ export const enum AgentEventType {
 	Error = 'error',
 	Catalog = 'catalog',
 	Models = 'models',
+	Configuration = 'configuration',
 }
 
 export const enum AgentSessionState {
@@ -164,16 +165,14 @@ export interface AgentListWorktreesCommand extends AgentSessionCommandBase {
 }
 
 /** Configuration contains identifiers only; credentials stay with the runtime/provider. */
-export interface AgentConfiguration {
-	readonly provider?: string;
-	readonly model?: string;
-	readonly worktreeId?: string;
+export interface AgentModelConfiguration {
+	readonly provider: string;
+	readonly model: string;
 }
 
-export interface AgentApplyConfigurationCommand extends AgentCommandBase {
+export interface AgentApplyConfigurationCommand extends AgentSessionCommandBase {
 	readonly type: AgentCommandType.ApplyConfiguration;
-	readonly sessionId?: string;
-	readonly configuration: AgentConfiguration;
+	readonly configuration: AgentModelConfiguration;
 }
 
 export interface AgentListCatalogCommand extends AgentSessionCommandBase {
@@ -195,6 +194,7 @@ export type AgentCommand =
 
 export interface AgentModelEntry { readonly providerId: string; readonly modelId: string; readonly label: string; readonly providerLabel: string }
 export interface AgentModelsEvent extends AgentSessionEventBase { readonly type: AgentEventType.Models; readonly entries: readonly AgentModelEntry[] }
+export interface AgentConfigurationEvent extends AgentSessionEventBase { readonly type: AgentEventType.Configuration; readonly selection: { readonly providerId: string; readonly modelId: string } }
 
 export interface AgentCatalogEvent extends AgentSessionEventBase {
 	readonly type: AgentEventType.Catalog;
@@ -335,7 +335,9 @@ export type AgentEvent =
 	| AgentResultEvent
 	| AgentErrorEvent
 	| AgentCatalogEvent
-	| AgentModelsEvent;
+	| AgentModelsEvent
+	| AgentConfigurationEvent;
+
 
 export interface AgentValidationSuccess<T> {
 	readonly valid: true;
@@ -484,14 +486,9 @@ function isAgentErrorCode(value: unknown): value is AgentErrorCode {
 	}
 }
 
-export function isAgentConfiguration(value: unknown): value is AgentConfiguration {
-	if (!isRecord(value) || !hasOnlyKeys(value, ['provider', 'model', 'worktreeId'])) {
-		return false;
-	}
-
-	return isOptionalString(value.provider)
-		&& isOptionalString(value.model)
-		&& isOptionalString(value.worktreeId);
+export function isAgentModelConfiguration(value: unknown): value is AgentModelConfiguration {
+	return isRecord(value) && hasOnlyKeys(value, ['provider', 'model'])
+		&& isNonEmptyString(value.provider) && isNonEmptyString(value.model);
 }
 
 export function isAgentDiff(value: unknown): value is AgentDiff {
@@ -619,8 +616,8 @@ function getAgentCommandError(value: unknown): AgentError | undefined {
 				: invalidPayload('Approval command requires a sessionId and approvalId.');
 		case AgentCommandType.ApplyConfiguration:
 			return hasOnlyKeys(command, ['version', 'requestId', 'type', 'sessionId', 'configuration'])
-				&& isOptionalString(command.sessionId)
-				&& isAgentConfiguration(command.configuration)
+				&& isNonEmptyString(command.sessionId)
+				&& isAgentModelConfiguration(command.configuration)
 				? undefined
 				: invalidPayload('Configuration command has an invalid sessionId or configuration.');
 		default:
@@ -693,6 +690,11 @@ function getAgentEventError(value: unknown): AgentError | undefined {
 			return hasOnlyKeys(event, ['version', 'type', 'requestId', 'sessionId', 'entries']) && sessionIdIsValid
 				&& Array.isArray(event.entries) && event.entries.every(isAgentModelEntry)
 				? undefined : invalidPayload('Models event requires a sessionId and sanitized entries.');
+		case AgentEventType.Configuration:
+			return hasOnlyKeys(event, ['version', 'type', 'requestId', 'sessionId', 'selection']) && sessionIdIsValid
+				&& isRecord(event.selection) && hasOnlyKeys(event.selection, ['providerId', 'modelId'])
+				&& isNonEmptyString(event.selection.providerId) && isNonEmptyString(event.selection.modelId)
+				? undefined : invalidPayload('Configuration event requires a sanitized selection.');
 		case AgentEventType.Error:
 			return hasOnlyKeys(event, ['version', 'type', 'requestId', 'sessionId', 'error'])
 				&& isOptionalString(event.sessionId)

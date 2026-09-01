@@ -978,4 +978,41 @@ suite('RuntimeTransportBridge', () => {
 		assert.strictEqual((events[1] as Extract<TransportEvent, { type: TransportEventType.Error }>).error.code, TransportErrorCode.WorkspaceUntrusted);
 		bridge.dispose();
 	});
+
+	test('uses only a discovered selected model in the documented prompt shape', async () => {
+		const requests: OpenCodeRequest[] = [];
+		const ports = portsFor({
+			send: async request => {
+				requests.push(request);
+				if (request.path === '/session') {
+					return { id: 'selected-model-session' };
+				}
+				if (request.path.startsWith('/provider?')) {
+					return { all: [{ id: 'provider-a', name: 'Provider A', models: { 'model-a': { id: 'model-a', name: 'Model A' } } }] };
+				}
+				return {};
+			},
+		});
+		const bridge = new RuntimeTransportBridge(ports);
+		const events: TransportEvent[] = [];
+		bridge.onEvent(event => events.push(event));
+		await bridge.send({ version: TRANSPORT_PROTOCOL_VERSION, requestId: 'start-selected-model', type: TransportCommandType.StartSession, workspaceUri: workspace.uri, localIntegrationPreflight: { accepted: true } });
+		await bridge.send({ version: TRANSPORT_PROTOCOL_VERSION, requestId: 'discover-selected-model', type: TransportCommandType.ListModels, sessionId: 'selected-model-session' });
+		await bridge.send({ version: TRANSPORT_PROTOCOL_VERSION, requestId: 'select-model', type: TransportCommandType.ApplyConfiguration, sessionId: 'selected-model-session', configuration: { provider: 'provider-a', model: 'model-a' } });
+		await bridge.send({ version: TRANSPORT_PROTOCOL_VERSION, requestId: 'send-selected-model', type: TransportCommandType.SendInput, sessionId: 'selected-model-session', text: 'hello' });
+
+		assert.deepStrictEqual(events.find(event => event.type === TransportEventType.Configuration), {
+			version: TRANSPORT_PROTOCOL_VERSION,
+			type: TransportEventType.Configuration,
+			sessionId: 'selected-model-session',
+			requestId: 'select-model',
+			selection: { providerId: 'provider-a', modelId: 'model-a' },
+		});
+		assert.deepStrictEqual(requests.at(-1), {
+			method: 'POST',
+			path: '/session/selected-model-session/prompt_async',
+			body: { parts: [{ type: 'text', text: 'hello' }], model: { providerID: 'provider-a', modelID: 'model-a' } },
+		});
+		bridge.dispose();
+	});
 });

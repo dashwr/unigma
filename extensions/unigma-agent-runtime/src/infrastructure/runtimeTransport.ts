@@ -39,6 +39,8 @@ export class RuntimeTransportBridge implements RuntimeTransport {
 	private readonly ports: RuntimePorts;
 	private readonly listeners = new Set<(event: TransportEvent) => void>();
 	private readonly knownSessionWorkspaces = new Map<string, string>();
+	private readonly selectedModels = new Map<string, { providerId: string; modelId: string }>();
+	private readonly discoveredModels = new Map<string, Set<string>>();
 	private readonly knownRequestIds = new Set<string>();
 	private readonly eventSubscription: DisposableLike | undefined;
 	private process: OwnedProcessHandle | undefined;
@@ -91,7 +93,7 @@ export class RuntimeTransportBridge implements RuntimeTransport {
 			case TransportCommandType.ListModels:
 				return this.handleListModels(validCommand.requestId, validCommand.sessionId);
 			case TransportCommandType.ApplyConfiguration:
-				return this.emitError(validCommand.requestId, TransportErrorCode.Internal, 'Configuration is not yet supported.', false);
+				return this.handleApplyConfiguration(validCommand.requestId, validCommand.sessionId, validCommand.configuration);
 			default:
 				this.emitError(requestIdFor(validCommand), TransportErrorCode.InvalidPayload, 'Unknown command type.', false);
 		}
@@ -106,6 +108,8 @@ export class RuntimeTransportBridge implements RuntimeTransport {
 		this.listeners.clear();
 		this.process = undefined;
 		this.knownSessionWorkspaces.clear();
+		this.selectedModels.clear();
+		this.discoveredModels.clear();
 		this.knownRequestIds.clear();
 		this.teardownPromise ??= (async () => {
 			try {
@@ -243,6 +247,8 @@ export class RuntimeTransportBridge implements RuntimeTransport {
 			}
 			await this.ports.openCodeClient.send({ method: 'POST', path: `/session/${encodeURIComponent(sessionId)}/abort`, body: {} });
 			this.knownSessionWorkspaces.delete(sessionId);
+			this.selectedModels.delete(sessionId);
+			this.discoveredModels.delete(sessionId);
 			this.emitEvent({
 				version: TRANSPORT_PROTOCOL_VERSION,
 				type: TransportEventType.State,
@@ -265,7 +271,15 @@ export class RuntimeTransportBridge implements RuntimeTransport {
 			await this.ports.openCodeClient.send({
 				method: 'POST',
 				path: `/session/${encodeURIComponent(sessionId)}/prompt_async`,
-				body: { parts: [{ type: 'text', text }] },
+				body: {
+					parts: [{ type: 'text', text }],
+					...(this.selectedModels.has(sessionId) ? {
+						model: {
+							providerID: this.selectedModels.get(sessionId)!.providerId,
+							modelID: this.selectedModels.get(sessionId)!.modelId,
+						},
+					} : {}),
+				},
 			});
 			this.emitEvent({
 				version: TRANSPORT_PROTOCOL_VERSION,
@@ -359,6 +373,25 @@ export class RuntimeTransportBridge implements RuntimeTransport {
 		this.emitError(requestId, TransportErrorCode.Internal, 'Worktrees are managed by Git, not the OpenCode transport.', false);
 	}
 
+	private async handleApplyConfiguration(requestId: string, sessionId: string, configuration: { readonly provider: string; readonly model: string }): Promise<void> {
+		if (!this.isKnownSession(sessionId)) {
+			this.emitError(requestId, TransportErrorCode.ConfigurationInvalid, 'A known session is required.', false);
+			return;
+		}
+		const discovered = this.discoveredModels.get(sessionId);
+		if (!discovered) {
+			this.emitError(requestId, TransportErrorCode.CapabilityUnavailable, 'Models must be discovered before selection.', false);
+			return;
+		}
+		const key = `${configuration.provider}\0${configuration.model}`;
+		if (!discovered.has(key)) {
+			this.emitError(requestId, TransportErrorCode.ConfigurationInvalid, 'The selected model was not discovered for this workspace.', false);
+			return;
+		}
+		this.selectedModels.set(sessionId, { providerId: configuration.provider, modelId: configuration.model });
+		this.emitEvent({ version: TRANSPORT_PROTOCOL_VERSION, type: TransportEventType.Configuration, sessionId, requestId, selection: { providerId: configuration.provider, modelId: configuration.model } });
+	}
+
 	private async handleListCatalog(requestId: string, sessionId: string): Promise<void> {
 		const workspaceUri = this.knownSessionWorkspaces.get(sessionId);
 		const workspace = workspaceUri ? this.workspaceFromUri(workspaceUri) : undefined;
@@ -410,6 +443,7 @@ export class RuntimeTransportBridge implements RuntimeTransport {
 				return;
 			}
 			this.emitEvent({ version: TRANSPORT_PROTOCOL_VERSION, type: TransportEventType.Models, sessionId, requestId, entries });
+			this.discoveredModels.set(sessionId, new Set(entries.map(entry => `${entry.providerId}\0${entry.modelId}`)));
 		} catch {
 			this.emitError(requestId, TransportErrorCode.CapabilityUnavailable, 'OpenCode model capability is unavailable.', false);
 		}

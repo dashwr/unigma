@@ -53,6 +53,7 @@ export const enum TransportEventType {
 	Error = 'error',
 	Catalog = 'catalog',
 	Models = 'models',
+	Configuration = 'configuration',
 }
 
 export const enum TransportSessionState {
@@ -156,10 +157,9 @@ export interface TransportListWorktreesCommand extends TransportSessionCommandBa
 	readonly type: TransportCommandType.ListWorktrees;
 }
 
-export interface TransportApplyConfigurationCommand extends TransportCommandBase {
+export interface TransportApplyConfigurationCommand extends TransportSessionCommandBase {
 	readonly type: TransportCommandType.ApplyConfiguration;
-	readonly sessionId?: string;
-	readonly configuration: TransportConfiguration;
+	readonly configuration: TransportModelConfiguration;
 }
 
 export interface TransportListCatalogCommand extends TransportSessionCommandBase {
@@ -167,10 +167,9 @@ export interface TransportListCatalogCommand extends TransportSessionCommandBase
 }
 export interface TransportListModelsCommand extends TransportSessionCommandBase { readonly type: TransportCommandType.ListModels }
 
-export interface TransportConfiguration {
-	readonly provider?: string;
-	readonly model?: string;
-	readonly worktreeId?: string;
+export interface TransportModelConfiguration {
+	readonly provider: string;
+	readonly model: string;
 }
 
 export type TransportCommand =
@@ -285,14 +284,9 @@ function isTransportCommandType(value: unknown): value is TransportCommandType {
 	}
 }
 
-function isTransportConfiguration(value: unknown): value is TransportConfiguration {
-	if (!isTransportRecord(value) || !hasOnlyKeys(value, ['provider', 'model', 'worktreeId'])) {
-		return false;
-	}
-
-	return isOptionalString(value.provider)
-		&& isOptionalString(value.model)
-		&& isOptionalString(value.worktreeId);
+function isTransportModelConfiguration(value: unknown): value is TransportModelConfiguration {
+	return isTransportRecord(value) && hasOnlyKeys(value, ['provider', 'model'])
+		&& isNonEmptyString(value.provider) && isNonEmptyString(value.model);
 }
 
 function invalidPayload(message: string): TransportError {
@@ -371,8 +365,8 @@ function getTransportCommandError(value: unknown): TransportError | undefined {
 				: invalidPayload('Rejection command requires a sessionId and approvalId.');
 		case TransportCommandType.ApplyConfiguration:
 			return hasOnlyKeys(command, ['version', 'requestId', 'type', 'sessionId', 'configuration'])
-				&& isOptionalString(command.sessionId)
-				&& isTransportConfiguration(command.configuration)
+				&& isNonEmptyString(command.sessionId)
+				&& isTransportModelConfiguration(command.configuration)
 				? undefined
 				: invalidPayload('Configuration command has an invalid sessionId or configuration.');
 		default:
@@ -438,6 +432,7 @@ export interface TransportCatalogEvent extends TransportSessionEventBase {
 	readonly entries: readonly TransportCatalogEntry[];
 }
 export interface TransportModelsEvent extends TransportSessionEventBase { readonly type: TransportEventType.Models; readonly entries: readonly TransportModelEntry[] }
+export interface TransportConfigurationEvent extends TransportSessionEventBase { readonly type: TransportEventType.Configuration; readonly selection: { readonly providerId: string; readonly modelId: string } }
 
 export interface TransportErrorEvent extends TransportEventBase {
 	readonly type: TransportEventType.Error;
@@ -455,6 +450,7 @@ export type TransportEvent =
 	| TransportResultEvent
 	| TransportCatalogEvent
 	| TransportModelsEvent
+	| TransportConfigurationEvent
 	| TransportErrorEvent;
 
 function isTransportEventType(value: unknown): value is TransportEventType {
@@ -469,6 +465,7 @@ function isTransportEventType(value: unknown): value is TransportEventType {
 		case TransportEventType.Error:
 		case TransportEventType.Catalog:
 		case TransportEventType.Models:
+		case TransportEventType.Configuration:
 			return true;
 		default:
 			return false;
@@ -580,6 +577,10 @@ function isTransportModelEntry(value: unknown): value is TransportModelEntry {
 		&& isNonEmptyString(value.providerId) && isNonEmptyString(value.modelId)
 		&& isNonEmptyString(value.label) && isNonEmptyString(value.providerLabel);
 }
+function isTransportModelSelection(value: unknown): value is { readonly providerId: string; readonly modelId: string } {
+	return isTransportRecord(value) && hasOnlyKeys(value, ['providerId', 'modelId'])
+		&& isNonEmptyString(value.providerId) && isNonEmptyString(value.modelId);
+}
 
 function isTransportError(value: unknown): value is TransportError {
 	return isTransportRecord(value)
@@ -664,6 +665,10 @@ function getTransportEventError(value: unknown): TransportError | undefined {
 			return hasOnlyKeys(event, ['version', 'type', 'requestId', 'sessionId', 'entries']) && sessionIdIsValid
 				&& Array.isArray(event.entries) && event.entries.every(isTransportModelEntry)
 				? undefined : invalidPayload('Models event requires a sessionId and sanitized entries.');
+		case TransportEventType.Configuration:
+			return hasOnlyKeys(event, ['version', 'type', 'requestId', 'sessionId', 'selection']) && sessionIdIsValid
+				&& isTransportModelSelection(event.selection)
+				? undefined : invalidPayload('Configuration event requires a sanitized selection.');
 		case TransportEventType.Error:
 			return hasOnlyKeys(event, ['version', 'type', 'requestId', 'sessionId', 'error'])
 				&& isOptionalString(event.sessionId)
