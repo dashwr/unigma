@@ -57,6 +57,7 @@ export interface IUnigmaAgentRuntime {
 	registerTransport(transport: IUnigmaAgentRpcTransport): IDisposable;
 	/** The pinned OpenCode `/doc` does not yet authorize catalog routes. */
 	getCatalog(sessionId: string): Promise<AgentCatalogResult>;
+	requestModels(sessionId: string): Promise<void>;
 }
 
 /*
@@ -108,6 +109,7 @@ function serializeAgentCommand(command: AgentCommand): Record<string, unknown> {
 		case AgentCommandType.StopSession:
 		case AgentCommandType.ListWorktrees:
 		case AgentCommandType.ListCatalog:
+		case AgentCommandType.ListModels:
 			return { ...envelope, sessionId: command.sessionId };
 		case AgentCommandType.SendInput:
 			return { ...envelope, sessionId: command.sessionId, text: command.text };
@@ -220,6 +222,10 @@ export class UnigmaAgentRuntime extends Disposable implements IUnigmaAgentRuntim
 			this.pendingCatalog.delete(requestId);
 			return { available: false, error: { code: AgentErrorCode.CapabilityUnavailable, message: 'Catalog capability is unavailable.', retryable: false } };
 		}
+	}
+
+	async requestModels(sessionId: string): Promise<void> {
+		await this.send({ version: AGENT_PROTOCOL_VERSION, requestId: this.nextRequestId(), type: AgentCommandType.ListModels, sessionId });
 	}
 
 	async sendInput(sessionId: string, text: string): Promise<void> {

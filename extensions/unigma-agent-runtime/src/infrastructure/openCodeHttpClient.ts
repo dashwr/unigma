@@ -177,7 +177,18 @@ export class OpenCodeHttpClient implements OpenCodeClient<OpenCodeRequest, OpenC
 			return Promise.reject(new Error('OpenCode client is not connected.'));
 		}
 
-		if (!this.documentOperations.some(operation => operation.method === request.method && operation.matcher.test(request.path))) {
+		let pathname: string;
+		try {
+			const url = new URL(request.path, this.endpoint);
+			if (url.origin !== this.endpoint.origin) {
+				throw new Error('OpenCode request must target the owned loopback endpoint.');
+			}
+			pathname = url.pathname;
+		} catch {
+			return Promise.reject(new Error('OpenCode request path is invalid.'));
+		}
+
+		if (!this.documentOperations.some(operation => operation.method === request.method && operation.matcher.test(pathname))) {
 			return Promise.reject(new Error(`OpenCode endpoint is outside the MVP profile: ${request.path}`));
 		}
 

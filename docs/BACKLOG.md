@@ -722,6 +722,11 @@ estão pendentes.
 > referência textual de arquivo/agente sem catálogo especulativo; a validação
 > de build/teste passou no Windows `33465962415` e Linux/WSL `33465963804`.
 
+> extensão: 2026-09-01 — runtime agora descobre e sanitiza modelos de
+> `GET /provider` por workspace, sem expor credenciais, headers, options ou
+> custos. O painel/toggle global e a seleção por `prompt_async.model` continuam
+> pendentes.
+
 - **objetivo:** oferecer `@` para ferramentas e `/` para skills na superfície
   nativa do agente, encaminhando a seleção pelo contrato do OpenCode.
 - **responsável lógico:** workbench nativo + runtime OpenCode.

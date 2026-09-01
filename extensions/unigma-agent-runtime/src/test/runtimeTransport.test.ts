@@ -41,14 +41,14 @@ function portsFor(options: {
 	readonly connect?: () => Promise<void>;
 	readonly send?: (request: OpenCodeRequest) => Promise<unknown>;
 	readonly onEvent?: (listener: (event: OpenCodeEvent) => void) => { dispose(): void };
-	readonly trusted?: boolean;
+	readonly trusted?: boolean | (() => boolean);
 	readonly ensureStarted?: (workspace: WorkspaceReference) => Promise<OwnedProcessHandle>;
 	readonly preflight?: RuntimePorts['localIntegrationPreflight'];
 } = {}): RuntimePorts & { eventEmitter: FakeEventEmitter } {
 	const eventEmitter = new FakeEventEmitter();
 	return {
 		workspaceTrust: {
-			isTrusted: () => options.trusted ?? true,
+			isTrusted: () => typeof options.trusted === 'function' ? options.trusted() : options.trusted ?? true,
 		},
 		processManager: {
 			ensureStarted: async workspace => options.ensureStarted?.(workspace) ?? processHandle,
@@ -930,6 +930,52 @@ suite('RuntimeTransportBridge', () => {
 			state: TransportSessionState.Running,
 			requestId: 'req-1',
 		});
+		bridge.dispose();
+	});
+
+	test('lists models with an encoded workspace directory and sanitized entries', async () => {
+		const requests: OpenCodeRequest[] = [];
+		const ports = portsFor({
+			send: async request => {
+				requests.push(request);
+				return request.path === '/session' ? { id: 'model-session' } : {
+					all: [{ id: 'provider-a', name: 'Provider A', env: ['SECRET'], models: { 'model-a': { id: 'model-a', name: 'Model A', options: { key: 'SECRET' }, cost: 1 } } }],
+				};
+			}
+		});
+		const bridge = new RuntimeTransportBridge(ports);
+		const events: TransportEvent[] = [];
+		bridge.onEvent(event => events.push(event));
+		await bridge.send({ version: TRANSPORT_PROTOCOL_VERSION, requestId: 'start-models', type: TransportCommandType.StartSession, workspaceUri: workspace.uri, localIntegrationPreflight: { accepted: true } });
+		await bridge.send({ version: TRANSPORT_PROTOCOL_VERSION, requestId: 'list-models', type: TransportCommandType.ListModels, sessionId: 'model-session' });
+		assert.strictEqual(requests[1].path, `/provider?directory=${encodeURIComponent(new URL(workspace.uri).pathname)}`);
+		assert.deepStrictEqual(events[1], { version: TRANSPORT_PROTOCOL_VERSION, type: TransportEventType.Models, sessionId: 'model-session', requestId: 'list-models', entries: [{ providerId: 'provider-a', modelId: 'model-a', label: 'Model A', providerLabel: 'Provider A' }] });
+		assert.ok(!JSON.stringify(events[1]).includes('SECRET'));
+		bridge.dispose();
+	});
+
+	test('rejects invalid model payloads as capability unavailable', async () => {
+		const ports = portsFor({ send: async request => request.path === '/session' ? { id: 'invalid-model-session' } : { all: [{ id: 'provider-a', name: 'Provider A', models: { broken: { id: 'broken', name: 42 } } }] } });
+		const bridge = new RuntimeTransportBridge(ports);
+		const events: TransportEvent[] = [];
+		bridge.onEvent(event => events.push(event));
+		await bridge.send({ version: TRANSPORT_PROTOCOL_VERSION, requestId: 'start-invalid-models', type: TransportCommandType.StartSession, workspaceUri: workspace.uri, localIntegrationPreflight: { accepted: true } });
+		await bridge.send({ version: TRANSPORT_PROTOCOL_VERSION, requestId: 'invalid-models', type: TransportCommandType.ListModels, sessionId: 'invalid-model-session' });
+		assert.strictEqual(events[1].type, TransportEventType.Error);
+		assert.strictEqual((events[1] as Extract<TransportEvent, { type: TransportEventType.Error }>).error.code, TransportErrorCode.CapabilityUnavailable);
+		bridge.dispose();
+	});
+
+	test('rejects model discovery from an untrusted workspace', async () => {
+		let trusted = true;
+		const ports = portsFor({ trusted: () => trusted });
+		const bridge = new RuntimeTransportBridge(ports);
+		const events: TransportEvent[] = [];
+		bridge.onEvent(event => events.push(event));
+		await bridge.send({ version: TRANSPORT_PROTOCOL_VERSION, requestId: 'start-untrusted-models', type: TransportCommandType.StartSession, workspaceUri: workspace.uri, localIntegrationPreflight: { accepted: true } });
+		trusted = false;
+		await bridge.send({ version: TRANSPORT_PROTOCOL_VERSION, requestId: 'untrusted-models', type: TransportCommandType.ListModels, sessionId: 'session-new' });
+		assert.strictEqual((events[1] as Extract<TransportEvent, { type: TransportEventType.Error }>).error.code, TransportErrorCode.WorkspaceUntrusted);
 		bridge.dispose();
 	});
 });

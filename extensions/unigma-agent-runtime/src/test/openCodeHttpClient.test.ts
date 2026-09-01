@@ -68,7 +68,7 @@ async function createFixture(options: FixtureOptions = {}): Promise<Fixture> {
 	const eventResponses: ServerResponse[] = [];
 	const server = createServer((request, response) => {
 		const requestPath = request.url?.split('?')[0] ?? '/';
-		requests.push({ method: request.method ?? 'GET', path: requestPath, headers: request.headers });
+		requests.push({ method: request.method ?? 'GET', path: request.url ?? '/', headers: request.headers });
 		request.resume();
 
 		if (requestPath === '/global/health') {
@@ -283,6 +283,8 @@ suite('Unigma OpenCode HTTP/SSE client', () => {
 			await client.connect(processFor(fixture.endpoint));
 			const providers = await client.send({ method: 'GET', path: '/provider' });
 			assert.ok(providers && typeof providers === 'object');
+			await client.send({ method: 'GET', path: '/provider?directory=%2Ftmp%2Funigma-workspace' });
+			assert.ok(fixture.requests.some(request => request.path === '/provider?directory=%2Ftmp%2Funigma-workspace'));
 		} finally {
 			await client.disconnect();
 			await fixture.close();

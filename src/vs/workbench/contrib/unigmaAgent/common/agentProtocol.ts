@@ -17,6 +17,7 @@ export const enum AgentCommandType {
 	ListWorktrees = 'worktrees',
 	ApplyConfiguration = 'configure',
 	ListCatalog = 'catalog',
+	ListModels = 'models',
 }
 
 /** Sanitized result from the local integration preflight. */
@@ -49,6 +50,7 @@ export const enum AgentEventType {
 	Result = 'result',
 	Error = 'error',
 	Catalog = 'catalog',
+	Models = 'models',
 }
 
 export const enum AgentSessionState {
@@ -177,6 +179,7 @@ export interface AgentApplyConfigurationCommand extends AgentCommandBase {
 export interface AgentListCatalogCommand extends AgentSessionCommandBase {
 	readonly type: AgentCommandType.ListCatalog;
 }
+export interface AgentListModelsCommand extends AgentSessionCommandBase { readonly type: AgentCommandType.ListModels }
 
 export type AgentCommand =
 	| AgentStartSessionCommand
@@ -187,7 +190,11 @@ export type AgentCommand =
 	| AgentRejectCommand
 	| AgentListWorktreesCommand
 	| AgentApplyConfigurationCommand
-	| AgentListCatalogCommand;
+	| AgentListCatalogCommand
+	| AgentListModelsCommand;
+
+export interface AgentModelEntry { readonly providerId: string; readonly modelId: string; readonly label: string; readonly providerLabel: string }
+export interface AgentModelsEvent extends AgentSessionEventBase { readonly type: AgentEventType.Models; readonly entries: readonly AgentModelEntry[] }
 
 export interface AgentCatalogEvent extends AgentSessionEventBase {
 	readonly type: AgentEventType.Catalog;
@@ -327,7 +334,8 @@ export type AgentEvent =
 	| AgentWorktreesEvent
 	| AgentResultEvent
 	| AgentErrorEvent
-	| AgentCatalogEvent;
+	| AgentCatalogEvent
+	| AgentModelsEvent;
 
 export interface AgentValidationSuccess<T> {
 	readonly valid: true;
@@ -551,6 +559,11 @@ function isAgentCatalogEntry(value: unknown): value is AgentCatalogEntry {
 		&& typeof value.description === 'string'
 		&& (value.kind === 'command' || value.kind === 'skill');
 }
+function isAgentModelEntry(value: unknown): value is AgentModelEntry {
+	return isRecord(value) && hasOnlyKeys(value, ['providerId', 'modelId', 'label', 'providerLabel'])
+		&& isNonEmptyString(value.providerId) && isNonEmptyString(value.modelId)
+		&& isNonEmptyString(value.label) && isNonEmptyString(value.providerLabel);
+}
 
 function isAgentError(value: unknown): value is AgentError {
 	return isRecord(value)
@@ -676,6 +689,10 @@ function getAgentEventError(value: unknown): AgentError | undefined {
 				&& event.entries.every(isAgentCatalogEntry)
 				? undefined
 				: invalidPayload('Catalog event requires a sessionId and sanitized entries.');
+		case AgentEventType.Models:
+			return hasOnlyKeys(event, ['version', 'type', 'requestId', 'sessionId', 'entries']) && sessionIdIsValid
+				&& Array.isArray(event.entries) && event.entries.every(isAgentModelEntry)
+				? undefined : invalidPayload('Models event requires a sessionId and sanitized entries.');
 		case AgentEventType.Error:
 			return hasOnlyKeys(event, ['version', 'type', 'requestId', 'sessionId', 'error'])
 				&& isOptionalString(event.sessionId)

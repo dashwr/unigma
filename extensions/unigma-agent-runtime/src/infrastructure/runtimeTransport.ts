@@ -17,6 +17,7 @@ import {
 	type RuntimeTransport,
 	type TransportCommand,
 	type TransportCatalogEntry,
+	type TransportModelEntry,
 	type TransportDiffFile,
 	type TransportEvent,
 } from '../application/transport';
@@ -87,6 +88,8 @@ export class RuntimeTransportBridge implements RuntimeTransport {
 				return this.handleListWorktrees(validCommand.requestId, validCommand.sessionId);
 			case TransportCommandType.ListCatalog:
 				return this.handleListCatalog(validCommand.requestId, validCommand.sessionId);
+			case TransportCommandType.ListModels:
+				return this.handleListModels(validCommand.requestId, validCommand.sessionId);
 			case TransportCommandType.ApplyConfiguration:
 				return this.emitError(validCommand.requestId, TransportErrorCode.Internal, 'Configuration is not yet supported.', false);
 			default:
@@ -383,6 +386,52 @@ export class RuntimeTransportBridge implements RuntimeTransport {
 		} catch {
 			this.emitError(requestId, TransportErrorCode.CapabilityUnavailable, 'OpenCode catalog capability is unavailable.', false);
 		}
+	}
+
+	private async handleListModels(requestId: string, sessionId: string): Promise<void> {
+		const workspaceUri = this.knownSessionWorkspaces.get(sessionId);
+		const workspace = workspaceUri ? this.workspaceFromUri(workspaceUri) : undefined;
+		if (!workspace || !this.isKnownSession(sessionId) || !this.ports.workspaceTrust.isTrusted(workspace)) {
+			this.emitError(requestId, TransportErrorCode.WorkspaceUntrusted, 'The workspace is not trusted.', false);
+			return;
+		}
+		const preflight = this.ports.localIntegrationPreflight(workspace, { accepted: true });
+		if (!preflight.accepted) {
+			this.emitError(requestId, TransportErrorCode.CapabilityUnavailable, 'Model capability is unavailable after local integration preflight.', false);
+			return;
+		}
+		try {
+			await this.ensureConnected();
+			const directory = encodeURIComponent(new URL(workspace.uri).pathname);
+			const response = await this.ports.openCodeClient.send({ method: 'GET', path: `/provider?directory=${directory}` });
+			const entries = this.sanitizeModels(response);
+			if (!entries) {
+				this.emitError(requestId, TransportErrorCode.CapabilityUnavailable, 'OpenCode returned an invalid model catalog.', false);
+				return;
+			}
+			this.emitEvent({ version: TRANSPORT_PROTOCOL_VERSION, type: TransportEventType.Models, sessionId, requestId, entries });
+		} catch {
+			this.emitError(requestId, TransportErrorCode.CapabilityUnavailable, 'OpenCode model capability is unavailable.', false);
+		}
+	}
+
+	private sanitizeModels(value: unknown): TransportModelEntry[] | undefined {
+		if (!isRecord(value) || !Array.isArray(value.all)) {
+			return undefined;
+		}
+		const entries: TransportModelEntry[] = [];
+		for (const provider of value.all) {
+			if (!isRecord(provider) || typeof provider.id !== 'string' || typeof provider.name !== 'string' || !isRecord(provider.models)) {
+				return undefined;
+			}
+			for (const model of Object.values(provider.models)) {
+				if (!isRecord(model) || typeof model.id !== 'string' || model.id.length === 0 || typeof model.name !== 'string') {
+					return undefined;
+				}
+				entries.push({ providerId: provider.id, modelId: model.id, label: model.name, providerLabel: provider.name });
+			}
+		}
+		return entries;
 	}
 
 	private sanitizeCatalog(value: unknown, kind: 'command' | 'skill'): TransportCatalogEntry[] {

@@ -39,6 +39,7 @@ export const enum TransportCommandType {
 	ListWorktrees = 'worktrees',
 	ApplyConfiguration = 'configure',
 	ListCatalog = 'catalog',
+	ListModels = 'models',
 }
 
 export const enum TransportEventType {
@@ -51,6 +52,7 @@ export const enum TransportEventType {
 	Result = 'result',
 	Error = 'error',
 	Catalog = 'catalog',
+	Models = 'models',
 }
 
 export const enum TransportSessionState {
@@ -163,6 +165,7 @@ export interface TransportApplyConfigurationCommand extends TransportCommandBase
 export interface TransportListCatalogCommand extends TransportSessionCommandBase {
 	readonly type: TransportCommandType.ListCatalog;
 }
+export interface TransportListModelsCommand extends TransportSessionCommandBase { readonly type: TransportCommandType.ListModels }
 
 export interface TransportConfiguration {
 	readonly provider?: string;
@@ -179,7 +182,8 @@ export type TransportCommand =
 	| TransportRejectCommand
 	| TransportListWorktreesCommand
 	| TransportApplyConfigurationCommand
-	| TransportListCatalogCommand;
+	| TransportListCatalogCommand
+	| TransportListModelsCommand;
 
 export interface TransportCatalogEntry {
 	readonly id: string;
@@ -187,6 +191,7 @@ export interface TransportCatalogEntry {
 	readonly description: string;
 	readonly kind: 'command' | 'skill';
 }
+export interface TransportModelEntry { readonly providerId: string; readonly modelId: string; readonly label: string; readonly providerLabel: string }
 
 export interface TransportDiffFile {
 	readonly path: string;
@@ -272,6 +277,8 @@ function isTransportCommandType(value: unknown): value is TransportCommandType {
 		case TransportCommandType.Reject:
 		case TransportCommandType.ListWorktrees:
 		case TransportCommandType.ApplyConfiguration:
+		case TransportCommandType.ListCatalog:
+		case TransportCommandType.ListModels:
 			return true;
 		default:
 			return false;
@@ -332,6 +339,7 @@ function getTransportCommandError(value: unknown): TransportError | undefined {
 		case TransportCommandType.StopSession:
 		case TransportCommandType.ListWorktrees:
 		case TransportCommandType.ListCatalog:
+		case TransportCommandType.ListModels:
 			return hasOnlyKeys(command, ['version', 'requestId', 'type', 'sessionId'])
 				&& isNonEmptyString(command.sessionId)
 				? undefined
@@ -429,6 +437,7 @@ export interface TransportCatalogEvent extends TransportSessionEventBase {
 	readonly type: TransportEventType.Catalog;
 	readonly entries: readonly TransportCatalogEntry[];
 }
+export interface TransportModelsEvent extends TransportSessionEventBase { readonly type: TransportEventType.Models; readonly entries: readonly TransportModelEntry[] }
 
 export interface TransportErrorEvent extends TransportEventBase {
 	readonly type: TransportEventType.Error;
@@ -445,6 +454,7 @@ export type TransportEvent =
 	| TransportWorktreesEvent
 	| TransportResultEvent
 	| TransportCatalogEvent
+	| TransportModelsEvent
 	| TransportErrorEvent;
 
 function isTransportEventType(value: unknown): value is TransportEventType {
@@ -457,6 +467,8 @@ function isTransportEventType(value: unknown): value is TransportEventType {
 		case TransportEventType.Worktrees:
 		case TransportEventType.Result:
 		case TransportEventType.Error:
+		case TransportEventType.Catalog:
+		case TransportEventType.Models:
 			return true;
 		default:
 			return false;
@@ -563,6 +575,11 @@ function isTransportCatalogEntry(value: unknown): value is TransportCatalogEntry
 		&& typeof value.description === 'string'
 		&& (value.kind === 'command' || value.kind === 'skill');
 }
+function isTransportModelEntry(value: unknown): value is TransportModelEntry {
+	return isTransportRecord(value) && hasOnlyKeys(value, ['providerId', 'modelId', 'label', 'providerLabel'])
+		&& isNonEmptyString(value.providerId) && isNonEmptyString(value.modelId)
+		&& isNonEmptyString(value.label) && isNonEmptyString(value.providerLabel);
+}
 
 function isTransportError(value: unknown): value is TransportError {
 	return isTransportRecord(value)
@@ -643,6 +660,10 @@ function getTransportEventError(value: unknown): TransportError | undefined {
 				&& event.entries.every(isTransportCatalogEntry)
 				? undefined
 				: invalidPayload('Catalog event requires a sessionId and sanitized entries.');
+		case TransportEventType.Models:
+			return hasOnlyKeys(event, ['version', 'type', 'requestId', 'sessionId', 'entries']) && sessionIdIsValid
+				&& Array.isArray(event.entries) && event.entries.every(isTransportModelEntry)
+				? undefined : invalidPayload('Models event requires a sessionId and sanitized entries.');
 		case TransportEventType.Error:
 			return hasOnlyKeys(event, ['version', 'type', 'requestId', 'sessionId', 'error'])
 				&& isOptionalString(event.sessionId)
