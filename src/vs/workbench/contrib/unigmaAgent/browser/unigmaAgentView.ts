@@ -8,7 +8,7 @@ import { Button } from '../../../../base/browser/ui/button/button.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IAllowedMcpServersService } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -27,7 +27,7 @@ import { IViewDescriptorService } from '../../../common/views.js';
 import { UNIGMA_AGENT_MANIFEST } from './unigmaAgentManifest.js';
 import { IUnigmaAgentRuntime } from './unigmaAgentRuntime.js';
 import { evaluateWorkbenchLocalIntegrationPreflight } from '../common/localIntegrationPreflight.js';
-import type { AgentCatalogEntry, AgentLocalIntegrationPreflight } from '../common/agentProtocol.js';
+import type { AgentCatalogEntry, AgentLocalIntegrationPreflight, AgentModelEntry } from '../common/agentProtocol.js';
 import { getUnigmaAgentInputAction, parseUnigmaAgentInput } from '../common/agentInput.js';
 import {
 	EMPTY_UNIGMA_AGENT_SESSION,
@@ -65,6 +65,8 @@ export class UnigmaAgentViewPane extends ViewPane {
 	private catalogEntries: readonly AgentCatalogEntry[] = [];
 	private catalogSessionId: string | undefined;
 	private catalogUnavailable = false;
+	private modelsRequestedSession: string | undefined;
+	private modelsUnavailable = false;
 	private disposed = false;
 
 	constructor(
@@ -95,8 +97,29 @@ export class UnigmaAgentViewPane extends ViewPane {
 			if (this.model.sessionId && this.model.sessionId !== this.catalogSessionId) {
 				void this.loadCatalog(this.model.sessionId);
 			}
+			if (this.model.state === UNIGMA_AGENT_VIEW_STATES.Empty && this.model.sessionId && this.modelsRequestedSession !== this.model.sessionId) {
+				void this.loadModels(this.model.sessionId);
+			}
 			this.renderState();
 		}));
+		this._register(this.configurationService.onDidChangeConfiguration(event => {
+			if (!this.disposed && event.affectsConfiguration('unigma.agent.hiddenModels')) {
+				this.renderState();
+			}
+		}));
+	}
+
+	private async loadModels(sessionId: string): Promise<void> {
+		this.modelsRequestedSession = sessionId;
+		this.modelsUnavailable = false;
+		try {
+			await this.runtime.requestModels(sessionId);
+		} catch {
+			if (this.modelsRequestedSession === sessionId) {
+				this.modelsUnavailable = true;
+				this.renderState();
+			}
+		}
 	}
 
 	private async loadCatalog(sessionId: string): Promise<void> {
@@ -302,6 +325,7 @@ export class UnigmaAgentViewPane extends ViewPane {
 			content.style.boxSizing = 'border-box';
 			content.style.margin = '8px 0 0';
 		}
+		this.renderModels();
 
 		if (this.model.diff) {
 			const diffContainer = DOM.append(this.stateContainer, DOM.$('.unigma-agent-diff'));
@@ -474,6 +498,53 @@ export class UnigmaAgentViewPane extends ViewPane {
 			unavailable.textContent = localize('unigmaAgent.catalogUnavailable', 'Agent suggestions are unavailable.');
 			unavailable.style.color = 'var(--vscode-descriptionForeground)';
 		}
+	}
+
+	private renderModels(): void {
+		if (!this.model.sessionId || (!this.model.models && !this.modelsUnavailable)) {
+			return;
+		}
+		const container = DOM.append(this.stateContainer!, DOM.$('.unigma-agent-models'));
+		const title = DOM.append(container, DOM.$('h4'));
+		title.textContent = localize('unigmaAgent.models', 'Models');
+		if (this.modelsUnavailable) {
+			const unavailable = DOM.append(container, DOM.$('p'));
+			unavailable.setAttribute('role', 'status');
+			unavailable.textContent = localize('unigmaAgent.modelsUnavailable', 'Models are unavailable.');
+			return;
+		}
+		const configured = this.configurationService.getValue<unknown>('unigma.agent.hiddenModels');
+		const hiddenModels = new Set(Array.isArray(configured) ? configured.filter((id): id is string => typeof id === 'string' && /^[^/]+\/[^/]+$/.test(id)) : []);
+		const models = this.model.models ?? [];
+		const visible = models.filter(model => !hiddenModels.has(`${model.providerId}/${model.modelId}`));
+		const hidden = models.filter(model => hiddenModels.has(`${model.providerId}/${model.modelId}`));
+		if (visible.length === 0) {
+			const empty = DOM.append(container, DOM.$('p'));
+			empty.textContent = localize('unigmaAgent.noVisibleModels', 'No models are visible.');
+		}
+		for (const model of visible) {
+			this.renderModel(container, model, false, hiddenModels);
+		}
+		if (hidden.length > 0) {
+			const hiddenTitle = DOM.append(container, DOM.$('h5'));
+			hiddenTitle.textContent = localize('unigmaAgent.hiddenModels', 'Hidden models');
+			for (const model of hidden) {
+				this.renderModel(container, model, true, hiddenModels);
+			}
+		}
+	}
+
+	private renderModel(container: HTMLElement, model: AgentModelEntry, isHidden: boolean, hiddenModels: ReadonlySet<string>): void {
+		const id = `${model.providerId}/${model.modelId}`;
+		const row = DOM.append(container, DOM.$('.unigma-agent-model'));
+		const label = DOM.append(row, DOM.$('span'));
+		label.textContent = `${model.providerLabel} / ${model.label}`;
+		const toggle = this.renderDisposables.add(new Button(row, { ...defaultButtonStyles, ariaLabel: isHidden ? localize('unigmaAgent.showModel', 'Show model') : localize('unigmaAgent.hideModel', 'Hide model') }));
+		toggle.label = isHidden ? localize('unigmaAgent.show', 'Show') : localize('unigmaAgent.hide', 'Hide');
+		this.renderDisposables.add(toggle.onDidClick(() => {
+			const next = isHidden ? [...hiddenModels].filter(value => value !== id) : [...hiddenModels, id];
+			void this.configurationService.updateValue('unigma.agent.hiddenModels', next, ConfigurationTarget.USER).then(() => this.renderState(), () => undefined);
+		}));
 	}
 
 	override dispose(): void {

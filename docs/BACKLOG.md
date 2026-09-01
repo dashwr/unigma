@@ -724,8 +724,8 @@ estão pendentes.
 
 > extensão: 2026-09-01 — runtime agora descobre e sanitiza modelos de
 > `GET /provider` por workspace, sem expor credenciais, headers, options ou
-> custos. O painel/toggle global e a seleção por `prompt_async.model` continuam
-> pendentes.
+> custos. O painel/toggle global `unigma.agent.hiddenModels` foi integrado no
+> escopo de usuário; a seleção por `prompt_async.model` continua pendente.
 
 - **objetivo:** oferecer `@` para ferramentas e `/` para skills na superfície
   nativa do agente, encaminhando a seleção pelo contrato do OpenCode.

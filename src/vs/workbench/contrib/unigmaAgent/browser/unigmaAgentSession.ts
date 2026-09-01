@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AgentEvent, AgentEventType, AgentSessionState, type AgentDiff, type AgentPermissionRequest } from '../common/agentProtocol.js';
+import { AgentEvent, AgentEventType, AgentSessionState, type AgentDiff, type AgentModelEntry, type AgentPermissionRequest } from '../common/agentProtocol.js';
 
 export const UNIGMA_AGENT_VIEW_STATES = {
 	Empty: 'empty',
@@ -23,6 +23,7 @@ export interface UnigmaAgentSessionViewModel {
 	readonly diff?: AgentDiff;
 	readonly permission?: AgentPermissionRequest;
 	readonly errorMessage?: string;
+	readonly models?: readonly AgentModelEntry[];
 }
 
 export const EMPTY_UNIGMA_AGENT_SESSION: UnigmaAgentSessionViewModel = Object.freeze({ state: UNIGMA_AGENT_VIEW_STATES.Empty });
@@ -87,6 +88,8 @@ export function reduceUnigmaAgentSessionEvent(model: UnigmaAgentSessionViewModel
 				sessionId: event.sessionId,
 				result: event.result.content,
 			};
+		case AgentEventType.Models:
+			return { ...model, sessionId: event.sessionId, models: event.entries };
 		default:
 			return model;
 	}
