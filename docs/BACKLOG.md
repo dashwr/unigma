@@ -12,8 +12,8 @@
 > obrigatória, script POSIX entregue sem corpo em argv, payload tar em stdin,
 > validação remota de manifesto/tamanho/SHA-256, extração e `mv -T` atômico sem
 > apagar a versão anterior. O smoke separado passou localmente com o payload real
-> A execução local não é aceite: o runner é a autoridade e o smoke
-> correspondente ainda não rodou lá. Matriz oficial e fiação do resolver
+> Validado no runner com payload real (`33686239262`), incluindo idempotência e
+> `GET /version` do servidor ativado. Matriz oficial e fiação do resolver
 > permanecem pendentes.
 
 > feito: 2026-09-02 — o auditor ganhou perfil explícito `--server` para o pacote
