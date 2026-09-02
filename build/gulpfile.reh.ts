@@ -13,7 +13,7 @@ import * as optimize from './lib/optimize.ts';
 import { inlineMeta } from './lib/inlineMeta.ts';
 import product from '../product.json' with { type: 'json' };
 import { getProductionDependencies } from './lib/dependencies.ts';
-import { readISODate } from './lib/date.ts';
+import { readISODate, writeISODate } from './lib/date.ts';
 import vfs from 'vinyl-fs';
 import packageJson from '../package.json' with { type: 'json' };
 import { untar } from './lib/util.ts';
@@ -23,6 +23,9 @@ import glob from 'glob';
 import { promisify } from 'util';
 import rceditCallback from 'rcedit';
 import { compileBuildWithManglingTask } from './gulpfile.compile.ts';
+import { useEsbuildTranspile } from './buildConfig.ts';
+import { runEsbuildBundle } from './lib/esbuild.ts';
+import { copyCodiconsTask } from './lib/compilation.ts';
 import { cleanExtensionsBuildTask, compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileExtensionMediaBuildTask, compileCopilotExtensionBuildTask } from './gulpfile.extensions.ts';
 import { vscodeWebResourceIncludes, createVSCodeWebFileContentMapper } from './gulpfile.vscode.web.ts';
 import * as cp from 'child_process';
@@ -42,6 +45,8 @@ const BUILD_ROOT = path.dirname(REPO_ROOT);
 const REMOTE_FOLDER = path.join(REPO_ROOT, 'remote');
 
 const hasBuiltInCopilot = product.builtInExtensions.some(({ name }) => name === 'copilot');
+const sourceMappingURLBase = `https://main.vscode-cdn.net/sourcemaps/${commit}`;
+const isCI = !!process.env['CI'] || !!process.env['BUILD_ARTIFACTSTAGINGDIRECTORY'] || !!process.env['GITHUB_WORKSPACE'];
 
 // Targets
 
@@ -669,15 +674,35 @@ function tweakProductForServerWeb(product: typeof import('../product.json')) {
 			const serverTaskCI = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(...packageTasks));
 			task.task(serverTaskCI);
 
-			const serverTask = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
-				compileBuildWithManglingTask,
-				cleanExtensionsBuildTask,
-				compileNonNativeExtensionsBuildTask,
-				compileCopilotExtensionBuildTask,
-				compileExtensionMediaBuildTask,
-				minified ? minifyTask : bundleTask,
-				serverTaskCI
-			));
+			// Mirror the desktop packaging path: when esbuild transpilation is
+			// enabled the server bundle is produced by esbuild instead of the
+			// gulp-tsb mangling pipeline, which the desktop task already uses.
+			const serverTask = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}`, useEsbuildTranspile
+				? task.series(
+					copyCodiconsTask,
+					cleanExtensionsBuildTask,
+					compileNonNativeExtensionsBuildTask,
+					...(hasBuiltInCopilot ? [compileCopilotExtensionBuildTask] : []),
+					compileExtensionMediaBuildTask,
+					writeISODate('out-build'),
+					task.define(`esbuild-bundle-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}`, () => runEsbuildBundle(
+						sourceFolderName,
+						!!minified,
+						true,
+						type === 'reh' ? 'server' : 'server-web',
+						minified && isCI ? `${sourceMappingURLBase}/core` : undefined
+					)),
+					serverTaskCI
+				)
+				: task.series(
+					compileBuildWithManglingTask,
+					cleanExtensionsBuildTask,
+					compileNonNativeExtensionsBuildTask,
+					...(hasBuiltInCopilot ? [compileCopilotExtensionBuildTask] : []),
+					compileExtensionMediaBuildTask,
+					minified ? minifyTask : bundleTask,
+					serverTaskCI
+				));
 			task.task(serverTask);
 		});
 	});

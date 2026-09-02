@@ -96,14 +96,7 @@ jobs:
           }
           set +e
           gulp_status=0
-          for stage in \
-            compile-build-with-mangling \
-            clean-extensions-build \
-            compile-non-native-extensions-build \
-            compile-copilot-extension-build \
-            compile-extension-media-build \
-            minify-vscode-reh \
-            vscode-reh-linux-x64-min-ci
+          for stage in vscode-reh-linux-x64-min
           do
             run_stage "$stage"
             gulp_status=$?
