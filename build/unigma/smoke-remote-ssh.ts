@@ -261,6 +261,9 @@ async function main(): Promise<void> {
 		const knownHosts = join(workDirectory, 'known_hosts');
 		writeFileSync(knownHosts, `[127.0.0.1]:${port} ${hostPublicKey[0]} ${hostPublicKey[1]}\n`, { mode: 0o600 });
 		const config = join(workDirectory, 'sshd_config');
+		const forceCommand = join(workDirectory, 'force-command.sh');
+		writeFileSync(forceCommand, `#!/bin/sh\nHOME=${JSON.stringify(workDirectory)}\nexport HOME\nexec /bin/sh -s\n`, { mode: 0o700 });
+		chmodSync(forceCommand, 0o700);
 		writeFileSync(config, [
 			`HostKey ${hostKey}`,
 			`AuthorizedKeysFile ${authorizedKeys}`,
@@ -282,6 +285,9 @@ async function main(): Promise<void> {
 			'GatewayPorts no',
 			'PermitTTY no',
 			'PermitUserEnvironment no',
+			// ForceCommand controls HOME for this session without changing the runner's
+			// environment or any system/user SSH configuration.
+			`ForceCommand ${forceCommand}`,
 			'PrintMotd no',
 			'UseDNS no',
 			'LogLevel ERROR',
@@ -314,9 +320,9 @@ async function main(): Promise<void> {
 			return;
 		}
 
-		// Start under /tmp from the outset: the bootstrap validator enforces the
-		// Linux UNIX-socket address budget, and a home checkout can exceed it.
-		const bootstrap = buildRemoteBootstrapScript({ commit, remoteUserBaseDirectory: workDirectory });
+		// The server session receives a controlled HOME under /tmp through ForceCommand;
+		// this exercises production's host-side derivation without touching real $HOME.
+		const bootstrap = buildRemoteBootstrapScript({ commit });
 		const derived = deriveRemoteServerPaths({ commit, remoteUserBaseDirectory: workDirectory });
 		check('socket-path', bootstrap.valid && derived.valid);
 		if (!bootstrap.valid || !derived.valid) {
@@ -330,7 +336,6 @@ async function main(): Promise<void> {
 		const opened = await openRemoteServer({
 			destination: `ssh://${username}@127.0.0.1:${port}`,
 			commit,
-			remoteUserBaseDirectory: workDirectory,
 			knownHostsFile: knownHosts,
 			timeoutMs: 30_000
 		}, {

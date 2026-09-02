@@ -4,16 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 import {
 	REMOTE_HANDSHAKE_PREFIX,
 	buildRemoteBootstrapScript,
 	parseRemoteHandshake
 } from '../remoteServerHandshake.js';
+import { buildRemoteServerPathShellFragments } from '../remoteStagingPlan.js';
 
 const commit = '0123456789abcdef0123456789abcdef01234567';
 
-test('derives versioned server paths and emits a POSIX bootstrap', () => {
+test('derives versioned server paths and emits a HOME-based POSIX bootstrap', () => {
 	const result = buildRemoteBootstrapScript({ commit, remoteUserBaseDirectory: '/home/remote user' });
 	assert.equal(result.valid, true);
 	if (!result.valid) {
@@ -27,18 +32,29 @@ test('derives versioned server paths and emits a POSIX bootstrap', () => {
 		serverDataDirectory: `/home/remote user/.unigma-server/bin/${commit}/data`,
 		socketPath: `/home/remote user/.unigma-server/${commit.slice(0, 12)}.unigma-server.sock`
 	});
-	// The address family caps `sun_path`, so the socket must not inherit the
-	// versioned directory and its full commit.
-	assert.ok(result.paths.socketPath.length < 108);
-	assert.ok(result.script.startsWith('#!/bin/sh\nset -eu\n'));
-	assert.match(result.script, /VERSIONED='\/home\/remote user\/\.unigma-server\/bin\//);
+	assert.match(result.script, /BASE=\$HOME/);
+	assert.match(result.script, /SOCKET=\"\$BASE\/\.unigma-server\/\$COMMIT_PREFIX\.unigma-server\.sock\"/);
+	assert.match(result.script, /SOCKET_BYTES=/);
 	assert.match(result.script, /--socket-path \"\$SOCKET\"/);
 	assert.match(result.script, /--without-connection-token/);
-	assert.match(result.script, /--accept-server-license-terms/);
-	assert.match(result.script, /--telemetry-level off/);
-	assert.match(result.script, /--server-data-dir \"\$SERVER_DATA\"/);
 	assert.match(result.script, /Extension host agent listening on \$SOCKET/);
 	assert.equal(result.script.includes('ssh '), false);
+});
+
+test('generates shell fragments from the same path convention as TypeScript', () => {
+	assert.deepEqual(buildRemoteServerPathShellFragments(), {
+		dataDirectory: '"$BASE/.unigma-server"',
+		versionedDirectory: '"$BASE/.unigma-server/bin/$COMMIT"',
+		executablePath: '"$BASE/.unigma-server/bin/$COMMIT/bin/unigma-server"',
+		serverDataDirectory: '"$BASE/.unigma-server/bin/$COMMIT/data"',
+		socketPath: '"$BASE/.unigma-server/$COMMIT_PREFIX.unigma-server.sock"'
+	});
+	const result = buildRemoteBootstrapScript({ commit });
+	assert.equal(result.valid, true);
+	if (result.valid) {
+		assert.equal(result.paths, undefined);
+		assert.match(result.script, /COMMIT_PREFIX=\$\{COMMIT%\?{28}\}/);
+	}
 });
 
 test('refuses unsafe bootstrap input without generating a script', () => {
@@ -50,30 +66,64 @@ test('refuses unsafe bootstrap input without generating a script', () => {
 	}
 });
 
-test('parses every stable handshake variant and rejects unknown payloads', () => {
-	assert.deepEqual(parseRemoteHandshake(`${REMOTE_HANDSHAKE_PREFIX}{"status":"ready"}`), { kind: 'ready' });
+test('fails closed when the remote HOME is invalid', () => {
+	const result = buildRemoteBootstrapScript({ commit });
+	assert.equal(result.valid, true);
+	if (!result.valid) {
+		return;
+	}
+	for (const home of ['', 'relative-home', join(tmpdir(), 'does-not-exist-unigma-home')]) {
+		assert.throws(() => execFileSync('/bin/sh', ['-s'], { input: result.script, env: { HOME: home }, stdio: ['pipe', 'pipe', 'ignore'] }), error => {
+			return (error as { status?: number }).status === 44;
+		});
+	}
+});
+
+test('detects an overlong socket path on the remote host', () => {
+	const root = mkdtempSync(join(tmpdir(), 'ug-'));
+	const home = join(root, 'nested/'.repeat(20), 'home');
+	mkdirSync(home, { recursive: true });
+	const result = buildRemoteBootstrapScript({ commit });
+	assert.equal(result.valid, true);
+	if (!result.valid) {
+		return;
+	}
+	try {
+		const status = (() => {
+			try {
+				execFileSync('/bin/sh', ['-s'], { input: result.script, env: { HOME: home }, stdio: ['pipe', 'pipe', 'ignore'] });
+				return 0;
+			} catch (error) {
+				return (error as { status?: number }).status;
+			}
+		})();
+		assert.equal(status, 45);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test('parses stable handshake variants and rejects invalid socket paths', () => {
+	assert.deepEqual(parseRemoteHandshake(`${REMOTE_HANDSHAKE_PREFIX}{"status":"ready","socketPath":"/tmp/server.sock"}`), { kind: 'ready', socketPath: '/tmp/server.sock' });
 	assert.deepEqual(parseRemoteHandshake(`${REMOTE_HANDSHAKE_PREFIX}{"status":"server-unavailable"}`), { kind: 'server-unavailable' });
-	assert.deepEqual(parseRemoteHandshake(`${REMOTE_HANDSHAKE_PREFIX}{"status":"socket-occupied"}`), { kind: 'socket-occupied' });
-	assert.deepEqual(parseRemoteHandshake(`${REMOTE_HANDSHAKE_PREFIX}{"status":"start-failed"}`), { kind: 'start-failed' });
+	assert.deepEqual(parseRemoteHandshake(`${REMOTE_HANDSHAKE_PREFIX}{"status":"home-invalid"}`), { kind: 'home-invalid' });
+	assert.deepEqual(parseRemoteHandshake(`${REMOTE_HANDSHAKE_PREFIX}{"status":"socket-path-too-long"}`), { kind: 'socket-path-too-long' });
 	for (const line of [
-		'',
-		'Extension host agent listening on /tmp/socket',
+		`${REMOTE_HANDSHAKE_PREFIX}{"status":"ready"}`,
+		`${REMOTE_HANDSHAKE_PREFIX}{"status":"ready","socketPath":"relative.sock"}`,
+		`${REMOTE_HANDSHAKE_PREFIX}{"status":"ready","socketPath":"/tmp/../server.sock"}`,
+		`${REMOTE_HANDSHAKE_PREFIX}{"status":"ready","socketPath":"/tmp/server\\nsock"}`,
+		`${REMOTE_HANDSHAKE_PREFIX}{"status":"ready","socketPath":"/${'x'.repeat(101)}"}`,
+		`${REMOTE_HANDSHAKE_PREFIX}{"status":"ready","socketPath":"/tmp/server.sock","target":"secret"}`,
 		`${REMOTE_HANDSHAKE_PREFIX}{"status":"other"}`,
-		`${REMOTE_HANDSHAKE_PREFIX}{"status":"ready","target":"secret"}`,
 		`${REMOTE_HANDSHAKE_PREFIX}not-json`
 	]) {
 		assert.deepEqual(parseRemoteHandshake(line), { kind: 'unrecognized' }, line);
 	}
 });
 
-test('refuses a base directory that pushes the socket past the address limit', () => {
-	// Observed for real: a checkout-depth base directory made the server answer
-	// `listen EINVAL` instead of starting, which is not an actionable failure.
+test('refuses an explicit base directory that pushes the socket past the address limit', () => {
 	const deep = `/home/remote user/${'nested/'.repeat(12)}workspace`;
 	const result = buildRemoteBootstrapScript({ commit, remoteUserBaseDirectory: deep });
-	assert.equal(result.valid, false);
-	if (result.valid) {
-		return;
-	}
-	assert.equal(result.code, 'socket-path-too-long');
+	assert.deepEqual(result, { valid: false, code: 'socket-path-too-long' });
 });

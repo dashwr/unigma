@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import test from 'node:test';
 import {
+	buildSshForwardArguments,
 	buildSshTransportArguments,
 	openRemoteServer,
 	type RemoteServerDiagnostic,
@@ -19,9 +21,9 @@ import {
 
 const input: RemoteServerTransportInput = {
 	destination: 'build-vps',
-	commit: '0123456789abcdef0123456789abcdef01234567',
-	remoteUserBaseDirectory: '/home/remote user'
+	commit: '0123456789abcdef0123456789abcdef01234567'
 };
+const socketPath = '/home/remote-user/.unigma-server/0123456789ab.unigma-server.sock';
 
 class FakeProcess extends EventEmitter implements RemoteSshProcess {
 	readonly stdin = new PassThrough();
@@ -43,102 +45,100 @@ class FakeProcess extends EventEmitter implements RemoteSshProcess {
 	}
 }
 
-function deps(process: FakeProcess, diagnostics: RemoteServerDiagnostic[] = []): RemoteServerTransportDependencies {
+function deps(processes: readonly FakeProcess[], diagnostics: RemoteServerDiagnostic[] = []): RemoteServerTransportDependencies {
+	let index = 0;
 	return {
 		allocateLocalPort: async () => 43123,
 		spawn: arguments_ => {
 			assert.ok(arguments_.includes('build-vps'));
-			return process;
+			return processes[index++];
 		},
 		diagnose: diagnostic => diagnostics.push(diagnostic)
 	};
 }
 
-test('builds the single SSH command with verification-only host key handling', () => {
-	assert.deepEqual(buildSshTransportArguments({
-		destination: 'build-vps',
-		localPort: 43123,
-		remoteSocketPath: '/home/remote user/.unigma-server/bin/0123456789abcdef0123456789abcdef01234567/.unigma-server.sock'
-	}), [
+test('builds the SSH ControlMaster command without a forward', () => {
+	assert.deepEqual(buildSshTransportArguments({ destination: 'build-vps', controlPath: '/tmp/ug-control/c' }), [
+		'-M',
+		'-o', 'ControlPath=/tmp/ug-control/c',
+		'-o', 'ControlPersist=no',
 		'-o', 'BatchMode=yes',
-		'-o', 'ExitOnForwardFailure=yes',
 		'-o', 'StrictHostKeyChecking=yes',
-		'-L', '127.0.0.1:43123:/home/remote user/.unigma-server/bin/0123456789abcdef0123456789abcdef01234567/.unigma-server.sock',
 		'build-vps', '--', '/bin/sh', '-s'
 	]);
 });
 
-test('uses a disposable known_hosts file without changing global trust', () => {
-	const arguments_ = buildSshTransportArguments({
-		destination: 'build-vps',
-		localPort: 43123,
-		remoteSocketPath: '/tmp/server.sock',
-		knownHostsFile: '/tmp/unigma-smoke-known-hosts'
-	});
-	assert.deepEqual(arguments_.slice(0, 10), [
+test('builds the pure -O forward command', () => {
+	assert.deepEqual(buildSshForwardArguments({ destination: 'build-vps', controlPath: '/tmp/ug-control/c', localPort: 43123, remoteSocketPath: socketPath }), [
+		'-o', 'ControlPath=/tmp/ug-control/c',
 		'-o', 'BatchMode=yes',
-		'-o', 'ExitOnForwardFailure=yes',
 		'-o', 'StrictHostKeyChecking=yes',
-		'-o', 'UserKnownHostsFile=/tmp/unigma-smoke-known-hosts',
-		'-o', 'GlobalKnownHostsFile=/dev/null'
+		'-O', 'forward',
+		'-L', `127.0.0.1:43123:${socketPath}`,
+		'build-vps'
 	]);
 });
 
-test('does not add known_hosts overrides when no disposable file is supplied', () => {
-	const arguments_ = buildSshTransportArguments({
-		destination: 'build-vps',
-		localPort: 43123,
-		remoteSocketPath: '/tmp/server.sock'
-	});
-	assert.equal(arguments_.some(argument => argument.startsWith('UserKnownHostsFile=')), false);
-	assert.equal(arguments_.some(argument => argument.startsWith('GlobalKnownHostsFile=')), false);
+test('keeps the disposable known_hosts seam on both SSH operations', () => {
+	const knownHostsFile = '/tmp/unigma-smoke-known-hosts';
+	const master = buildSshTransportArguments({ destination: 'build-vps', controlPath: '/tmp/ug-control/c', knownHostsFile });
+	const forward = buildSshForwardArguments({ destination: 'build-vps', controlPath: '/tmp/ug-control/c', localPort: 43123, remoteSocketPath: socketPath, knownHostsFile });
+	for (const arguments_ of [master, forward]) {
+		assert.ok(arguments_.includes(`UserKnownHostsFile=${knownHostsFile}`));
+		assert.ok(arguments_.includes('GlobalKnownHostsFile=/dev/null'));
+	}
 });
 
-test('opens the tunnel after one ready handshake and disposes its owned process', async () => {
-	const process = new FakeProcess(child => {
-		child.stdout.write('server startup noise\n');
-		child.stdout.end('unigma-remote:{"status":"ready"}\n');
-	});
-	const session = await openRemoteServer(input, deps(process));
-	const successfulSession = session as RemoteServerSession;
-	assert.deepEqual(successfulSession.endpoint, { host: '127.0.0.1', port: 43123 });
-	assert.equal(Buffer.concat(process.scriptChunks).toString().includes('--without-connection-token'), true);
-	await successfulSession.dispose();
-	await successfulSession.dispose();
-	assert.deepEqual(process.killed, ['SIGTERM']);
-});
-
-test('forwards the disposable known_hosts seam to the SSH command', async () => {
-	const process = new FakeProcess(child => child.stdout.end('unigma-remote:{"status":"ready"}\n'));
-	let arguments_: readonly string[] = [];
-	const result = await openRemoteServer({ ...input, knownHostsFile: '/tmp/smoke-known-hosts' }, {
-		...deps(process),
-		spawn: values => {
-			arguments_ = values;
-			return process;
+test('opens the master, adds one forward after the ready handshake, and cleans ControlPath on dispose', async () => {
+	const master = new FakeProcess(child => child.stdout.end(`unigma-remote:{"status":"ready","socketPath":"${socketPath}"}\n`));
+	const forward = new FakeProcess(child => child.emit('close', 0, null));
+	let masterArguments: readonly string[] = [];
+	const session = await openRemoteServer(input, {
+		...deps([master, forward]),
+		spawn: (arguments_: readonly string[]) => {
+			if (arguments_.includes('-M')) {
+				masterArguments = arguments_;
+				return master;
+			}
+			return forward;
 		}
 	});
-	assert.equal((result as { readonly ok?: boolean }).ok, undefined);
-	assert.ok(arguments_.includes('-o'));
-	assert.ok(arguments_.includes('UserKnownHostsFile=/tmp/smoke-known-hosts'));
-	assert.ok(arguments_.includes('GlobalKnownHostsFile=/dev/null'));
-	await (result as RemoteServerSession).dispose();
+	const successfulSession = session as RemoteServerSession;
+	assert.deepEqual(successfulSession.endpoint, { host: '127.0.0.1', port: 43123 });
+	assert.equal(Buffer.concat(master.scriptChunks).toString().includes('--without-connection-token'), true);
+	const controlPath = masterArguments.find(argument => argument.startsWith('ControlPath='))!.slice('ControlPath='.length);
+	const controlDirectory = controlPath.slice(0, controlPath.lastIndexOf('/'));
+	assert.equal(existsSync(controlPath), false);
+	assert.equal(existsSync(controlDirectory), true);
+	await successfulSession.dispose();
+	await successfulSession.dispose();
+	assert.deepEqual(master.killed, ['SIGTERM']);
+	assert.equal(existsSync(controlDirectory), false);
 });
 
-test('maps a bootstrap failure handshake to an observable remote-server failure', async () => {
-	const process = new FakeProcess(child => child.stdout.end('unigma-remote:{"status":"server-unavailable"}\n'));
-	const result = await openRemoteServer(input, deps(process));
-	assert.deepEqual(result, { ok: false, code: 'ssh.remote-server-unavailable', phase: 'handshake' });
-	assert.deepEqual(process.killed, ['SIGTERM']);
+test('fails with its own code when adding the forward fails', async () => {
+	const master = new FakeProcess(child => child.stdout.end(`unigma-remote:{"status":"ready","socketPath":"${socketPath}"}\n`));
+	const forward = new FakeProcess(child => child.emit('close', 255, null));
+	const result = await openRemoteServer(input, deps([master, forward]));
+	assert.deepEqual(result, { ok: false, code: 'ssh.forward-failed', phase: 'forward', exitCode: 255 });
+	assert.deepEqual(master.killed, ['SIGTERM']);
 });
 
-test('times out a silent SSH process and terminates it', async () => {
+test('maps remote HOME and socket validation statuses to observable failures', async () => {
+	for (const [status, code] of [['home-invalid', 'ssh.remote-home-invalid'], ['socket-path-too-long', 'ssh.remote-socket-path-too-long']] as const) {
+		const master = new FakeProcess(child => child.stdout.end(`unigma-remote:{"status":"${status}"}\n`));
+		const result = await openRemoteServer(input, deps([master]));
+		assert.deepEqual(result, { ok: false, code, phase: 'handshake' });
+	}
+});
+
+test('times out a silent master in the connect phase and terminates it', async () => {
 	const process = new FakeProcess();
 	const diagnostics: RemoteServerDiagnostic[] = [];
-	const result = await openRemoteServer({ ...input, timeoutMs: 5 }, deps(process, diagnostics));
-	assert.deepEqual(result, { ok: false, code: 'ssh.transport-failed', phase: 'handshake' });
+	const result = await openRemoteServer({ ...input, timeoutMs: 5 }, deps([process], diagnostics));
+	assert.deepEqual(result, { ok: false, code: 'ssh.transport-failed', phase: 'connect' });
 	assert.deepEqual(process.killed, ['SIGTERM']);
-	assert.equal(diagnostics.some(diagnostic => diagnostic.category === 'ssh.transport-failed' && diagnostic.phase === 'handshake'), true);
+	assert.equal(diagnostics.some(diagnostic => diagnostic.category === 'ssh.transport-failed' && diagnostic.phase === 'connect'), true);
 });
 
 test('categorizes SSH stderr without forwarding its contents', async () => {
@@ -147,7 +147,7 @@ test('categorizes SSH stderr without forwarding its contents', async () => {
 		child.emit('close', 255, null);
 	});
 	const diagnostics: RemoteServerDiagnostic[] = [];
-	const result = await openRemoteServer(input, deps(process, diagnostics));
+	const result = await openRemoteServer(input, deps([process], diagnostics));
 	assert.deepEqual(result, { ok: false, code: 'ssh.host-key-untrusted', phase: 'connect', exitCode: 255 });
 	assert.equal(diagnostics.every(diagnostic => !JSON.stringify(diagnostic).includes('build-vps')), true);
 });

@@ -14,6 +14,11 @@
 > execução real permanece pendente no runner self-hosted; o smoke não foi rodado
 > localmente porque sobe um `sshd`.
 
+> feito: 2026-09-02 — o transporte SSH passou a derivar caminhos de `$HOME` no
+> host, usando um único `ControlMaster`; o handshake devolve o socket efetivo,
+> o forward é adicionado por `ssh -O forward`, e o smoke local passou com 16
+> checks. A suíte compilada da extensão passou com 63 testes.
+
 > feito: 2026-09-02 — o trabalho da branch `work/2026-08-26-e00-e03` foi integrado
 > na `main` pelo merge `4f23bc2e` (PR #9). O conflito era restrito a dois
 > workflows cujas versões em `main` eram anteriores. Já na `main`,

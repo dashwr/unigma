@@ -19,7 +19,7 @@ export const REMOTE_SERVER_SOCKET_FILE = '.unigma-server.sock';
  * the server into a named, observable refusal, as section 7 of the contract
  * requires.
  */
-const MAX_UNIX_SOCKET_PATH_BYTES = 100;
+export const REMOTE_UNIX_SOCKET_PATH_MAX_BYTES = 100;
 
 export interface RemoteServerPathsInput {
 	readonly remoteUserBaseDirectory: string;
@@ -27,6 +27,29 @@ export interface RemoteServerPathsInput {
 }
 
 export interface RemoteServerPaths {
+	readonly dataDirectory: string;
+	readonly versionedDirectory: string;
+	readonly executablePath: string;
+	readonly serverDataDirectory: string;
+	readonly socketPath: string;
+}
+
+type RemoteServerPathSegment =
+	| { readonly type: 'literal'; readonly value: string }
+	| { readonly type: 'commit' }
+	| { readonly type: 'commit-prefix' }
+	| { readonly type: 'commit-prefix-socket' };
+
+const COMMIT_SEGMENT: RemoteServerPathSegment = { type: 'commit' };
+const REMOTE_SERVER_PATH_TEMPLATES: Readonly<Record<keyof RemoteServerPaths, readonly RemoteServerPathSegment[]>> = {
+	dataDirectory: [{ type: 'literal', value: REMOTE_SERVER_DATA_FOLDER }],
+	versionedDirectory: [{ type: 'literal', value: REMOTE_SERVER_DATA_FOLDER }, { type: 'literal', value: 'bin' }, COMMIT_SEGMENT],
+	executablePath: [{ type: 'literal', value: REMOTE_SERVER_DATA_FOLDER }, { type: 'literal', value: 'bin' }, COMMIT_SEGMENT, { type: 'literal', value: 'bin' }, { type: 'literal', value: 'unigma-server' }],
+	serverDataDirectory: [{ type: 'literal', value: REMOTE_SERVER_DATA_FOLDER }, { type: 'literal', value: 'bin' }, COMMIT_SEGMENT, { type: 'literal', value: 'data' }],
+	socketPath: [{ type: 'literal', value: REMOTE_SERVER_DATA_FOLDER }, { type: 'commit-prefix-socket' }]
+};
+
+export interface RemoteServerPathShellFragments {
 	readonly dataDirectory: string;
 	readonly versionedDirectory: string;
 	readonly executablePath: string;
@@ -130,6 +153,45 @@ function joinPosix(base: string, ...parts: readonly string[]): string {
 	return `/${[prefix.replace(/^\/+/, ''), ...parts].filter(Boolean).join('/')}`;
 }
 
+function expandPathTemplate(base: string, commit: string, segments: readonly RemoteServerPathSegment[]): string {
+	return joinPosix(base, ...segments.map(segment => {
+		switch (segment.type) {
+			case 'literal': return segment.value;
+			case 'commit': return commit;
+			case 'commit-prefix': return `${commit.slice(0, 12)}`;
+			case 'commit-prefix-socket': return `${commit.slice(0, 12)}${REMOTE_SERVER_SOCKET_FILE}`;
+		}
+	}));
+}
+
+/** Generates shell expressions from the same path templates used by staging. */
+export function buildRemoteServerPathShellFragments(): RemoteServerPathShellFragments {
+	const shellPath = (segments: readonly RemoteServerPathSegment[]): string => {
+		const suffix = segments.map(segment => {
+			switch (segment.type) {
+				case 'literal': return segment.value;
+				case 'commit': return '$COMMIT';
+				case 'commit-prefix': return '$COMMIT_PREFIX';
+				case 'commit-prefix-socket': return `$COMMIT_PREFIX${REMOTE_SERVER_SOCKET_FILE}`;
+			}
+		}).join('/');
+		return `"$BASE/${suffix}"`;
+	};
+	return {
+		dataDirectory: shellPath(REMOTE_SERVER_PATH_TEMPLATES.dataDirectory),
+		versionedDirectory: shellPath(REMOTE_SERVER_PATH_TEMPLATES.versionedDirectory),
+		executablePath: shellPath(REMOTE_SERVER_PATH_TEMPLATES.executablePath),
+		serverDataDirectory: shellPath(REMOTE_SERVER_PATH_TEMPLATES.serverDataDirectory),
+		socketPath: shellPath(REMOTE_SERVER_PATH_TEMPLATES.socketPath)
+	};
+}
+
+/** Validates a POSIX UNIX socket address before trusting it from a remote host. */
+export function isValidRemoteUnixSocketPath(value: unknown): value is string {
+	return isAbsolutePosixPath(value)
+		&& Buffer.byteLength(value, 'utf8') <= REMOTE_UNIX_SOCKET_PATH_MAX_BYTES;
+}
+
 /** Derives paths used after activation, keeping them aligned with the staging plan. */
 export function deriveRemoteServerPaths(input: RemoteServerPathsInput): RemoteServerPathsValidation {
 	if (!isRecord(input)) {
@@ -142,8 +204,8 @@ export function deriveRemoteServerPaths(input: RemoteServerPathsInput): RemoteSe
 		return { valid: false, code: 'staging-invalid-commit' };
 	}
 
-	const dataDirectory = joinPosix(input.remoteUserBaseDirectory, REMOTE_SERVER_DATA_FOLDER);
-	const versionedDirectory = joinPosix(dataDirectory, 'bin', input.commit);
+	const dataDirectory = expandPathTemplate(input.remoteUserBaseDirectory, input.commit, REMOTE_SERVER_PATH_TEMPLATES.dataDirectory);
+	const versionedDirectory = expandPathTemplate(input.remoteUserBaseDirectory, input.commit, REMOTE_SERVER_PATH_TEMPLATES.versionedDirectory);
 	// The socket deliberately sits beside the versioned directory instead of
 	// inside it. `sockaddr_un.sun_path` holds 108 bytes on Linux, and a socket
 	// under the versioned directory spends 40 of them on the commit alone: the
@@ -151,8 +213,8 @@ export function deriveRemoteServerPaths(input: RemoteServerPathsInput): RemoteSe
 	// checkout under a home directory. A short commit prefix keeps one socket per
 	// version without approaching the limit; the full commit still names the
 	// directory that actually pins the build.
-	const socketPath = joinPosix(dataDirectory, `${input.commit.slice(0, 12)}${REMOTE_SERVER_SOCKET_FILE}`);
-	if (socketPath.length > MAX_UNIX_SOCKET_PATH_BYTES) {
+	const socketPath = expandPathTemplate(input.remoteUserBaseDirectory, input.commit, REMOTE_SERVER_PATH_TEMPLATES.socketPath);
+	if (!isValidRemoteUnixSocketPath(socketPath)) {
 		return { valid: false, code: 'staging-socket-path-too-long' };
 	}
 	return {
@@ -160,8 +222,8 @@ export function deriveRemoteServerPaths(input: RemoteServerPathsInput): RemoteSe
 		paths: {
 			dataDirectory,
 			versionedDirectory,
-			executablePath: joinPosix(versionedDirectory, 'bin', 'unigma-server'),
-			serverDataDirectory: joinPosix(versionedDirectory, 'data'),
+			executablePath: expandPathTemplate(input.remoteUserBaseDirectory, input.commit, REMOTE_SERVER_PATH_TEMPLATES.executablePath),
+			serverDataDirectory: expandPathTemplate(input.remoteUserBaseDirectory, input.commit, REMOTE_SERVER_PATH_TEMPLATES.serverDataDirectory),
 			socketPath,
 		}
 	};

@@ -3,7 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { deriveRemoteServerPaths, type RemoteServerPaths } from './remoteStagingPlan.js';
+import {
+	buildRemoteServerPathShellFragments,
+	deriveRemoteServerPaths,
+	isValidRemoteUnixSocketPath,
+	REMOTE_UNIX_SOCKET_PATH_MAX_BYTES,
+	type RemoteServerPaths
+} from './remoteStagingPlan.js';
 
 export const REMOTE_HANDSHAKE_PREFIX = 'unigma-remote:';
 
@@ -11,17 +17,19 @@ const COMMIT = /^[0-9a-f]{40}$/;
 
 export interface RemoteBootstrapScriptInput {
 	readonly commit: string;
-	readonly remoteUserBaseDirectory: string;
+	readonly remoteUserBaseDirectory?: string;
 }
 
 export type RemoteBootstrapScriptResult =
-	| { readonly valid: true; readonly script: string; readonly paths: RemoteServerPaths }
+	| { readonly valid: true; readonly script: string; readonly paths?: RemoteServerPaths }
 	| { readonly valid: false; readonly code: 'invalid-commit' | 'invalid-base-directory' | 'socket-path-too-long' };
 
 export type RemoteHandshake =
-	| { readonly kind: 'ready' }
+	| { readonly kind: 'ready'; readonly socketPath: string }
 	| { readonly kind: 'server-unavailable' }
 	| { readonly kind: 'socket-occupied' }
+	| { readonly kind: 'home-invalid' }
+	| { readonly kind: 'socket-path-too-long' }
 	| { readonly kind: 'start-failed' }
 	| { readonly kind: 'unrecognized' };
 
@@ -38,38 +46,62 @@ export function buildRemoteBootstrapScript(input: RemoteBootstrapScriptInput): R
 	if (typeof input?.commit !== 'string' || !COMMIT.test(input.commit)) {
 		return { valid: false, code: 'invalid-commit' };
 	}
-	if (typeof input.remoteUserBaseDirectory !== 'string' || hasForbiddenPathCharacters(input.remoteUserBaseDirectory)) {
-		return { valid: false, code: 'invalid-base-directory' };
-	}
 
-	const derived = deriveRemoteServerPaths({
-		commit: input.commit,
-		remoteUserBaseDirectory: input.remoteUserBaseDirectory
-	});
-	if (!derived.valid) {
-		switch (derived.code) {
-			case 'staging-invalid-commit': return { valid: false, code: 'invalid-commit' };
-			// A base directory that pushes the socket past the address limit is
-			// still a property of the base directory the caller supplied.
-			case 'staging-socket-path-too-long': return { valid: false, code: 'socket-path-too-long' };
-			default: return { valid: false, code: 'invalid-base-directory' };
+	let paths: RemoteServerPaths | undefined;
+	if (input.remoteUserBaseDirectory !== undefined) {
+		if (typeof input.remoteUserBaseDirectory !== 'string' || hasForbiddenPathCharacters(input.remoteUserBaseDirectory)) {
+			return { valid: false, code: 'invalid-base-directory' };
 		}
+		const derived = deriveRemoteServerPaths({
+			commit: input.commit,
+			remoteUserBaseDirectory: input.remoteUserBaseDirectory
+		});
+		if (!derived.valid) {
+			switch (derived.code) {
+				case 'staging-invalid-commit': return { valid: false, code: 'invalid-commit' };
+				// A base directory that pushes the socket past the address limit is
+				// still a property of the base directory the caller supplied.
+				case 'staging-socket-path-too-long': return { valid: false, code: 'socket-path-too-long' };
+				default: return { valid: false, code: 'invalid-base-directory' };
+			}
+		}
+		paths = derived.paths;
 	}
 
-	const { paths } = derived;
-	const fifoPrefix = `${paths.versionedDirectory}/.unigma-bootstrap-`;
-	const lockPath = `${paths.versionedDirectory}/.unigma-bootstrap.lock`;
+	const shellPaths = buildRemoteServerPathShellFragments();
 	const script = [
 		'#!/bin/sh',
 		'set -eu',
 		'',
-		`VERSIONED=${shellQuote(paths.versionedDirectory)}`,
-		`SERVER=${shellQuote(paths.executablePath)}`,
-		`SERVER_DATA=${shellQuote(paths.serverDataDirectory)}`,
-		`SOCKET=${shellQuote(paths.socketPath)}`,
-		`FIFO=${shellQuote(fifoPrefix)}$$`,
-		`LOCK=${shellQuote(lockPath)}`,
 		`emit() { printf '%s%s\\n' ${shellQuote(REMOTE_HANDSHAKE_PREFIX)} "$1"; }`,
+		'',
+		'if [ -z "${HOME:-}" ]; then',
+		`\temit '{"status":"home-invalid"}'`,
+		'\texit 44',
+		'fi',
+		'case "$HOME" in',
+		`\t/*) ;;`,
+		`\t*) emit '{"status":"home-invalid"}'; exit 44 ;;`,
+		'esac',
+		'if [ ! -d "$HOME" ]; then',
+		`\temit '{"status":"home-invalid"}'`,
+		'\texit 44',
+		'fi',
+		'BASE=$HOME',
+		`COMMIT=${shellQuote(input.commit)}`,
+		'COMMIT_PREFIX=${COMMIT%????????????????????????????}',
+		`DATA_DIRECTORY=${shellPaths.dataDirectory}`,
+		`VERSIONED=${shellPaths.versionedDirectory}`,
+		`SERVER=${shellPaths.executablePath}`,
+		`SERVER_DATA=${shellPaths.serverDataDirectory}`,
+		`SOCKET=${shellPaths.socketPath}`,
+		'FIFO="$VERSIONED/.unigma-bootstrap-$$"',
+		'LOCK="$VERSIONED/.unigma-bootstrap.lock"',
+		'SOCKET_BYTES=$(LC_ALL=C printf \'%s\' "$SOCKET" | wc -c)',
+		`if [ "$SOCKET_BYTES" -gt ${REMOTE_UNIX_SOCKET_PATH_MAX_BYTES} ]; then`,
+		`\temit '{"status":"socket-path-too-long"}'`,
+		'\texit 45',
+		'fi',
 		'',
 		'if [ ! -d "$VERSIONED" ] || [ ! -x "$SERVER" ]; then',
 		`\temit '{"status":"server-unavailable"}'`,
@@ -80,10 +112,7 @@ export function buildRemoteBootstrapScript(input: RemoteBootstrapScriptInput): R
 		// filesystem, instead of probing the socket with `fuser` or `lsof`. Those
 		// tools are optional packages, so depending on them made the connection
 		// fail closed on an otherwise healthy host, and "something is listening"
-		// never established that the listener was a server this authority owns.
-		// The lock records its shell's pid, so a session killed without running
-		// its trap leaves a lock that the next attempt can recognise as stale via
-		// `kill -0` rather than one that blocks the host forever.
+		// never established that the listener belonged to this authority.
 		'owned=0',
 		'if mkdir "$LOCK" 2>/dev/null; then',
 		'\towned=1',
@@ -108,14 +137,15 @@ export function buildRemoteBootstrapScript(input: RemoteBootstrapScriptInput): R
 		'rm -f "$FIFO"',
 		'cleanup() { rm -f "$FIFO" "$LOCK/pid"; rmdir "$LOCK" 2>/dev/null || :; }',
 		'trap cleanup 0 HUP INT TERM',
-		'mkfifo "$FIFO" || { emit \'{"status":"start-failed"}\'; exit 43; }',
+		`mkfifo "$FIFO" || { emit '{"status":"start-failed"}'; exit 43; }`,
 		'',
 		'(',
 		'\tready=0',
 		'\twhile IFS= read -r line; do',
 		'\t\t# The server prints this from its listen callback, after the UNIX socket accepts connections.',
 		'\t\tif [ "$line" = "Extension host agent listening on $SOCKET" ] && [ "$ready" -eq 0 ]; then',
-		`\t\temit '{"status":"ready"}'`,
+		`\t\t\tsocket_json=$(printf '%s' "$SOCKET" | sed 's/\\\\/\\\\\\\\/g; s/"/\\\\"/g')`,
+		`\t\t\temit "{\\"status\\":\\"ready\\",\\"socketPath\\":\\"$socket_json\\"}"`,
 		'\t\t\tready=1',
 		'\t\tfi',
 		'\tdone < "$FIFO"',
@@ -135,18 +165,31 @@ export function buildRemoteBootstrapScript(input: RemoteBootstrapScriptInput): R
 		''
 	].join('\n');
 
-	return { valid: true, script, paths };
+	return paths === undefined ? { valid: true, script } : { valid: true, script, paths };
 }
 
-function statusToHandshake(status: unknown): RemoteHandshake | undefined {
+function statusToHandshake(payload: Record<string, unknown>): RemoteHandshake | undefined {
+	const status = payload.status;
 	if (status === 'ready') {
-		return { kind: 'ready' };
+		if (Object.keys(payload).length !== 2 || !Object.prototype.hasOwnProperty.call(payload, 'socketPath') || !isValidRemoteUnixSocketPath(payload.socketPath)) {
+			return undefined;
+		}
+		return { kind: 'ready', socketPath: payload.socketPath };
+	}
+	if (Object.keys(payload).length !== 1) {
+		return undefined;
 	}
 	if (status === 'server-unavailable') {
 		return { kind: 'server-unavailable' };
 	}
 	if (status === 'socket-occupied') {
 		return { kind: 'socket-occupied' };
+	}
+	if (status === 'home-invalid') {
+		return { kind: 'home-invalid' };
+	}
+	if (status === 'socket-path-too-long') {
+		return { kind: 'socket-path-too-long' };
 	}
 	if (status === 'start-failed') {
 		return { kind: 'start-failed' };
@@ -164,11 +207,7 @@ export function parseRemoteHandshake(line: string): RemoteHandshake {
 		if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
 			return { kind: 'unrecognized' };
 		}
-		const fields = Object.keys(payload);
-		if (fields.length !== 1 || fields[0] !== 'status') {
-			return { kind: 'unrecognized' };
-		}
-		return statusToHandshake((payload as { status?: unknown }).status) ?? { kind: 'unrecognized' };
+		return statusToHandshake(payload as Record<string, unknown>) ?? { kind: 'unrecognized' };
 	} catch {
 		return { kind: 'unrecognized' };
 	}

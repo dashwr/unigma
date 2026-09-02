@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { chmodSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { createInterface, type Interface } from 'node:readline';
 import {
 	buildRemoteBootstrapScript,
@@ -11,16 +14,24 @@ import {
 	type RemoteBootstrapScriptInput,
 	type RemoteHandshake
 } from './remoteServerHandshake.js';
+import { isValidRemoteUnixSocketPath, REMOTE_UNIX_SOCKET_PATH_MAX_BYTES } from './remoteStagingPlan.js';
 
 export interface SshTransportArgumentInput {
 	readonly destination: string;
-	readonly localPort: number;
-	readonly remoteSocketPath: string;
+	readonly controlPath: string;
 	/**
 	 * Smoke-only trust file. This exists precisely to avoid violating SSH-CONTRACT.md
 	 * section 4.2: an ephemeral host key goes in a disposable file instead of the
 	 * user's known_hosts. Production passes `undefined`.
 	 */
+	readonly knownHostsFile?: string;
+}
+
+export interface SshForwardArgumentInput {
+	readonly destination: string;
+	readonly controlPath: string;
+	readonly localPort: number;
+	readonly remoteSocketPath: string;
 	readonly knownHostsFile?: string;
 }
 
@@ -47,9 +58,12 @@ export type RemoteServerFailureCode =
 	| 'ssh.authentication-unavailable'
 	| 'ssh.transport-failed'
 	| 'ssh.connection-lost'
-	| 'ssh.remote-server-unavailable';
+	| 'ssh.remote-server-unavailable'
+	| 'ssh.remote-home-invalid'
+	| 'ssh.remote-socket-path-too-long'
+	| 'ssh.forward-failed';
 
-export type RemoteServerFailurePhase = 'bootstrap' | 'connect' | 'handshake' | 'lifecycle';
+export type RemoteServerFailurePhase = 'bootstrap' | 'connect' | 'handshake' | 'forward' | 'lifecycle';
 
 export interface RemoteServerFailure {
 	readonly ok: false;
@@ -97,39 +111,58 @@ export interface RemoteServerTransportDependencies {
 const DEFAULT_TIMEOUT_MS = 15_000;
 const PORT = /^[1-9][0-9]{0,4}$/;
 
-/** Builds an SSH command without identity, user or configuration overrides. */
-export function buildSshTransportArguments(input: SshTransportArgumentInput): readonly string[] {
-	if (!input || typeof input.destination !== 'string' || input.destination.length === 0
-		|| !Number.isInteger(input.localPort) || input.localPort < 1 || input.localPort > 65535
-		|| typeof input.remoteSocketPath !== 'string' || input.remoteSocketPath.length === 0
-		|| !input.remoteSocketPath.startsWith('/')
-		|| (input.knownHostsFile !== undefined && (typeof input.knownHostsFile !== 'string' || input.knownHostsFile.length === 0))) {
-		throw new TypeError('Invalid SSH transport input');
-	}
-
-	const knownHostsArguments = input.knownHostsFile === undefined ? [] : [
-		'-o', `UserKnownHostsFile=${input.knownHostsFile}`,
+function knownHostsArguments(knownHostsFile: string | undefined): readonly string[] {
+	return knownHostsFile === undefined ? [] : [
+		'-o', `UserKnownHostsFile=${knownHostsFile}`,
 		'-o', 'GlobalKnownHostsFile=/dev/null'
 	];
+}
+
+function validateCommonInput(destination: unknown, controlPath: unknown, knownHostsFile: unknown): void {
+	if (typeof destination !== 'string' || destination.length === 0
+		|| !isValidRemoteUnixSocketPath(controlPath)
+		|| (knownHostsFile !== undefined && (typeof knownHostsFile !== 'string' || knownHostsFile.length === 0))) {
+		throw new TypeError('Invalid SSH transport input');
+	}
+}
+
+/** Builds the one SSH command that owns the remote server and ControlMaster. */
+export function buildSshTransportArguments(input: SshTransportArgumentInput): readonly string[] {
+	validateCommonInput(input?.destination, input?.controlPath, input?.knownHostsFile);
 	return [
+		'-M',
+		'-o', `ControlPath=${input.controlPath}`,
+		'-o', 'ControlPersist=no',
 		'-o', 'BatchMode=yes',
-		'-o', 'ExitOnForwardFailure=yes',
-		// SSH-CONTRACT.md section 4.2 requires existing configured trust and rejects unknown keys;
-		// `yes` verifies without the known_hosts mutation performed by `accept-new`.
+		// SSH-CONTRACT.md section 4.2 requires existing configured trust and rejects unknown keys.
 		'-o', 'StrictHostKeyChecking=yes',
-		...knownHostsArguments,
-		'-L', `127.0.0.1:${input.localPort}:${input.remoteSocketPath}`,
+		...knownHostsArguments(input.knownHostsFile),
 		input.destination,
 		'--', '/bin/sh', '-s'
 	] as const;
 }
 
+/** Builds the pure control operation that adds the UNIX-socket forward. */
+export function buildSshForwardArguments(input: SshForwardArgumentInput): readonly string[] {
+	validateCommonInput(input?.destination, input?.controlPath, input?.knownHostsFile);
+	if (!Number.isInteger(input.localPort) || input.localPort < 1 || input.localPort > 65535
+		|| !isValidRemoteUnixSocketPath(input.remoteSocketPath)) {
+		throw new TypeError('Invalid SSH forward input');
+	}
+	return [
+		'-o', `ControlPath=${input.controlPath}`,
+		'-o', 'BatchMode=yes',
+		'-o', 'StrictHostKeyChecking=yes',
+		...knownHostsArguments(input.knownHostsFile),
+		'-O', 'forward',
+		'-L', `127.0.0.1:${input.localPort}:${input.remoteSocketPath}`,
+		input.destination
+	] as const;
+}
+
 function failure(code: RemoteServerFailureCode, phase: RemoteServerFailurePhase, exitCode?: number): RemoteServerFailure {
 	const result: RemoteServerFailure = { ok: false, code, phase };
-	if (exitCode !== undefined) {
-		return { ...result, exitCode };
-	}
-	return result;
+	return exitCode === undefined ? result : { ...result, exitCode };
 }
 
 function stderrCategory(line: string): RemoteServerDiagnosticCategory {
@@ -150,7 +183,18 @@ function closeReader(reader: Interface | undefined): void {
 	reader?.close();
 }
 
-/** Opens one SSH session, hands bootstrap over stdin, and returns its loopback tunnel. */
+function createControlPath(): { readonly directory: string; readonly path: string } {
+	const directory = mkdtempSync(join(tmpdir(), 'ug-'));
+	chmodSync(directory, 0o700);
+	const path = join(directory, 'c');
+	if (!isValidRemoteUnixSocketPath(path) || Buffer.byteLength(path, 'utf8') > REMOTE_UNIX_SOCKET_PATH_MAX_BYTES) {
+		rmSync(directory, { recursive: true, force: true });
+		throw new RangeError('ControlPath exceeds UNIX socket address limit');
+	}
+	return { directory, path };
+}
+
+/** Opens one ControlMaster, reads its host-derived handshake, then adds its tunnel. */
 export async function openRemoteServer(input: RemoteServerTransportInput, deps: RemoteServerTransportDependencies): Promise<RemoteServerResult> {
 	const scriptResult = buildRemoteBootstrapScript(input);
 	if (!scriptResult.valid) {
@@ -172,15 +216,23 @@ export async function openRemoteServer(input: RemoteServerTransportInput, deps: 
 		return failure('ssh.transport-failed', 'connect');
 	}
 
+	let control: { readonly directory: string; readonly path: string };
+	try {
+		control = createControlPath();
+	} catch {
+		notify(deps, { category: 'ssh.transport-failed', phase: 'connect' });
+		return failure('ssh.transport-failed', 'connect');
+	}
+
 	let child: RemoteSshProcess;
 	try {
 		child = deps.spawn(buildSshTransportArguments({
 			destination: input.destination,
-			localPort,
-			remoteSocketPath: scriptResult.paths.socketPath,
+			controlPath: control.path,
 			knownHostsFile: input.knownHostsFile
 		}));
 	} catch {
+		rmSync(control.directory, { recursive: true, force: true });
 		notify(deps, { category: 'ssh.client-unavailable', phase: 'connect' });
 		return failure('ssh.client-unavailable', 'connect');
 	}
@@ -188,12 +240,22 @@ export async function openRemoteServer(input: RemoteServerTransportInput, deps: 
 	let stdoutReader: Interface | undefined;
 	let stderrReader: Interface | undefined;
 	let stderrFailureCategory: RemoteServerDiagnosticCategory | undefined;
+	let forwardChild: RemoteSshProcess | undefined;
 	let disposed = false;
 	let settled = false;
+	let stage: 'connect' | 'handshake' | 'forward' = 'connect';
 	let timer: ReturnType<typeof setTimeout> | undefined;
 	const setTimer = deps.setTimeout ?? globalThis.setTimeout;
 	const clearTimer = deps.clearTimeout ?? globalThis.clearTimeout;
+	const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
+	const removeControlPath = (): void => {
+		try {
+			rmSync(control.directory, { recursive: true, force: true });
+		} catch {
+			// Process teardown remains best effort; the directory is private and disposable.
+		}
+	};
 	const disposeProcess = async (): Promise<void> => {
 		if (disposed) {
 			return;
@@ -205,9 +267,14 @@ export async function openRemoteServer(input: RemoteServerTransportInput, deps: 
 			clearTimer(timer);
 			timer = undefined;
 		}
+		if (forwardChild && !forwardChild.kill('SIGTERM')) {
+			forwardChild.kill('SIGKILL');
+		}
 		if (!child.kill('SIGTERM')) {
 			child.kill('SIGKILL');
 		}
+		// SIGTERM owns the master lifecycle; remove its private socket immediately.
+		removeControlPath();
 	};
 
 	return await new Promise<RemoteServerResult>(resolve => {
@@ -222,37 +289,84 @@ export async function openRemoteServer(input: RemoteServerTransportInput, deps: 
 			}
 			resolve(result);
 		};
-
 		const fail = (result: RemoteServerFailure): void => {
 			void disposeProcess().finally(() => complete(result));
+		};
+		const armTimer = (phase: RemoteServerFailurePhase): void => {
+			if (timer !== undefined) {
+				clearTimer(timer);
+			}
+			timer = setTimer(() => {
+				notify(deps, { category: 'ssh.transport-failed', phase });
+				fail(failure('ssh.transport-failed', phase));
+			}, timeoutMs);
+		};
+		const addForward = (socketPath: string): void => {
+			stage = 'forward';
+			armTimer('forward');
+			try {
+				forwardChild = deps.spawn(buildSshForwardArguments({
+					destination: input.destination,
+					controlPath: control.path,
+					localPort,
+					remoteSocketPath: socketPath,
+					knownHostsFile: input.knownHostsFile
+				}));
+			} catch {
+				fail(failure('ssh.forward-failed', 'forward'));
+				return;
+			}
+			forwardChild.on('error', () => fail(failure('ssh.forward-failed', 'forward')));
+			forwardChild.on('close', (code: number | null) => {
+				forwardChild = undefined;
+				if (settled || disposed) {
+					return;
+				}
+				if (code !== 0) {
+					fail(failure('ssh.forward-failed', 'forward', code ?? undefined));
+					return;
+				}
+				complete({ endpoint: { host: '127.0.0.1', port: localPort }, dispose: disposeProcess });
+			});
+			try {
+				forwardChild.stdin.end();
+			} catch {
+				fail(failure('ssh.forward-failed', 'forward'));
+			}
 		};
 
 		stdoutReader = createInterface({ input: child.stdout });
 		stdoutReader.on('line', (line: string) => {
+			if (stage === 'connect') {
+				stage = 'handshake';
+				armTimer('handshake');
+			}
 			const handshake: RemoteHandshake = parseRemoteHandshake(line);
 			switch (handshake.kind) {
 				case 'ready':
-					complete({ endpoint: { host: '127.0.0.1', port: localPort }, dispose: disposeProcess });
+					addForward(handshake.socketPath);
 					return;
 				case 'server-unavailable':
 				case 'socket-occupied':
+				case 'home-invalid':
+				case 'socket-path-too-long':
 				case 'start-failed':
-					fail(failure('ssh.remote-server-unavailable', 'handshake'));
+					fail(failure(handshake.kind === 'home-invalid' ? 'ssh.remote-home-invalid' : handshake.kind === 'socket-path-too-long' ? 'ssh.remote-socket-path-too-long' : 'ssh.remote-server-unavailable', 'handshake'));
 					return;
 			}
 		});
 		stderrReader = createInterface({ input: child.stderr });
 		stderrReader.on('line', (line: string) => {
 			stderrFailureCategory = stderrCategory(line);
-			notify(deps, { category: stderrFailureCategory, phase: 'connect' });
+			notify(deps, { category: stderrFailureCategory, phase: stage === 'forward' ? 'forward' : 'connect' });
 		});
 		child.on('error', (error: unknown) => {
 			const errorCode = (error as NodeJS.ErrnoException).code;
 			const code = errorCode === 'ENOENT' || errorCode === 'EACCES' || errorCode === 'EPERM'
 				? 'ssh.client-unavailable'
 				: 'ssh.transport-failed';
-			notify(deps, { category: code, phase: 'connect' });
-			fail(failure(code, 'connect'));
+			notify(deps, { category: code, phase: stage });
+			fail(failure(code, stage));
 		});
 		child.on('close', (code: number | null) => {
 			if (disposed) {
@@ -262,13 +376,17 @@ export async function openRemoteServer(input: RemoteServerTransportInput, deps: 
 				notify(deps, { category: 'ssh.connection-lost', phase: 'lifecycle', exitCode: code ?? undefined });
 				return;
 			}
-			if (stderrFailureCategory !== undefined) {
-				notify(deps, { category: stderrFailureCategory, phase: 'connect', exitCode: code ?? undefined });
-				fail(failure(stderrFailureCategory, 'connect', code ?? undefined));
+			if (stage === 'forward') {
+				fail(failure('ssh.forward-failed', 'forward', code ?? undefined));
 				return;
 			}
-			notify(deps, { category: 'ssh.remote-server-unavailable', phase: 'handshake', exitCode: code ?? undefined });
-			fail(failure('ssh.remote-server-unavailable', 'handshake', code ?? undefined));
+			if (stderrFailureCategory !== undefined) {
+				notify(deps, { category: stderrFailureCategory, phase: stage, exitCode: code ?? undefined });
+				fail(failure(stderrFailureCategory, stage, code ?? undefined));
+				return;
+			}
+			notify(deps, { category: 'ssh.remote-server-unavailable', phase: stage, exitCode: code ?? undefined });
+			fail(failure('ssh.remote-server-unavailable', stage, code ?? undefined));
 		});
 
 		try {
@@ -278,11 +396,7 @@ export async function openRemoteServer(input: RemoteServerTransportInput, deps: 
 			fail(failure('ssh.transport-failed', 'connect'));
 			return;
 		}
-
-		timer = setTimer(() => {
-			notify(deps, { category: 'ssh.transport-failed', phase: 'handshake' });
-			fail(failure('ssh.transport-failed', 'handshake'));
-		}, input.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+		armTimer('connect');
 	});
 }
 
