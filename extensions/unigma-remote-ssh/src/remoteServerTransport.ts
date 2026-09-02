@@ -16,11 +16,18 @@ export interface SshTransportArgumentInput {
 	readonly destination: string;
 	readonly localPort: number;
 	readonly remoteSocketPath: string;
+	/**
+	 * Smoke-only trust file. This exists precisely to avoid violating SSH-CONTRACT.md
+	 * section 4.2: an ephemeral host key goes in a disposable file instead of the
+	 * user's known_hosts. Production passes `undefined`.
+	 */
+	readonly knownHostsFile?: string;
 }
 
 export interface RemoteServerTransportInput extends RemoteBootstrapScriptInput {
 	readonly destination: string;
 	readonly timeoutMs?: number;
+	readonly knownHostsFile?: string;
 }
 
 export interface RemoteServerEndpoint {
@@ -95,16 +102,22 @@ export function buildSshTransportArguments(input: SshTransportArgumentInput): re
 	if (!input || typeof input.destination !== 'string' || input.destination.length === 0
 		|| !Number.isInteger(input.localPort) || input.localPort < 1 || input.localPort > 65535
 		|| typeof input.remoteSocketPath !== 'string' || input.remoteSocketPath.length === 0
-		|| !input.remoteSocketPath.startsWith('/')) {
+		|| !input.remoteSocketPath.startsWith('/')
+		|| (input.knownHostsFile !== undefined && (typeof input.knownHostsFile !== 'string' || input.knownHostsFile.length === 0))) {
 		throw new TypeError('Invalid SSH transport input');
 	}
 
+	const knownHostsArguments = input.knownHostsFile === undefined ? [] : [
+		'-o', `UserKnownHostsFile=${input.knownHostsFile}`,
+		'-o', 'GlobalKnownHostsFile=/dev/null'
+	];
 	return [
 		'-o', 'BatchMode=yes',
 		'-o', 'ExitOnForwardFailure=yes',
 		// SSH-CONTRACT.md section 4.2 requires existing configured trust and rejects unknown keys;
 		// `yes` verifies without the known_hosts mutation performed by `accept-new`.
 		'-o', 'StrictHostKeyChecking=yes',
+		...knownHostsArguments,
 		'-L', `127.0.0.1:${input.localPort}:${input.remoteSocketPath}`,
 		input.destination,
 		'--', '/bin/sh', '-s'
@@ -164,7 +177,8 @@ export async function openRemoteServer(input: RemoteServerTransportInput, deps: 
 		child = deps.spawn(buildSshTransportArguments({
 			destination: input.destination,
 			localPort,
-			remoteSocketPath: scriptResult.paths.socketPath
+			remoteSocketPath: scriptResult.paths.socketPath,
+			knownHostsFile: input.knownHostsFile
 		}));
 	} catch {
 		notify(deps, { category: 'ssh.client-unavailable', phase: 'connect' });

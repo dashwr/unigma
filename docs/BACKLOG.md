@@ -8,6 +8,12 @@
 > As demais tarefas além dos recortes 2A/2B continuam futuras. Este arquivo não
 > autoriza distribuição ou publicação.
 
+> feito: 2026-09-02 — implementado smoke de conexão SSH contra `sshd` efêmero,
+> pré-populando o servidor a partir de `unigma-server-latest`, com host key e
+> identidade descartáveis, verificação de `/version`, teardown e relatório. A
+> execução real permanece pendente no runner self-hosted; o smoke não foi rodado
+> localmente porque sobe um `sshd`.
+
 > feito: 2026-09-02 — o trabalho da branch `work/2026-08-26-e00-e03` foi integrado
 > na `main` pelo merge `4f23bc2e` (PR #9). O conflito era restrito a dois
 > workflows cujas versões em `main` eram anteriores. Já na `main`,

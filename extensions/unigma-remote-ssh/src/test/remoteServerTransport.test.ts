@@ -68,6 +68,32 @@ test('builds the single SSH command with verification-only host key handling', (
 	]);
 });
 
+test('uses a disposable known_hosts file without changing global trust', () => {
+	const arguments_ = buildSshTransportArguments({
+		destination: 'build-vps',
+		localPort: 43123,
+		remoteSocketPath: '/tmp/server.sock',
+		knownHostsFile: '/tmp/unigma-smoke-known-hosts'
+	});
+	assert.deepEqual(arguments_.slice(0, 10), [
+		'-o', 'BatchMode=yes',
+		'-o', 'ExitOnForwardFailure=yes',
+		'-o', 'StrictHostKeyChecking=yes',
+		'-o', 'UserKnownHostsFile=/tmp/unigma-smoke-known-hosts',
+		'-o', 'GlobalKnownHostsFile=/dev/null'
+	]);
+});
+
+test('does not add known_hosts overrides when no disposable file is supplied', () => {
+	const arguments_ = buildSshTransportArguments({
+		destination: 'build-vps',
+		localPort: 43123,
+		remoteSocketPath: '/tmp/server.sock'
+	});
+	assert.equal(arguments_.some(argument => argument.startsWith('UserKnownHostsFile=')), false);
+	assert.equal(arguments_.some(argument => argument.startsWith('GlobalKnownHostsFile=')), false);
+});
+
 test('opens the tunnel after one ready handshake and disposes its owned process', async () => {
 	const process = new FakeProcess(child => {
 		child.stdout.write('server startup noise\n');
@@ -80,6 +106,23 @@ test('opens the tunnel after one ready handshake and disposes its owned process'
 	await successfulSession.dispose();
 	await successfulSession.dispose();
 	assert.deepEqual(process.killed, ['SIGTERM']);
+});
+
+test('forwards the disposable known_hosts seam to the SSH command', async () => {
+	const process = new FakeProcess(child => child.stdout.end('unigma-remote:{"status":"ready"}\n'));
+	let arguments_: readonly string[] = [];
+	const result = await openRemoteServer({ ...input, knownHostsFile: '/tmp/smoke-known-hosts' }, {
+		...deps(process),
+		spawn: values => {
+			arguments_ = values;
+			return process;
+		}
+	});
+	assert.equal((result as { readonly ok?: boolean }).ok, undefined);
+	assert.ok(arguments_.includes('-o'));
+	assert.ok(arguments_.includes('UserKnownHostsFile=/tmp/smoke-known-hosts'));
+	assert.ok(arguments_.includes('GlobalKnownHostsFile=/dev/null'));
+	await (result as RemoteServerSession).dispose();
 });
 
 test('maps a bootstrap failure handshake to an observable remote-server failure', async () => {
