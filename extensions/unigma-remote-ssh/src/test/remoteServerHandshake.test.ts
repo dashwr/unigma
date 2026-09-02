@@ -25,8 +25,11 @@ test('derives versioned server paths and emits a POSIX bootstrap', () => {
 		versionedDirectory: `/home/remote user/.unigma-server/bin/${commit}`,
 		executablePath: `/home/remote user/.unigma-server/bin/${commit}/bin/unigma-server`,
 		serverDataDirectory: `/home/remote user/.unigma-server/bin/${commit}/data`,
-		socketPath: `/home/remote user/.unigma-server/bin/${commit}/.unigma-server.sock`
+		socketPath: `/home/remote user/.unigma-server/${commit.slice(0, 12)}.unigma-server.sock`
 	});
+	// The address family caps `sun_path`, so the socket must not inherit the
+	// versioned directory and its full commit.
+	assert.ok(result.paths.socketPath.length < 108);
 	assert.ok(result.script.startsWith('#!/bin/sh\nset -eu\n'));
 	assert.match(result.script, /VERSIONED='\/home\/remote user\/\.unigma-server\/bin\//);
 	assert.match(result.script, /--socket-path \"\$SOCKET\"/);
@@ -61,4 +64,16 @@ test('parses every stable handshake variant and rejects unknown payloads', () =>
 	]) {
 		assert.deepEqual(parseRemoteHandshake(line), { kind: 'unrecognized' }, line);
 	}
+});
+
+test('refuses a base directory that pushes the socket past the address limit', () => {
+	// Observed for real: a checkout-depth base directory made the server answer
+	// `listen EINVAL` instead of starting, which is not an actionable failure.
+	const deep = `/home/remote user/${'nested/'.repeat(12)}workspace`;
+	const result = buildRemoteBootstrapScript({ commit, remoteUserBaseDirectory: deep });
+	assert.equal(result.valid, false);
+	if (result.valid) {
+		return;
+	}
+	assert.equal(result.code, 'socket-path-too-long');
 });

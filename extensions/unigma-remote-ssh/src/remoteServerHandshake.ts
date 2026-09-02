@@ -16,7 +16,7 @@ export interface RemoteBootstrapScriptInput {
 
 export type RemoteBootstrapScriptResult =
 	| { readonly valid: true; readonly script: string; readonly paths: RemoteServerPaths }
-	| { readonly valid: false; readonly code: 'invalid-commit' | 'invalid-base-directory' };
+	| { readonly valid: false; readonly code: 'invalid-commit' | 'invalid-base-directory' | 'socket-path-too-long' };
 
 export type RemoteHandshake =
 	| { readonly kind: 'ready' }
@@ -47,11 +47,18 @@ export function buildRemoteBootstrapScript(input: RemoteBootstrapScriptInput): R
 		remoteUserBaseDirectory: input.remoteUserBaseDirectory
 	});
 	if (!derived.valid) {
-		return { valid: false, code: derived.code === 'staging-invalid-commit' ? 'invalid-commit' : 'invalid-base-directory' };
+		switch (derived.code) {
+			case 'staging-invalid-commit': return { valid: false, code: 'invalid-commit' };
+			// A base directory that pushes the socket past the address limit is
+			// still a property of the base directory the caller supplied.
+			case 'staging-socket-path-too-long': return { valid: false, code: 'socket-path-too-long' };
+			default: return { valid: false, code: 'invalid-base-directory' };
+		}
 	}
 
 	const { paths } = derived;
 	const fifoPrefix = `${paths.versionedDirectory}/.unigma-bootstrap-`;
+	const lockPath = `${paths.versionedDirectory}/.unigma-bootstrap.lock`;
 	const script = [
 		'#!/bin/sh',
 		'set -eu',
@@ -61,6 +68,7 @@ export function buildRemoteBootstrapScript(input: RemoteBootstrapScriptInput): R
 		`SERVER_DATA=${shellQuote(paths.serverDataDirectory)}`,
 		`SOCKET=${shellQuote(paths.socketPath)}`,
 		`FIFO=${shellQuote(fifoPrefix)}$$`,
+		`LOCK=${shellQuote(lockPath)}`,
 		`emit() { printf '%s%s\\n' ${shellQuote(REMOTE_HANDSHAKE_PREFIX)} "$1"; }`,
 		'',
 		'if [ ! -d "$VERSIONED" ] || [ ! -x "$SERVER" ]; then',
@@ -68,23 +76,37 @@ export function buildRemoteBootstrapScript(input: RemoteBootstrapScriptInput): R
 		'\texit 41',
 		'fi',
 		'',
-		'socket_state=2',
-		'if [ -e "$SOCKET" ]; then',
-		'\t# A missing probe or an inconclusive probe is treated as occupied; deleting an active socket is unsafe.',
-		'\tif command -v fuser >/dev/null 2>&1; then',
-		'\t\tfuser -s "$SOCKET" >/dev/null 2>&1 && socket_state=0 || socket_state=$?',
-		'\telif command -v lsof >/dev/null 2>&1; then',
-		'\t\tlsof -n -t -- "$SOCKET" >/dev/null 2>&1 && socket_state=0 || socket_state=$?',
+		// Ownership is claimed with `mkdir`, which is atomic on every POSIX
+		// filesystem, instead of probing the socket with `fuser` or `lsof`. Those
+		// tools are optional packages, so depending on them made the connection
+		// fail closed on an otherwise healthy host, and "something is listening"
+		// never established that the listener was a server this authority owns.
+		// The lock records its shell's pid, so a session killed without running
+		// its trap leaves a lock that the next attempt can recognise as stale via
+		// `kill -0` rather than one that blocks the host forever.
+		'owned=0',
+		'if mkdir "$LOCK" 2>/dev/null; then',
+		'\towned=1',
+		'else',
+		'\tholder=""',
+		'\tif [ -f "$LOCK/pid" ]; then holder="$(cat "$LOCK/pid" 2>/dev/null || :)"; fi',
+		'\t# An unreadable or absent pid is inconclusive, so the lock is respected.',
+		'\tif [ -n "$holder" ] && ! kill -0 "$holder" 2>/dev/null; then',
+		'\t\trm -f "$LOCK/pid" || :',
+		'\t\trmdir "$LOCK" 2>/dev/null || :',
+		'\t\tif mkdir "$LOCK" 2>/dev/null; then owned=1; fi',
 		'\tfi',
-		'\tcase "$socket_state" in',
-		'\t\t0|2) emit \'{"status":"socket-occupied"}\'; exit 42 ;;',
-		'\t\t1) rm -f "$SOCKET" || { emit \'{"status":"socket-occupied"}\'; exit 42; } ;;',
-		'\t\t*) emit \'{"status":"socket-occupied"}\'; exit 42 ;;',
-		'\tesac',
 		'fi',
+		'if [ "$owned" -ne 1 ]; then',
+		`\temit '{"status":"socket-occupied"}'`,
+		'\texit 42',
+		'fi',
+		'echo $$ > "$LOCK/pid"',
 		'',
+		'# Only the holder of the lock may clear a socket left behind by a dead session.',
+		'rm -f "$SOCKET"',
 		'rm -f "$FIFO"',
-		'cleanup() { rm -f "$FIFO"; }',
+		'cleanup() { rm -f "$FIFO" "$LOCK/pid"; rmdir "$LOCK" 2>/dev/null || :; }',
 		'trap cleanup 0 HUP INT TERM',
 		'mkfifo "$FIFO" || { emit \'{"status":"start-failed"}\'; exit 43; }',
 		'',

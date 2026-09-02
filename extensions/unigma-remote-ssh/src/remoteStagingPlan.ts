@@ -13,6 +13,14 @@ const SERVER_ARCHIVE_PATH = 'server/unigma-server.tar.gz';
 export const REMOTE_SERVER_DATA_FOLDER = '.unigma-server';
 export const REMOTE_SERVER_SOCKET_FILE = '.unigma-server.sock';
 
+/**
+ * Conservative budget for `sockaddr_un.sun_path`, which Linux caps at 108 bytes
+ * including the terminator. Refusing early turns an opaque `listen EINVAL` from
+ * the server into a named, observable refusal, as section 7 of the contract
+ * requires.
+ */
+const MAX_UNIX_SOCKET_PATH_BYTES = 100;
+
 export interface RemoteServerPathsInput {
 	readonly remoteUserBaseDirectory: string;
 	readonly commit: string;
@@ -28,7 +36,7 @@ export interface RemoteServerPaths {
 
 export type RemoteServerPathsValidation =
 	| { readonly valid: true; readonly paths: RemoteServerPaths }
-	| { readonly valid: false; readonly code: 'staging-invalid-base-directory' | 'staging-invalid-commit' };
+	| { readonly valid: false; readonly code: 'staging-invalid-base-directory' | 'staging-invalid-commit' | 'staging-socket-path-too-long' };
 
 export interface RemoteStagingPlanInput {
 	readonly manifest: BootstrapManifest;
@@ -136,6 +144,17 @@ export function deriveRemoteServerPaths(input: RemoteServerPathsInput): RemoteSe
 
 	const dataDirectory = joinPosix(input.remoteUserBaseDirectory, REMOTE_SERVER_DATA_FOLDER);
 	const versionedDirectory = joinPosix(dataDirectory, 'bin', input.commit);
+	// The socket deliberately sits beside the versioned directory instead of
+	// inside it. `sockaddr_un.sun_path` holds 108 bytes on Linux, and a socket
+	// under the versioned directory spends 40 of them on the commit alone: the
+	// server answered `listen EINVAL` for a base directory as ordinary as a
+	// checkout under a home directory. A short commit prefix keeps one socket per
+	// version without approaching the limit; the full commit still names the
+	// directory that actually pins the build.
+	const socketPath = joinPosix(dataDirectory, `${input.commit.slice(0, 12)}${REMOTE_SERVER_SOCKET_FILE}`);
+	if (socketPath.length > MAX_UNIX_SOCKET_PATH_BYTES) {
+		return { valid: false, code: 'staging-socket-path-too-long' };
+	}
 	return {
 		valid: true,
 		paths: {
@@ -143,7 +162,7 @@ export function deriveRemoteServerPaths(input: RemoteServerPathsInput): RemoteSe
 			versionedDirectory,
 			executablePath: joinPosix(versionedDirectory, 'bin', 'unigma-server'),
 			serverDataDirectory: joinPosix(versionedDirectory, 'data'),
-			socketPath: joinPosix(versionedDirectory, REMOTE_SERVER_SOCKET_FILE),
+			socketPath,
 		}
 	};
 }
