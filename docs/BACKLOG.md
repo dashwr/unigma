@@ -19,7 +19,11 @@
 > referências de build/lint, as specs `code-tunnel`/`code-tunnel-insiders` e as
 > entradas i18n de diretórios inexistentes; a guarda do auditor contra esse nome
 > foi mantida para rejeitar artefatos residuais. Code Server/RPC, port forwarding
-> genérico do workbench e cleanup legado do instalador foram preservados.
+> genérico do workbench e cleanup legado do instalador foram preservados. Também
+> saíram os workflows presos a runners do upstream (`pr.yml`, `pr-node-modules.yml`,
+> os quatro `pr-*-test.yml` e `copilot-setup-steps.yml`), que nunca puderam ser
+> escalonados neste fork. `unigma-server-linux-artifact` (`33633940417`) e
+> `unigma-linux-wsl-validation` (`33634579380`) passaram depois da poda.
 >
 > feito: overnight 2026-08-27 executou triagem E00–E03, aplicou correções locais
 > no bridge, auditor e recortes estruturalmente independentes, e registrou evidência/bloqueios em
