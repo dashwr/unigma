@@ -41,6 +41,8 @@ const commit = getVersion(REPO_ROOT);
 const BUILD_ROOT = path.dirname(REPO_ROOT);
 const REMOTE_FOLDER = path.join(REPO_ROOT, 'remote');
 
+const hasBuiltInCopilot = product.builtInExtensions.some(({ name }) => name === 'copilot');
+
 // Targets
 
 const BUILD_TARGETS = [
@@ -431,8 +433,12 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 			.pipe(filter(['**', '!**/package-lock.json', '!**/*.{js,css}.map']))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, '.moduleignore')))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, `.moduleignore.${process.platform}`)));
-		ensureCopilotPlatformPackage(platform, arch, 'remote/node_modules');
-		const copilotRuntimePrebuilds = gulp.src(getCopilotRuntimePrebuildFiles(platform, arch, 'remote/node_modules'), { base: 'remote', dot: true, allowEmpty: true });
+		if (hasBuiltInCopilot) {
+			ensureCopilotPlatformPackage(platform, arch, 'remote/node_modules');
+		}
+		const copilotRuntimePrebuilds = hasBuiltInCopilot
+			? gulp.src(getCopilotRuntimePrebuildFiles(platform, arch, 'remote/node_modules'), { base: 'remote', dot: true, allowEmpty: true })
+			: es.readArray([]);
 		const deps = es.merge(cleanedDeps, copilotRuntimePrebuilds)
 			.pipe(filter(getCopilotExcludeFilter(platform, arch)))
 			.pipe(filter(getCopilotTgrepExcludeFilter(platform, arch)))
@@ -593,6 +599,9 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 
 function prepareCopilotRipgrepShimTaskREH(platform: string, arch: string, destinationFolderName: string) {
 	return async () => {
+		if (!hasBuiltInCopilot) {
+			return;
+		}
 		const outputDir = path.join(BUILD_ROOT, destinationFolderName);
 		const nodeModulesDir = path.join(outputDir, 'node_modules');
 
