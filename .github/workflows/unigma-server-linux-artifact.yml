@@ -74,7 +74,7 @@ jobs:
             --message="$commit" --no-verify
           cd "$build"
           export BUILD_SOURCEVERSION="$commit"
-          export NODE_OPTIONS="--max-old-space-size=4096"
+          export NODE_OPTIONS="--max-old-space-size=8192"
           export UV_THREADPOOL_SIZE=12
           export CMAKE_BUILD_PARALLEL_LEVEL=12
           export MAKEFLAGS=-j12
@@ -84,7 +84,9 @@ jobs:
           free -m
           build_log="$build/unigma-server-build.log"
           set +e
-          node --experimental-strip-types --max-old-space-size=4096 ./node_modules/gulp/bin/gulp.js vscode-reh-linux-x64-min 2>&1 | tee "$build_log"
+          stdbuf -oL -eL timeout --signal=TERM --kill-after=1m 60m \
+            node --experimental-strip-types --max-old-space-size=8192 \
+            ./node_modules/gulp/bin/gulp.js vscode-reh-linux-x64-min 2>&1 | stdbuf -oL tee "$build_log"
           gulp_status="${PIPESTATUS[0]}"
           set -e
           echo "--- gulp exit status: $gulp_status ---"
