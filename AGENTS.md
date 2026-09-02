@@ -36,6 +36,29 @@
   confirmação explícita antes de qualquer escrita.
 - Os testes de cada etapa ficam concentrados no fim dela, conforme o plano.
 
+## código que roda no host remoto
+
+- Todo script que o unigma executa no host remoto **pode estar rodando como
+  `root`**. A VPS de teste só tem acesso root, e um host de usuário não é
+  garantia. Escreva como se estivesse.
+- **Nenhuma remoção recursiva sem guarda.** Em `remoteStagingScript.ts` toda
+  remoção recursiva passa por `safe_rm`, que recusa alvo vazio, raiz não
+  definida, qualquer caminho fora do diretório que o script possui e qualquer
+  travessia com `..`. A guarda recusa em silêncio, então quem chama precisa
+  afirmar a pós-condição. Há teste que exige exatamente uma remoção recursiva no
+  script e que ela seja a de dentro da guarda.
+- **Nunca use um caminho real como sentinela de variável.** O sentinela era
+  `STAGING=/dev/null`: um `trap` disparando antes da atribuição real executava
+  `rm -rf /dev/null`, inofensivo para usuário comum e destrutivo como root.
+  Sentinela é string vazia, com checagem antes do uso.
+- Prefira operação limitada por natureza: `rm -f` em arquivo único, `rmdir` que
+  falha em diretório não vazio, `mkdir` como lock atômico, `mv -T` para ativar.
+  É por isso que o script de conexão não precisa de guarda.
+- Nada de `sudo`, instalação global, serviço de sistema, alteração de arquivo de
+  administração ou escrita fora do diretório versionado do próprio usuário.
+- Revise essa superfície sempre que mexer nos scripts remotos, e não confie em
+  revisão só de diff: leia o script gerado.
+
 ## depósito de artefatos no WSL
 
 - Os três workflows Linux publicam em `~/.local/share/unigma-artifacts` dentro do

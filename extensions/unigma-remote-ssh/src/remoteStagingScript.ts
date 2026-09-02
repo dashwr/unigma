@@ -128,8 +128,31 @@ export function buildRemoteStagingScript(input: unknown): RemoteStagingScriptRes
 		`emit() { printf '%s%s\\n' ${shellQuote(REMOTE_HANDSHAKE_PREFIX)} "$1"; }`,
 		'fail() { emit "{\\"status\\":\\"$1\\"}"; exit "$2"; }',
 		'SCRIPT_PATH=$0',
-		'STAGING=/dev/null',
-		'cleanup() { rm -rf "$STAGING" 2>/dev/null || :; rm -f "$SCRIPT_PATH" 2>/dev/null || :; }',
+		// The sentinel is empty, never a real path. It used to be `/dev/null`, so a
+		// trap firing before the real assignment ran `rm -rf /dev/null`: harmless
+		// for an ordinary user, but this script is expected to run as root on some
+		// hosts, and there it removes the device node and breaks the machine.
+		'STAGING=',
+		// Every recursive removal in this script goes through here. As root a wrong
+		// or empty variable is the difference between cleaning a staging directory
+		// and destroying the host, so the guard refuses anything that is not a
+		// non-empty path strictly inside the directory this script owns, and
+		// refuses silently rather than failing: cleanup must never mask the real
+		// error that triggered it.
+		'safe_rm() {',
+		'\ttarget=${1:-}',
+		'\t[ -n "$target" ] || return 0',
+		'\t[ -n "${DATA_DIRECTORY:-}" ] || return 0',
+		'\tcase "$target" in',
+		'\t\t"$DATA_DIRECTORY"/?*) ;;',
+		'\t\t*) return 0 ;;',
+		'\tesac',
+		'\tcase "$target" in',
+		'\t\t*/..|*/../*) return 0 ;;',
+		'\tesac',
+		'\trm -rf -- "$target" 2>/dev/null || :',
+		'}',
+		'cleanup() { safe_rm "${STAGING:-}"; if [ -n "${SCRIPT_PATH:-}" ] && [ -f "${SCRIPT_PATH:-}" ]; then rm -f -- "$SCRIPT_PATH" 2>/dev/null || :; fi; }',
 		'trap cleanup 0 HUP INT TERM',
 		'',
 		'if [ -z "${HOME:-}" ]; then fail home-invalid 44; fi',
@@ -151,7 +174,11 @@ export function buildRemoteStagingScript(input: unknown): RemoteStagingScriptRes
 		'\tfail activation-invalid 49',
 		'fi',
 		'mkdir -p "$DATA_DIRECTORY/bin" || fail staging-failed 46',
-		'rm -rf "$STAGING" || fail staging-failed 46',
+		'safe_rm "$STAGING"',
+		// `safe_rm` refuses silently, so the post-condition is asserted here rather
+		// than assumed: a staging directory that survived means the guard rejected
+		// the path, and continuing would extract over leftovers.
+		'if [ -e "$STAGING" ] || [ -L "$STAGING" ]; then fail staging-failed 46; fi',
 		'mkdir -p "$STAGING" || fail staging-failed 46',
 		'',
 		'if ! tar -xf - -C "$STAGING"; then fail payload-invalid 47; fi',

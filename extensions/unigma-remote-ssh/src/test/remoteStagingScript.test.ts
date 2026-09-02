@@ -50,3 +50,32 @@ test('parses only the redacted staging handshake statuses', () => {
 	assert.deepEqual(parseRemoteStagingHandshake('unigma-remote:{"status":"file-hash-mismatch"}'), { kind: 'file-hash-mismatch' });
 	assert.equal(parseRemoteStagingHandshake('unigma-remote:{"status":"activated","hash":"secret"}'), undefined);
 });
+
+test('routes every recursive removal through the guard, with no path sentinel', () => {
+	const result = buildRemoteStagingScript({ commit, manifest });
+	assert.equal(result.valid, true);
+	if (!result.valid) {
+		return;
+	}
+
+	// This script is expected to run as root on some hosts. A `/dev/null`
+	// sentinel removed the device node when the trap fired before the real
+	// assignment, and an unguarded recursive removal is the difference between
+	// clearing a staging directory and destroying the host.
+	assert.doesNotMatch(result.script, /STAGING=\/dev\/null/);
+	assert.match(result.script, /^STAGING=$/m);
+
+	const recursive = result.script.split('\n').filter(line => /\brm\s+-[a-z]*r/.test(line));
+	assert.equal(recursive.length, 1, `expected one recursive removal, found ${recursive.length}`);
+	assert.match(recursive[0], /rm -rf -- "\$target"/);
+
+	// The guard must refuse an empty target, an unset root and anything outside
+	// the directory the script owns, and must not be reachable by traversal.
+	assert.match(result.script, /\[ -n "\$target" \] \|\| return 0/);
+	assert.match(result.script, /\[ -n "\$\{DATA_DIRECTORY:-\}" \] \|\| return 0/);
+	assert.match(result.script, /"\$DATA_DIRECTORY"\/\?\*\) ;;/);
+	assert.match(result.script, /\*\/\.\.\|\*\/\.\.\/\*\) return 0 ;;/);
+
+	// The guard refuses silently, so the caller has to assert the post-condition.
+	assert.match(result.script, /if \[ -e "\$STAGING" \] \|\| \[ -L "\$STAGING" \]; then fail staging-failed/);
+});
