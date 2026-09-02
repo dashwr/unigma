@@ -45,7 +45,8 @@ jobs:
 
           output="$1"
           commit="$2"
-          source="$3"
+          # Named apart from the OpenCode checkout below, which also uses `source`.
+          unigma_source="$3"
           bun_version="1.3.14"
           toolchain="$HOME/.local/share/unigma-toolchains/bun-$bun_version"
           if [ ! -x "$toolchain/bin/bun" ]; then
@@ -146,7 +147,7 @@ jobs:
           # Publish into the same persistent store as the client and the server, so
           # a staging smoke can assemble a real payload without any of the three
           # being rebuilt or fetched from outside WSL.
-          bash "$source/build/unigma/publish-latest-artifact.sh" \
+          bash "$unigma_source/build/unigma/publish-latest-artifact.sh" \
             opencode "$output" "$commit" target=linux-x64 version=1.18.23
           '@
           $script = $script -replace "`r`n?", "`n"
