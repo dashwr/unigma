@@ -10,13 +10,32 @@ import { homedir, userInfo } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createConnection } from 'node:net';
-import {
-	buildRemoteBootstrapScript,
-	createRemoteSshProcessRunner,
-	openRemoteServer,
-	type RemoteSshProcess
+import { createRequire } from 'node:module';
+import type {
+	createRemoteSshProcessRunner as CreateRemoteSshProcessRunner,
+	openRemoteServer as OpenRemoteServer,
+	RemoteSshProcess
 } from '../../extensions/unigma-remote-ssh/out/remoteServerTransport.js';
-import { deriveRemoteServerPaths } from '../../extensions/unigma-remote-ssh/out/remoteStagingPlan.js';
+import type { buildRemoteBootstrapScript as BuildRemoteBootstrapScript } from '../../extensions/unigma-remote-ssh/out/remoteServerHandshake.js';
+import type { deriveRemoteServerPaths as DeriveRemoteServerPaths } from '../../extensions/unigma-remote-ssh/out/remoteStagingPlan.js';
+
+// The extension compiles to CommonJS while this script runs as ESM, so a static
+// import resolves the module namespace instead of its named exports. Requiring
+// it keeps the real, compiled transport under test rather than a reimplementation.
+const require = createRequire(import.meta.url);
+const transport = require('../../extensions/unigma-remote-ssh/out/remoteServerTransport.js') as {
+	createRemoteSshProcessRunner: typeof CreateRemoteSshProcessRunner;
+	openRemoteServer: typeof OpenRemoteServer;
+};
+const handshake = require('../../extensions/unigma-remote-ssh/out/remoteServerHandshake.js') as {
+	buildRemoteBootstrapScript: typeof BuildRemoteBootstrapScript;
+};
+const staging = require('../../extensions/unigma-remote-ssh/out/remoteStagingPlan.js') as {
+	deriveRemoteServerPaths: typeof DeriveRemoteServerPaths;
+};
+const { createRemoteSshProcessRunner, openRemoteServer } = transport;
+const { buildRemoteBootstrapScript } = handshake;
+const { deriveRemoteServerPaths } = staging;
 
 const COMMIT = /^[0-9a-f]{40}$/;
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
