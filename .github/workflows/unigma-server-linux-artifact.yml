@@ -128,6 +128,14 @@ jobs:
             printf 'node=%s\n' "$node_version"
             printf 'serverArchive=server/unigma-server.tar.gz\n'
           } > "$output/PROVENANCE.txt"
+
+          # Publish into the persistent WSL artifact store so a smoke run can pair
+          # this server with a client build without rebuilding either one. The
+          # store is invoked with bash because the checkout lives on a Windows
+          # mount, where the executable bit does not survive.
+          bash "$source/build/unigma/publish-latest-artifact.sh" \
+            unigma-server "$server_root" "$commit" \
+            target=linux-x64 "node=$node_version"
           '@
           $script = $script -replace "`r`n?", "`n"
           [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))

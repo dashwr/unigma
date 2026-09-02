@@ -271,6 +271,13 @@ jobs:
             cp -a "$build/.build/logs/." "$source/.build/logs/"
           fi
           tar -C "$artifact" -cJf "$source/.build/unigma-linux-x64.tar.xz" .
+          # Publish into the persistent WSL artifact store so a smoke run can pair
+          # this client with a server build without rebuilding either one. Only a
+          # package that already passed the audit and the desktop smoke reaches
+          # the store, because this step runs on success only.
+          bash "$source/build/unigma/publish-latest-artifact.sh" \
+            unigma "$artifact" "$sha" \
+            target=linux-x64 build-environment='Ubuntu WSL2'
           cat > "$source/.build/unigma-linux-x64-evidence.txt" <<EOF
           commit=$sha
           target=linux-x64
