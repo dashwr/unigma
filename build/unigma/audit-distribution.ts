@@ -107,6 +107,17 @@ function packagePaths(packageDirectory) {
 		for (const entry of readdirSync(directory, { withFileTypes: true })) {
 			const entryPath = join(directory, entry.name);
 			if (entry.isDirectory()) {
+				// A runtime cache is written next to the application or into the
+				// user data directory, never inside a dependency tree, while
+				// dependency sources legitimately use these names: the server
+				// package ships `node_modules/undici/lib/cache` and
+				// `node_modules/undici/lib/web/cache`. Walking into node_modules
+				// turned the check into a permanent, unavoidable failure for every
+				// server build, which is worse than no check because the answer is
+				// then to switch it off.
+				if (entry.name === 'node_modules') {
+					continue;
+				}
 				if (prohibitedPackagePaths.has(entry.name.toLowerCase())) {
 					paths.push(relative(packageDirectory, entryPath).replace(/\\/g, '/'));
 					continue;
