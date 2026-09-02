@@ -68,7 +68,22 @@ jobs:
           export MAKEFLAGS=-j12
           node build/azure-pipelines/common/disableFoundryLocalInstall.ts
           npm ci --no-audit --no-fund
-          node --experimental-strip-types --max-old-space-size=12288 ./node_modules/gulp/bin/gulp.js vscode-reh-linux-x64-min
+          echo "--- WSL memory before build ---"
+          free -m
+          build_log="$build/unigma-server-build.log"
+          set +e
+          node --experimental-strip-types --max-old-space-size=12288 ./node_modules/gulp/bin/gulp.js vscode-reh-linux-x64-min > "$build_log" 2>&1
+          gulp_status=$?
+          set -e
+          echo "--- gulp exit status: $gulp_status ---"
+          echo "--- WSL memory after build ---"
+          free -m
+          tail -n 120 "$build_log"
+          if [ "$gulp_status" -ne 0 ]; then
+            echo "--- kernel out-of-memory evidence (if any) ---"
+            dmesg 2>/dev/null | tail -n 40 || echo "dmesg unavailable"
+            exit "$gulp_status"
+          fi
           server_root="$build/../vscode-reh-linux-x64"
           test -x "$server_root/bin/unigma-server"
           test -f "$server_root/LICENSE.txt"
