@@ -112,6 +112,9 @@ jobs:
             exit "$gulp_status"
           fi
           server_root="$build/../vscode-reh-linux-x64"
+          echo "--- packaged server tree ---"
+          ls -la "$server_root" || { echo "server root missing at $server_root" >&2; ls -la "$build/.." >&2; exit 1; }
+          ls -la "$server_root/bin" || true
           test -x "$server_root/bin/unigma-server"
           test -f "$server_root/LICENSE.txt"
           rm -rf "$output"
