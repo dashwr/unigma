@@ -8,6 +8,13 @@
 > As demais tarefas além dos recortes 2A/2B continuam futuras. Este arquivo não
 > autoriza distribuição ou publicação.
 
+> feito: 2026-09-02 — o trabalho da branch `work/2026-08-26-e00-e03` foi integrado
+> na `main` pelo merge `4f23bc2e` (PR #9). O conflito era restrito a dois
+> workflows cujas versões em `main` eram anteriores. Já na `main`,
+> `unigma-linux-wsl-validation` (`33622281552`) e `unigma-server-linux-artifact`
+> (`33622291887`) passaram. Isso não autoriza distribuição: notices, titularidade
+> de licença e branding continuam pendentes.
+>
 > feito: overnight 2026-08-27 executou triagem E00–E03, aplicou correções locais
 > no bridge, auditor e recortes estruturalmente independentes, e registrou evidência/bloqueios em
 > [`status/2026-08-27-overnight.md`](status/2026-08-27-overnight.md); nenhum épico
@@ -782,6 +789,13 @@ estão pendentes.
 - **bloqueia:** AC-028.
 
 ## E-05 — remoto SSH
+
+> feito: 2026-09-02 — `remoteStagingPlan.ts` calcula, sem qualquer I/O, o plano de
+> staging e ativação a partir do manifesto validado: diretório versionado por
+> commit, verificação de tamanho e hash por arquivo, extração do tar.gz do
+> servidor e ativação atômica, sem remover a versão anterior. A suíte da extensão
+> passou com 48 testes e o plano foi conferido contra o `manifest.json` real do
+> par `09aa87ff…`. Falta apenas executar o transporte contra um host real.
 
 > feito parcial: 2026-08-30 — `unigma-remote-ssh` passou a registrar a autoridade
 > `ssh-remote`, validar aliases/targets sem segredo, testar disponibilidade do

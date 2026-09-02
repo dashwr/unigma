@@ -104,6 +104,9 @@ adiciona uma asserção negativa. `compile-client`, `typecheck-client`, 60 teste
 | ambiente/permissão | `E01-A` / `E01-C` / `E01-D` | Node `24.18.0`/npm `<12` já disponível localmente; runner Windows/WSL e host Linux x64 autorizado continuam pendentes; nenhum segredo deve ser coletado | pendente |
 | decisão técnica | `E01-B` / `E01-C` | bundle OpenCode fixado e inventário confiável de plugins/regras | pendente |
 | escopo/aceite | `E02/E03` | manter 2A/2B como recortes verificados, sem promover os épicos sem os gates E00/E01 | pendente |
+| ambiente | `T-051` / `T-052` / `AC-007` | host Linux x64 com `sshd`, chave dedicada e confirmação explícita do usuário; o par, o manifesto e o plano de staging já existem e só falta o transporte | pendente |
+| decisão/poda | `Q-3` / `CLI-003` | poda autorizada em 2026-09-02, ainda não executada: workflows herdados do upstream que fazem checkout de `microsoft/vscode`, chamada morta a `code tunnel forward-internal` em `extensions/tunnel-forwarding/src/extension.ts:271-280`, entradas `remoteTunnel`/`tunnelHost` inexistentes em `build/lib/i18n.resources.json` e completion specs de `code-tunnel` | próxima frente |
+| autorização | `E00-A` / `E00-B` / notices | `remote/LICENSE` distribuído com o pacote do servidor ainda carrega o copyright herdado; titularidade, notices de terceiros e clearance continuam decisão humana | pendente |
 
 ## transições recentes
 
