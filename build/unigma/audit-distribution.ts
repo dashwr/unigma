@@ -42,6 +42,14 @@ function isDirectory(path) {
 	return existsSync(path) && statSync(path).isDirectory();
 }
 
+function isFile(path) {
+	return existsSync(path) && statSync(path).isFile();
+}
+
+function isExecutable(path) {
+	return isFile(path) && (statSync(path).mode & 0o111) !== 0;
+}
+
 function fileHash(path) {
 	return createHash('sha256').update(readFileSync(path)).digest('hex');
 }
@@ -75,6 +83,24 @@ function extensionNotices(sourceDirectory) {
 		.sort();
 }
 
+function getExtensionNames(extensionsDirectory) {
+	return isDirectory(extensionsDirectory)
+		? readdirSync(extensionsDirectory, { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => entry.name)
+		: [];
+}
+
+function prohibitedExtensionNames(names) {
+	return names.filter(name => prohibitedExtensions.has(name.toLowerCase()) || name.toLowerCase().includes('copilot'));
+}
+
+function uiOnlyExtensionNames(extensionsDirectory) {
+	return getExtensionNames(extensionsDirectory).filter(name => {
+		const manifest = readJson(join(extensionsDirectory, name, 'package.json'));
+		const extensionKind = manifest?.extensionKind;
+		return Array.isArray(extensionKind) && extensionKind.length > 0 && extensionKind.every(kind => kind === 'ui');
+	});
+}
+
 function packagePaths(packageDirectory) {
 	const paths = [];
 	function walk(directory) {
@@ -95,11 +121,77 @@ function packagePaths(packageDirectory) {
 	return paths.sort();
 }
 
-const [packageArgument, sourceArgument, ...extraArguments] = process.argv.slice(2);
+function auditServerPackage(packageDirectory) {
+	const layoutChecks = [
+		['server.layout.bin', isExecutable(join(packageDirectory, 'bin', 'unigma-server'))],
+		['server.layout.productJson', isFile(join(packageDirectory, 'product.json'))],
+		['server.layout.packageJson', isFile(join(packageDirectory, 'package.json'))],
+		['server.layout.out', isDirectory(join(packageDirectory, 'out'))],
+		['server.layout.extensions', isDirectory(join(packageDirectory, 'extensions'))],
+		['server.layout.node', isFile(join(packageDirectory, 'node'))],
+		['server.layout.license', isFile(join(packageDirectory, 'LICENSE'))],
+	];
+	check('package.layout', layoutChecks.every(([, passed]) => passed));
+	for (const [name, passed] of layoutChecks) {
+		check(name, passed);
+	}
+
+	const product = readJson(join(packageDirectory, 'product.json'));
+	const packageJson = readJson(join(packageDirectory, 'package.json'));
+	check('product.json', Boolean(product));
+	check('package.json', Boolean(packageJson));
+
+	if (product) {
+		check('product.identity', product.nameShort === 'unigma' && product.nameLong === 'unigma' && product.applicationName === 'unigma' && product.serverApplicationName === 'unigma-server' && product.serverDataFolderName === '.unigma-server');
+		// The REH packaging profile writes false explicitly; omission is only valid for desktop.
+		check('product.extensionsGallery', product.extensionsGallery === false);
+		check('product.builtInExtensions', product.builtInExtensions === undefined || (Array.isArray(product.builtInExtensions) && product.builtInExtensions.length === 0));
+		check('product.autoUpdateExtensions', product.builtInExtensionsEnabledWithAutoUpdates === undefined || (Array.isArray(product.builtInExtensionsEnabledWithAutoUpdates) && product.builtInExtensionsEnabledWithAutoUpdates.length === 0));
+		check('product.endpoints', prohibitedProductEndpoints.every(name => product[name] === ''));
+	} else {
+		for (const name of ['product.identity', 'product.extensionsGallery', 'product.builtInExtensions', 'product.autoUpdateExtensions', 'product.endpoints']) {
+			check(name, false);
+		}
+	}
+
+	const packageExtensions = join(packageDirectory, 'extensions');
+	check('extensions.directory', isDirectory(packageExtensions));
+	const names = getExtensionNames(packageExtensions);
+	const prohibited = prohibitedExtensionNames(names);
+	check('extensions.prohibited', prohibited.length === 0);
+	console.log(`extensions.prohibited.count=${prohibited.length}`);
+	console.log(`extensions.prohibited.names=${prohibited.join(',')}`);
+	const uiOnly = uiOnlyExtensionNames(packageExtensions);
+	check('extensions.uiOnly', uiOnly.length === 0);
+	console.log(`extensions.uiOnly.count=${uiOnly.length}`);
+	console.log(`extensions.uiOnly.names=${uiOnly.join(',')}`);
+
+	const packageDirectoryExists = isDirectory(packageDirectory);
+	const prohibitedPaths = packageDirectoryExists ? packagePaths(packageDirectory) : [];
+	check('package.transientContent', packageDirectoryExists && prohibitedPaths.length === 0);
+	console.log(`package.transientContent.count=${prohibitedPaths.length}`);
+	console.log(`package.transientContent.paths=${prohibitedPaths.join(',')}`);
+}
+
+const arguments_ = process.argv.slice(2);
+const serverProfile = arguments_.includes('--server');
+const positionalArguments = serverProfile ? arguments_.filter(argument => argument !== '--server') : arguments_;
+const [packageArgument, sourceArgument, ...extraArguments] = positionalArguments;
 if (!packageArgument || extraArguments.length > 0) {
 	console.log('audit=fail');
 	console.log('check.arguments=fail');
 	process.exitCode = 1;
+} else if (serverProfile) {
+	auditServerPackage(resolve(packageArgument));
+
+	for (const [name, value] of results) {
+		console.log(`${name}=${value}`);
+	}
+	const passed = results.length > 0 && results.every(([, value]) => value === 'pass');
+	console.log(`audit=${passed ? 'pass' : 'fail'}`);
+	if (!passed) {
+		process.exitCode = 1;
+	}
 } else {
 	const packageDirectory = resolve(packageArgument);
 	const appDirectory = resolveAppDirectory(packageDirectory);
@@ -139,10 +231,8 @@ if (!packageArgument || extraArguments.length > 0) {
 
 		const packageExtensions = join(appDirectory, 'extensions');
 		check('extensions.directory', isDirectory(packageExtensions));
-		const extensionNames = isDirectory(packageExtensions)
-			? readdirSync(packageExtensions, { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => entry.name)
-			: [];
-		const prohibited = extensionNames.filter(name => prohibitedExtensions.has(name.toLowerCase()) || name.toLowerCase().includes('copilot'));
+		const extensionNames = getExtensionNames(packageExtensions);
+		const prohibited = prohibitedExtensionNames(extensionNames);
 		check('extensions.prohibited', prohibited.length === 0);
 		console.log(`extensions.prohibited.count=${prohibited.length}`);
 

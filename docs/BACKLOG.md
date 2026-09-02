@@ -8,6 +8,11 @@
 > As demais tarefas além dos recortes 2A/2B continuam futuras. Este arquivo não
 > autoriza distribuição ou publicação.
 
+> feito: 2026-09-02 — o auditor ganhou perfil explícito `--server` para o pacote
+> REH Linux, com guarda de layout, identidade, gallery desabilitada, extensões
+> proibidas/UI-only e conteúdo transitório; o workflow audita antes de publicar
+> ou fazer upload, e a suíte cobre cinco fixtures sintéticas.
+
 > feito: 2026-09-02 — implementado smoke de conexão SSH contra `sshd` efêmero,
 > pré-populando o servidor a partir de `unigma-server-latest`, com host key e
 > identidade descartáveis, verificação de `/version`, teardown e relatório. A

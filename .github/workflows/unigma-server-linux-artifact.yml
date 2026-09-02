@@ -117,6 +117,7 @@ jobs:
           ls -la "$server_root/bin" || true
           test -x "$server_root/bin/unigma-server"
           test -f "$server_root/LICENSE"
+          node --experimental-strip-types "$source/build/unigma/audit-distribution.ts" --server "$server_root"
           rm -rf "$output"
           mkdir -p "$output/server"
           tar --owner=0 --group=0 -czf "$output/server/unigma-server.tar.gz" -C "$(dirname "$server_root")" "$(basename "$server_root")"

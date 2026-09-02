@@ -430,6 +430,9 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 		let productJsonContents = '';
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
 			.pipe(jsonEditor((json: Record<string, unknown>) => {
+				// The server has no extension gallery. Keep this explicit so the server
+				// package has a distinct, auditable value from the desktop omission.
+				json.extensionsGallery = false;
 				json.commit = commit;
 				json.date = readISODate(sourceFolderName);
 				json.version = version;
