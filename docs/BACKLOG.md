@@ -8,6 +8,14 @@
 > As demais tarefas além dos recortes 2A/2B continuam futuras. Este arquivo não
 > autoriza distribuição ou publicação.
 
+> feito: 2026-09-02 — o resolver foi fiado: `resolve()` lê o commit do cliente de
+> `appRoot/product.json`, preserva o alias intacto para não sobrescrever o
+> `ssh_config` do usuário, chama `openRemoteServer` e devolve `ResolvedAuthority`.
+> Servidor ausente recusa com mensagem que nomeia o comando `Stage Remote Server`,
+> sem provisionar por omissão. 80 testes; matriz Linux `33692190082` e os dois
+> smokes remotos verdes na ref. Nenhum deles exercita o resolver ou o workbench:
+> a matriz oficial `T-053` continua sendo o que converte isso em suportado.
+
 > feito: 2026-09-02 — `T-052` implementou staging explícito com confirmação
 > obrigatória, script POSIX entregue por stdin e nunca em argv, payload tar em
 > stdin, validação remota de manifesto/tamanho/SHA-256, extração e `mv -T`

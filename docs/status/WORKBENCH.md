@@ -15,16 +15,19 @@ dois lados contra um `sshd` real e um servidor real. O resolver agora devolve
 `ResolvedAuthority`; o comando explícito de staging cobre a ausência do servidor
 sem provisionar por omissão.
 
-**nesta rodada**, o resolver foi fiado para devolver `ResolvedAuthority`, usando
-`openRemoteServer`; a ausência de servidor mantém um `ControlMaster` próprio
-somente para o comando explícito de staging, que falha fechado sem confirmação.
-Compile, 80 testes focados e ESLint passaram localmente; matriz oficial ainda não
-foi colhida.
+**o limite honesto desta rodada:** nenhuma evidência atual exercita o resolver.
+Os três runs verdes na ref dele — matriz Linux `33692190082`, smoke de conexão
+`33693339241` e smoke de staging `33693927993` — provam transporte, staging e
+ativação, que o resolver *consome*. Abrir uma janela remota de verdade exige um
+workbench real e continua sem cobertura. Por isso o remoto está implementado, não
+suportado.
 
-**logo depois**, num pacote: o passo de Welcome que sugere configurar uma
-identidade SSH sem gerar nem guardar chave (`D-033` do lado do hash já está
-decidido; este é escopo de UI e visível só em sessão SSH), e a matriz oficial
-`T-053`/`AC-007`.
+**próximo passo:** a matriz oficial `T-053`/`AC-007` — abrir a janela, sessão,
+queda de conexão e reconexão contra um host real. É o que converte implementado
+em suportado.
+
+**logo depois:** o passo de Welcome que sugere configurar uma identidade SSH sem
+gerar nem guardar chave, visível só em sessão SSH.
 
 **depois disso**, por natureza do bloqueio: notices, titularidade e branding
 (`E00-A`/`E00-B`) dependem de decisão humana; os épicos de produto
@@ -137,9 +140,9 @@ adiciona uma asserção negativa. `compile-client`, `typecheck-client`, 60 teste
 | decisão técnica | `E01-B` / `E01-C` | bundle OpenCode fixado e inventário confiável de plugins/regras | pendente |
 | escopo/aceite | `E02/E03` | manter 2A/2B como recortes verificados, sem promover os épicos sem os gates E00/E01 | pendente |
 | implementação | `T-051` / `T-052` | transporte, staging, confirmação fail-closed e ativação atômica passam no runner com payload real | concluído |
-| implementação | resolver / `AC-007` | `extension.ts` ainda devolve `NotAvailable` para toda autoridade; é o único fio que falta para abrir uma janela remota | próximo passo |
+| implementação | resolver / `AC-007` | `resolve()` devolve `ResolvedAuthority` e o staging tem comando com confirmação; falta exercitar contra um workbench real, que nenhum smoke cobre | aguardando matriz |
 | implementação | Welcome / identidade SSH | passo de walkthrough visível só em sessão SSH, que sugere e explica o comando; não gera nem guarda chave, porque isso tornaria o produto custodiante de credencial | pacote seguinte |
-| verificação | `T-053` / `AC-007` | matriz oficial SSH depois do resolver | pendente |
+| verificação | `T-053` / `AC-007` | matriz oficial SSH: abrir janela remota de verdade, sessão, queda de conexão e reconexão. É o que converte o resolver de implementado em suportado | próximo passo |
 | dívida | payload | o auditor de distribuição cobre desktop e servidor, mas não o payload montado; o smoke de conexão pré-popula em vez de exercitar o push, por decisão explícita | registrado |
 | decisão/poda | `Q-3` / `CLI-003` | poda concluída e validada no runner em 2026-09-02; o que resta é decisão futura, não trabalho pendente | concluído |
 | autorização | `E00-A` / `E00-B` / notices | `remote/LICENSE` distribuído com o pacote do servidor ainda carrega o copyright herdado; titularidade, notices de terceiros e clearance continuam decisão humana | pendente |
@@ -148,6 +151,9 @@ adiciona uma asserção negativa. `compile-client`, `typecheck-client`, 60 teste
 
 | data | id | transição | evidência |
 | --- | --- | --- | --- |
+| 2026-09-02 | resolver / `AC-007` | `resolve()` deixou de recusar toda autoridade | `ac4e51ce`. Os gates continuam iguais; depois deles o resolver lê o commit do cliente de `appRoot/product.json` — mesmo mecanismo do `vscode-test-resolver`, injetado pelo build —, renderiza o destino preservando o alias byte a byte para não sobrescrever o `ssh_config` do usuário (§4.1/§4.3), chama `openRemoteServer` e devolve `ResolvedAuthority`. Commit ausente ou fora de SHA-1 recusa com `ssh.client-commit-unavailable`, sem adivinhar. Servidor não staged recusa com mensagem acionável que nomeia o comando `Stage Remote Server`, nunca provisionando sozinho (§5). `deactivate()` deixou de ser vazio e encerra sessões e leases. Lógica extraída para `remoteSshTarget.ts` e `remoteSshResolver.ts`, com `extension.ts` como fiação fina; 80 testes |
+| 2026-09-02 | staging / UI | comando de staging com confirmação modal | o comando escolhe o diretório de payload por diálogo — sem caminho oculto, download ou CDN, que §5 recusa —, valida o manifesto e mostra host, versão, tamanho e hash antes de qualquer escrita. O hash aparece **só** nessa confirmação, conforme `D-033`, e não vai para o canal de output nem para log |
+| 2026-09-02 | regressão | matriz Linux e os dois smokes verdes na ref do resolver | `unigma-linux-wsl-validation` `33692190082`, `unigma-remote-ssh-smoke` `33693339241` e `unigma-remote-staging-smoke` `33693927993` (`payload-mode.real`). A primeira tentativa da matriz, `33691430539`, falhou em `npm ci` com `ETIMEDOUT` buscando headers do Electron em `electronjs.org` após cinco tentativas: falha de rede do WSL, não do código, confirmada pela repetição verde. **Limite explícito:** nenhuma dessas evidências exercita o resolver. Elas provam transporte, staging e ativação, que ele consome; abrir uma janela remota de verdade exige workbench real e continua sem cobertura |
 | 2026-09-02 | `T-052` / staging remoto | staging e ativação atômica passando no runner com payload real | `unigma-remote-staging-smoke` run `33686239262`, `smoke=pass` com `check.payload-mode.real`. Staging explícito com confirmação obrigatória, script POSIX entregue por stdin e nunca em argv — que é visível no `ps` do host remoto —, payload tar por stdin, validação remota de manifesto/tamanho/SHA-256, extração e `mv -T` atômico preservando a versão anterior. O smoke monta o par a partir do depósito, envia por SSH, ativa, confirma idempotência na segunda execução, e então sobe o servidor **ativado** pelo transporte de conexão e bate `GET /version` contra o commit. Payload montado em `1,2 s`, staging em `3,3 s` |
 | 2026-09-02 | fiação do resolver SSH | implementação local → `review` | `compile-extension:unigma-remote-ssh`, suíte focada `80/80` e ESLint passaram. `remoteSshTarget.ts` preserva aliases puros; `remoteSshResolver.ts` separa gates, commit, transporte e mapeamento; ausência de servidor oferece somente um `ControlMaster` de staging até confirmação explícita. Runner e workbench real ainda pendentes |
 | 2026-09-02 | smoke de staging | mock que se autoconfirmava foi barrado | a primeira versão caía num servidor sintético sempre que os caminhos de payload da máquina de desenvolvimento faltavam — o que é sempre, no runner, porque esses caminhos ficam fora do WSL. O sintético responde `GET /version` com um commit que mandaram ele imprimir, então `check.version-commit` era um mock confirmando a si mesmo, e `AGENTS.md` não aceita mock como evidência de suporte. O payload passou a vir do depósito publicado, único lugar dentro do WSL onde servidor e opencode reais coexistem; o `opencode-linux-artifact.yml` passou a publicar lá também (`published opencode-latest -> …/c2eacd72…`). O modo sintético continua existindo, mas tem de ser pedido pelo nome |

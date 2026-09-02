@@ -15,14 +15,18 @@
 ## próximo trabalho — SSH remoto
 
 - A frente ativa é `docs/planos/2026-08-29-cli-ssh-remoto.md`, etapa B
-  (T-050…T-053). **O próximo passo é a fiação do resolver**: hoje
-  `extensions/unigma-remote-ssh/src/extension.ts` roda os gates de pré-conexão e
-  então devolve `NotAvailable` para toda autoridade, mesmo com transporte,
-  staging e ativação prontos e validados no runner.
+  (T-050…T-053). **O próximo passo é a matriz oficial `T-053`/`AC-007`**: abrir
+  uma janela remota de verdade, sessão, queda de conexão e reconexão contra um
+  host real.
 - Já feito e com evidência de runner: par versionado (`T-050`), transporte por
-  OpenSSH (`T-051`) e staging com ativação atômica (`T-052`). Depois do resolver
-  vêm a matriz oficial (`T-053`/`AC-007`), o passo de Welcome que sugere uma
-  identidade SSH sem gerar chave, e os épicos de produto.
+  OpenSSH (`T-051`), staging com ativação atômica (`T-052`) e a fiação do
+  resolver, que devolve `ResolvedAuthority` e nomeia o comando de staging quando
+  o servidor não está no host.
+- **Cuidado ao ler esse verde:** nenhum smoke exercita o resolver nem o
+  workbench. Eles provam as camadas que ele consome. Enquanto a matriz não for
+  colhida, o remoto está implementado, não suportado.
+- Depois da matriz vêm o passo de Welcome que sugere uma identidade SSH sem
+  gerar nem guardar chave, e os épicos de produto.
 - **Não remova o Code Server** (`cli/src/tunnels/code_server.rs`,
   `server_bridge.rs`, `server_multiplexer.rs`, `protocol.rs`, o RPC genérico de
   `control_server.rs` e o entry point `command-shell`): é a base do extension
