@@ -35,11 +35,14 @@ export type RemoteSshFailureCode =
 	| 'ssh.workspace-blocked'
 	| 'ssh.remote-platform-unsupported'
 	| 'ssh.client-unavailable'
+	| 'ssh.authentication-unavailable'
+	| 'ssh.transport-failed'
 	| 'ssh.target-unresolved'
 	| 'ssh.host-key-untrusted'
 	| 'ssh.connection-lost'
 	| 'ssh.remote-server-incompatible'
-	| 'ssh.remote-server-unavailable';
+	| 'ssh.remote-server-unavailable'
+	| 'ssh.client-commit-unavailable';
 
 export type RemoteSshPhase = 'workspace' | 'platform' | 'client' | 'authority' | 'host';
 
@@ -91,21 +94,9 @@ export function evaluateRemoteSshPreflight(
 	local: RemoteSshLocalObservation,
 	host?: RemoteSshHostObservation
 ): RemoteSshPreflightResult {
-	if (local.workspaceTrusted !== true) {
-		return { accepted: false, code: 'ssh.workspace-blocked', phase: 'workspace' };
-	}
-
-	if (local.clientPlatform !== 'windows-x64' && local.clientPlatform !== 'linux-x64') {
-		return { accepted: false, code: 'ssh.remote-platform-unsupported', phase: 'platform' };
-	}
-
-	if (local.openSsh?.available !== true) {
-		return { accepted: false, code: 'ssh.client-unavailable', phase: 'client' };
-	}
-
-	const parsed = parseRemoteSshAuthority(local.authority);
-	if (!parsed.ok) {
-		return { accepted: false, code: 'ssh.target-unresolved', phase: 'authority', rejection: parsed.rejection };
+	const localDecision = evaluateRemoteSshLocalPreflight(local);
+	if (!localDecision.accepted) {
+		return localDecision;
 	}
 
 	if (!host) {
@@ -129,6 +120,29 @@ export function evaluateRemoteSshPreflight(
 		return { accepted: false, code: decision.code, phase: 'host' };
 	}
 
+	return { accepted: true, target: localDecision.target };
+}
+
+/** Runs exactly the local gates immediately before OpenSSH is started. */
+export function evaluateRemoteSshLocalPreflight(local: RemoteSshLocalObservation):
+	| { readonly accepted: true; readonly target: RemoteSshAuthorityTarget }
+	| { readonly accepted: false; readonly code: RemoteSshFailureCode; readonly phase: Exclude<RemoteSshPhase, 'host'>; readonly rejection?: RemoteSshAuthorityRejection } {
+	if (local.workspaceTrusted !== true) {
+		return { accepted: false, code: 'ssh.workspace-blocked', phase: 'workspace' };
+	}
+
+	if (local.clientPlatform !== 'windows-x64' && local.clientPlatform !== 'linux-x64') {
+		return { accepted: false, code: 'ssh.remote-platform-unsupported', phase: 'platform' };
+	}
+
+	if (local.openSsh?.available !== true) {
+		return { accepted: false, code: 'ssh.client-unavailable', phase: 'client' };
+	}
+
+	const parsed = parseRemoteSshAuthority(local.authority);
+	if (!parsed.ok) {
+		return { accepted: false, code: 'ssh.target-unresolved', phase: 'authority', rejection: parsed.rejection };
+	}
 	return { accepted: true, target: parsed.target };
 }
 
@@ -144,6 +158,10 @@ export function describeRemoteSshFailure(code: RemoteSshFailureCode): string {
 			return 'ssh.remote-platform-unsupported: this client or host is outside the supported Windows x64 / Linux x64 matrix.';
 		case 'ssh.client-unavailable':
 			return 'ssh.client-unavailable: no usable OpenSSH client was found. Install OpenSSH and retry; unigma does not provide an alternative transport.';
+		case 'ssh.authentication-unavailable':
+			return 'ssh.authentication-unavailable: OpenSSH could not authenticate without an interactive credential. Fix the configured agent or keys and retry.';
+		case 'ssh.transport-failed':
+			return 'ssh.transport-failed: the SSH transport failed. Retry after checking the host and network.';
 		case 'ssh.target-unresolved':
 			return 'ssh.target-unresolved: the remote authority is not a valid SSH alias or user@host:port target. Fix the authority and retry.';
 		case 'ssh.host-key-untrusted':
@@ -153,6 +171,8 @@ export function describeRemoteSshFailure(code: RemoteSshFailureCode): string {
 		case 'ssh.remote-server-incompatible':
 			return 'ssh.remote-server-incompatible: the remote unigma-server build does not match this client. There is no downgrade or fallback.';
 		case 'ssh.remote-server-unavailable':
-			return 'ssh.remote-server-unavailable: no unigma-server session is available for this authority. Remote SSH transport and provisioning are not implemented yet (T-050/B.2.4, D-031); no connection was attempted.';
+			return 'ssh.remote-server-unavailable: the matching unigma-server is not staged for this client commit. Run "Stage Remote Server" (unigma.remoteSsh.stageRemoteServer), then retry.';
+		case 'ssh.client-commit-unavailable':
+			return 'ssh.client-commit-unavailable: the running product commit is unavailable or invalid; the remote connection was refused.';
 	}
 }

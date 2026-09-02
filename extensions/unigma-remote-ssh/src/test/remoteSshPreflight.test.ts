@@ -169,6 +169,5 @@ test('every failure has a message and none of them leaks target or credential ma
 
 test('the blocked remote-server message names the open work instead of promising support', () => {
 	const message = describeRemoteSshFailure('ssh.remote-server-unavailable');
-	assert.ok(message.includes('not implemented'));
-	assert.ok(message.includes('no connection was attempted'));
+	assert.equal(message, 'ssh.remote-server-unavailable: the matching unigma-server is not staged for this client commit. Run "Stage Remote Server" (unigma.remoteSsh.stageRemoteServer), then retry.');
 });

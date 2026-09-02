@@ -132,6 +132,16 @@ test('maps remote HOME and socket validation statuses to observable failures', a
 	}
 });
 
+test('retains an owned control master for explicit staging when the server is absent', async () => {
+	const master = new FakeProcess(child => child.stdout.end('unigma-remote:{"status":"server-unavailable"}\n'));
+	const result = await openRemoteServer({ ...input, retainControlMasterOnServerUnavailable: true }, deps([master]));
+	const failure = result as { readonly ok: false; readonly stagingSession?: { readonly controlPath: string; dispose(): Promise<void> } };
+	assert.equal(failure.ok, false);
+	assert.equal(failure.stagingSession?.controlPath !== undefined, true);
+	await failure.stagingSession?.dispose();
+	assert.deepEqual(master.killed, ['SIGTERM']);
+});
+
 test('times out a silent master in the connect phase and terminates it', async () => {
 	const process = new FakeProcess();
 	const diagnostics: RemoteServerDiagnostic[] = [];

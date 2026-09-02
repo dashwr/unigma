@@ -16,7 +16,8 @@
     "ui"
   ],
   "activationEvents": [
-    "onResolveRemoteAuthority:ssh-remote"
+    "onResolveRemoteAuthority:ssh-remote",
+    "onCommand:unigma.remoteSsh.stageRemoteServer"
   ],
   "main": "./out/extension.js",
   "capabilities": {
@@ -24,6 +25,16 @@
     "untrustedWorkspaces": {
       "supported": false
     }
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "unigma.remoteSsh.stageRemoteServer",
+        "title": "Stage Remote Server",
+        "category": "Unigma Remote SSH",
+        "enablement": "remoteName == ssh-remote || unigma.remoteSsh.stagingAvailable"
+      }
+    ]
   },
   "scripts": {
     "compile": "gulp compile-extension:unigma-remote-ssh",

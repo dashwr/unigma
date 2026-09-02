@@ -15,6 +15,13 @@
 > (`33686239262`), incluindo idempotência e `GET /version` do servidor ativado.
 > A fiação do resolver e a matriz oficial permanecem pendentes.
 
+> feito: 2026-09-02 — a fiação do resolver usa o destino renderizado sem
+> sobrescrever `ssh_config`, valida o commit injetado no `product.json` em
+> `vscode.env.appRoot`, retorna `ResolvedAuthority`, mantém apenas um
+> `ControlMaster` próprio para staging explícito e registra o comando
+> `unigma.remoteSsh.stageRemoteServer`. Compile, 80 testes focados e ESLint
+> passaram localmente; a matriz oficial e o workbench real permanecem pendentes.
+
 > feito: 2026-09-02 — `T-051` implementou o transporte OpenSSH. Os caminhos
 > remotos passaram a ser derivados de `$HOME` no próprio host (`D-034`), com
 > `ControlMaster` para conciliar isso com o `-L`, que exige o caminho do socket

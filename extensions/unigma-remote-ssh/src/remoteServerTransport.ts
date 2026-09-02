@@ -53,6 +53,12 @@ export interface RemoteServerSession {
 	dispose(): Promise<void>;
 }
 
+/** An owned ControlMaster kept alive only so an explicit staging command can use it. */
+export interface RemoteServerStagingSession {
+	readonly controlPath: string;
+	dispose(): Promise<void>;
+}
+
 export type RemoteServerFailureCode =
 	| 'invalid-input'
 	| 'ssh.client-unavailable'
@@ -72,6 +78,7 @@ export interface RemoteServerFailure {
 	readonly code: RemoteServerFailureCode;
 	readonly phase: RemoteServerFailurePhase;
 	readonly exitCode?: number;
+	readonly stagingSession?: RemoteServerStagingSession;
 }
 
 export type RemoteServerResult = RemoteServerSession | RemoteServerFailure;
@@ -106,6 +113,7 @@ export interface RemoteServerTransportDependencies {
 	readonly allocateLocalPort: LocalPortAllocator;
 	readonly spawn: RemoteSshProcessRunner;
 	readonly diagnose?: (diagnostic: RemoteServerDiagnostic) => void;
+	readonly onConnectionLost?: () => void;
 	readonly setTimeout?: typeof globalThis.setTimeout;
 	readonly clearTimeout?: typeof globalThis.clearTimeout;
 }
@@ -245,6 +253,8 @@ export async function openRemoteServer(input: RemoteServerTransportInput, deps: 
 	let forwardChild: RemoteSshProcess | undefined;
 	let disposed = false;
 	let settled = false;
+	let retainedForStaging = false;
+	let connectionLossNotified = false;
 	let stage: 'connect' | 'handshake' | 'forward' = 'connect';
 	let timer: ReturnType<typeof setTimeout> | undefined;
 	const setTimer = deps.setTimeout ?? globalThis.setTimeout;
@@ -277,6 +287,14 @@ export async function openRemoteServer(input: RemoteServerTransportInput, deps: 
 		}
 		// SIGTERM owns the master lifecycle; remove its private socket immediately.
 		removeControlPath();
+	};
+	const reportConnectionLost = (exitCode?: number): void => {
+		if (connectionLossNotified) {
+			return;
+		}
+		connectionLossNotified = true;
+		notify(deps, { category: 'ssh.connection-lost', phase: 'lifecycle', exitCode });
+		void disposeProcess().finally(() => deps.onConnectionLost?.());
 	};
 
 	return await new Promise<RemoteServerResult>(resolve => {
@@ -321,7 +339,11 @@ export async function openRemoteServer(input: RemoteServerTransportInput, deps: 
 			forwardChild.on('error', () => fail(failure('ssh.forward-failed', 'forward')));
 			forwardChild.on('close', (code: number | null) => {
 				forwardChild = undefined;
-				if (settled || disposed) {
+				if (disposed) {
+					return;
+				}
+				if (settled) {
+					reportConnectionLost(code ?? undefined);
 					return;
 				}
 				if (code !== 0) {
@@ -353,6 +375,11 @@ export async function openRemoteServer(input: RemoteServerTransportInput, deps: 
 				case 'home-invalid':
 				case 'socket-path-too-long':
 				case 'start-failed':
+					if (handshake.kind === 'server-unavailable' && input.retainControlMasterOnServerUnavailable) {
+						retainedForStaging = true;
+						complete({ ...failure('ssh.remote-server-unavailable', 'handshake'), stagingSession: { controlPath: control.path, dispose: disposeProcess } });
+						return;
+					}
 					fail(failure(handshake.kind === 'home-invalid' ? 'ssh.remote-home-invalid' : handshake.kind === 'socket-path-too-long' ? 'ssh.remote-socket-path-too-long' : 'ssh.remote-server-unavailable', 'handshake'));
 					return;
 			}
@@ -375,7 +402,9 @@ export async function openRemoteServer(input: RemoteServerTransportInput, deps: 
 				return;
 			}
 			if (settled) {
-				notify(deps, { category: 'ssh.connection-lost', phase: 'lifecycle', exitCode: code ?? undefined });
+				if (!retainedForStaging) {
+					reportConnectionLost(code ?? undefined);
+				}
 				return;
 			}
 			if (stage === 'forward') {

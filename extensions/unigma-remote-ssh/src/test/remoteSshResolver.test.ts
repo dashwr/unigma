@@ -1,0 +1,54 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { isRemoteStagingConfirmed, resolveClientCommitFromProduct, mapRemoteServerFailure, resolveRemoteSsh, CLIENT_COMMIT_UNAVAILABLE } from '../remoteSshResolver.js';
+import type { RemoteServerSession } from '../remoteServerTransport.js';
+import type { RemoteSshLocalObservation } from '../remoteSshPreflight.js';
+
+const commit = '0123456789abcdef0123456789abcdef01234567';
+const local: RemoteSshLocalObservation = {
+	authority: 'ssh-remote+build-vps',
+	workspaceTrusted: true,
+	clientPlatform: 'linux-x64',
+	openSsh: { available: true, version: { major: 10, minor: 5, banner: 'OpenSSH_10.5' } }
+};
+const session = { endpoint: { host: '127.0.0.1', port: 43123 }, controlPath: '/tmp/ug-control/c', dispose: async () => undefined } satisfies RemoteServerSession;
+
+test('accepts only a full product SHA-1 and normalizes its case', () => {
+	assert.deepEqual(resolveClientCommitFromProduct({ commit: commit.toUpperCase() }), { ok: true, commit });
+	for (const product of [{}, { commit: 'HEAD' }, { commit: 'short' }, { commit: 'g'.repeat(40) }]) {
+		assert.deepEqual(resolveClientCommitFromProduct(product), { ok: false, code: CLIENT_COMMIT_UNAVAILABLE });
+	}
+});
+
+test('requires the explicit staging confirmation action', () => {
+	assert.equal(isRemoteStagingConfirmed('Stage Remote Server'), true);
+	assert.equal(isRemoteStagingConfirmed(undefined), false);
+	assert.equal(isRemoteStagingConfirmed('Cancel'), false);
+});
+
+test('maps every transport failure to a contract category and phase', () => {
+	assert.deepEqual(mapRemoteServerFailure({ ok: false, code: 'ssh.forward-failed', phase: 'forward' }), { code: 'ssh.transport-failed', phase: 'forward' });
+	assert.deepEqual(mapRemoteServerFailure({ ok: false, code: 'ssh.remote-home-invalid', phase: 'handshake' }), { code: 'ssh.workspace-blocked', phase: 'handshake' });
+	assert.deepEqual(mapRemoteServerFailure({ ok: false, code: 'ssh.host-key-untrusted', phase: 'connect' }), { code: 'ssh.host-key-untrusted', phase: 'connect' });
+});
+
+test('runs gates, commit resolution and transport in order, failing closed', async () => {
+	const calls: string[] = [];
+	const result = await resolveRemoteSsh(local, {
+		resolveClientCommit: () => { calls.push('commit'); return { ok: true, commit }; },
+		openRemoteServer: async input => { calls.push(`${input.destination}:${input.commit}`); return session; }
+	});
+	assert.equal(result.ok, true);
+	assert.deepEqual(calls, ['commit', `build-vps:${commit}`]);
+
+	const unavailable = await resolveRemoteSsh(local, {
+		resolveClientCommit: () => ({ ok: false, code: CLIENT_COMMIT_UNAVAILABLE }),
+		openRemoteServer: async () => { throw new Error('must not open'); }
+	});
+	assert.deepEqual(unavailable, { ok: false, code: CLIENT_COMMIT_UNAVAILABLE, phase: 'commit' });
+});

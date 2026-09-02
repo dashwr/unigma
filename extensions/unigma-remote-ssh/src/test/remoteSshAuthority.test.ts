@@ -6,6 +6,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { REMOTE_SSH_AUTHORITY_PREFIX, parseRemoteSshAuthority } from '../remoteSshAuthority.js';
+import { renderRemoteSshTarget } from '../remoteSshTarget.js';
 
 test('exposes the authority prefix fixed by the contract', () => {
 	assert.equal(REMOTE_SSH_AUTHORITY_PREFIX, 'ssh-remote');
@@ -127,4 +128,10 @@ test('never returns anything beyond the parsed identifier', () => {
 	const parsed = parseRemoteSshAuthority('ssh-remote+deploy@build.example.com:2222');
 	assert.equal(parsed.ok, true);
 	assert.deepEqual(Object.keys(parsed), ['ok', 'target']);
+});
+
+test('renders aliases as the exact OpenSSH destination argument', () => {
+	assert.equal(renderRemoteSshTarget({ kind: 'alias', alias: 'build-vps' }), 'build-vps');
+	assert.equal(renderRemoteSshTarget({ kind: 'canonical', user: 'deploy', host: 'build.example.com', port: 2222 }), 'deploy@build.example.com:2222');
+	assert.equal(renderRemoteSshTarget({ kind: 'canonical', host: '2001:db8::1', port: 22 }), '[2001:db8::1]:22');
 });

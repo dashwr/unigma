@@ -57,6 +57,14 @@ test('generates shell fragments from the same path convention as TypeScript', ()
 	}
 });
 
+test('can hold the owned SSH master for an explicit staging action', () => {
+	const result = buildRemoteBootstrapScript({ commit, retainControlMasterOnServerUnavailable: true });
+	assert.equal(result.valid, true);
+	if (result.valid) {
+		assert.match(result.script, /while :; do sleep 3600; done/);
+	}
+});
+
 test('refuses unsafe bootstrap input without generating a script', () => {
 	for (const value of ['short', 'A'.repeat(40), '0'.repeat(39), '0'.repeat(41), '0'.repeat(39) + 'g']) {
 		assert.deepEqual(buildRemoteBootstrapScript({ commit: value, remoteUserBaseDirectory: '/home/user' }), { valid: false, code: 'invalid-commit' });

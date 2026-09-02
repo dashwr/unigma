@@ -18,6 +18,8 @@ const COMMIT = /^[0-9a-f]{40}$/;
 export interface RemoteBootstrapScriptInput {
 	readonly commit: string;
 	readonly remoteUserBaseDirectory?: string;
+	/** Keeps the owned SSH master alive after reporting a missing staged server. */
+	readonly retainControlMasterOnServerUnavailable?: boolean;
 }
 
 export type RemoteBootstrapScriptResult =
@@ -105,7 +107,7 @@ export function buildRemoteBootstrapScript(input: RemoteBootstrapScriptInput): R
 		'',
 		'if [ ! -d "$VERSIONED" ] || [ ! -x "$SERVER" ]; then',
 		`\temit '{"status":"server-unavailable"}'`,
-		'\texit 41',
+		...(input.retainControlMasterOnServerUnavailable ? ['\twhile :; do sleep 3600; done'] : ['\texit 41']),
 		'fi',
 		'',
 		// Ownership is claimed with `mkdir`, which is atomic on every POSIX
