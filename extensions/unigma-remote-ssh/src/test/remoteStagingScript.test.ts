@@ -30,7 +30,7 @@ test('generates a closed host-side staging script from the validated manifest', 
 	}
 	assert.match(result.script, /^#!\/bin\/sh\nset -eu/m);
 	assert.match(result.script, /sha256sum/);
-	assert.match(result.script, /tar -xzf/);
+	assert.match(result.script, /tar --no-same-owner --no-same-permissions -xzf/);
 	assert.match(result.script, /mv -T/);
 	assert.match(result.script, /\$BASE\/\.unigma-server\/staging\/\$COMMIT/);
 	assert.doesNotMatch(result.script, /status.*sha256|sha256.*status/);
@@ -78,4 +78,23 @@ test('routes every recursive removal through the guard, with no path sentinel', 
 
 	// The guard refuses silently, so the caller has to assert the post-condition.
 	assert.match(result.script, /if \[ -e "\$STAGING" \] \|\| \[ -L "\$STAGING" \]; then fail staging-failed/);
+});
+
+test('never lets an archive choose ownership or mode on the remote host', () => {
+	const result = buildRemoteStagingScript({ commit, manifest });
+	assert.equal(result.valid, true);
+	if (!result.valid) {
+		return;
+	}
+
+	// Running as root, tar restores the ownership and the permission bits recorded
+	// in the archive, setuid included, and extraction happens before the manifest
+	// is verified. Without these flags a payload decides what lands on disk and
+	// with which privileges.
+	const extractions = result.script.split('\n').filter(line => /\btar\b/.test(line) && /-x/.test(line));
+	assert.equal(extractions.length, 2, `expected two extractions, found ${extractions.length}`);
+	for (const extraction of extractions) {
+		assert.match(extraction, /--no-same-owner/);
+		assert.match(extraction, /--no-same-permissions/);
+	}
 });

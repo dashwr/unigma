@@ -181,7 +181,11 @@ export function buildRemoteStagingScript(input: unknown): RemoteStagingScriptRes
 		'if [ -e "$STAGING" ] || [ -L "$STAGING" ]; then fail staging-failed 46; fi',
 		'mkdir -p "$STAGING" || fail staging-failed 46',
 		'',
-		'if ! tar -xf - -C "$STAGING"; then fail payload-invalid 47; fi',
+		// As root, tar defaults to --same-owner and --same-permissions, so an
+		// archive decides the ownership and the mode of what lands on disk,
+		// setuid included, and it lands before the manifest is checked. Both
+		// flags force the behaviour an ordinary user already gets.
+		'if ! tar --no-same-owner --no-same-permissions -xf - -C "$STAGING"; then fail payload-invalid 47; fi',
 		'if [ ! -f "$STAGING/manifest.json" ] || [ -L "$STAGING/manifest.json" ]; then fail manifest-invalid 48; fi',
 		`EXPECTED_MANIFEST=$(cat <<'UNIGMA_EXPECTED_MANIFEST'\n${expected}\nUNIGMA_EXPECTED_MANIFEST\n)`,
 		'ACTUAL_MANIFEST=$(cat "$STAGING/manifest.json") || fail manifest-invalid 48',
@@ -200,7 +204,7 @@ export function buildRemoteStagingScript(input: unknown): RemoteStagingScriptRes
 		`check_file "$SERVER_ARCHIVE" ${serverFile.sizeBytes} ${shellQuote(serverFile.sha256)}`,
 		`check_file "$OPENCODE" ${opencodeFile.sizeBytes} ${shellQuote(opencodeFile.sha256)}`,
 		'',
-		'if ! tar -xzf "$SERVER_ARCHIVE" --strip-components=1 -C "$STAGING"; then fail server-archive-invalid 53; fi',
+		'if ! tar --no-same-owner --no-same-permissions -xzf "$SERVER_ARCHIVE" --strip-components=1 -C "$STAGING"; then fail server-archive-invalid 53; fi',
 		'if [ ! -x "$STAGING/bin/unigma-server" ]; then fail server-not-executable 54; fi',
 		'if [ -e "$VERSIONED" ] || [ -L "$VERSIONED" ]; then fail activation-invalid 49; fi',
 		'if ! mv -T "$STAGING" "$VERSIONED"; then fail activation-failed 55; fi',

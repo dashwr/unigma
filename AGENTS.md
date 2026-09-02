@@ -51,6 +51,12 @@
   `STAGING=/dev/null`: um `trap` disparando antes da atribuição real executava
   `rm -rf /dev/null`, inofensivo para usuário comum e destrutivo como root.
   Sentinela é string vazia, com checagem antes do uso.
+- **Toda extração de arquivo usa `--no-same-owner --no-same-permissions`.** Como
+  root, `tar -x` restaura a titularidade e os bits gravados no arquivo, setuid
+  incluído, e a extração acontece antes de o manifesto ser conferido — ou seja,
+  sem esses flags o payload decide o que aparece no disco e com qual privilégio.
+  Os flags forçam o comportamento que um usuário comum já teria. Há teste que
+  exige os dois em cada extração.
 - Prefira operação limitada por natureza: `rm -f` em arquivo único, `rmdir` que
   falha em diretório não vazio, `mkdir` como lock atômico, `mv -T` para ativar.
   É por isso que o script de conexão não precisa de guarda.
