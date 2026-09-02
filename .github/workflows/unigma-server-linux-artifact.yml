@@ -63,7 +63,15 @@ jobs:
           build="$(mktemp -d -p "$build_root")"
           trap 'rm -rf "$build"' EXIT
           tar --exclude=.git --exclude=node_modules --exclude=.build -C "$source" -cf - . | tar -C "$build" -xf -
+          # The build copy has no .git, but postinstall and the build date task
+          # both require a repository with a HEAD commit. Reuse the source commit
+          # date so the generated build date stays deterministic.
+          commit_date="$(git -C "$source" log -1 --format=%cI "$commit")"
           git -C "$build" init --quiet
+          GIT_AUTHOR_DATE="$commit_date" GIT_COMMITTER_DATE="$commit_date" \
+            git -C "$build" -c user.name='unigma ci' -c user.email='ci@unigma.invalid' \
+            -c commit.gpgsign=false commit --quiet --allow-empty \
+            --message="$commit" --no-verify
           cd "$build"
           export BUILD_SOURCEVERSION="$commit"
           export NODE_OPTIONS="--max-old-space-size=4096"
@@ -76,13 +84,12 @@ jobs:
           free -m
           build_log="$build/unigma-server-build.log"
           set +e
-          node --experimental-strip-types --max-old-space-size=4096 ./node_modules/gulp/bin/gulp.js vscode-reh-linux-x64-min > "$build_log" 2>&1
-          gulp_status=$?
+          node --experimental-strip-types --max-old-space-size=4096 ./node_modules/gulp/bin/gulp.js vscode-reh-linux-x64-min 2>&1 | tee "$build_log"
+          gulp_status="${PIPESTATUS[0]}"
           set -e
           echo "--- gulp exit status: $gulp_status ---"
           echo "--- WSL memory after build ---"
           free -m
-          tail -n 120 "$build_log"
           if [ "$gulp_status" -ne 0 ]; then
             echo "--- kernel out-of-memory evidence (if any) ---"
             dmesg 2>/dev/null | tail -n 40 || echo "dmesg unavailable"
