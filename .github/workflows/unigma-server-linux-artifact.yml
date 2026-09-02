@@ -74,7 +74,7 @@ jobs:
             --message="$commit" --no-verify
           cd "$build"
           export BUILD_SOURCEVERSION="$commit"
-          export NODE_OPTIONS="--max-old-space-size=8192"
+          export NODE_OPTIONS="--max-old-space-size=12288"
           export UV_THREADPOOL_SIZE=12
           export CMAKE_BUILD_PARALLEL_LEVEL=12
           export MAKEFLAGS=-j12
@@ -87,8 +87,8 @@ jobs:
           # in the log instead of hiding inside one opaque aggregate task.
           run_stage() {
             echo "=== stage: $1 (started $(date -Is)) ==="
-            stdbuf -oL -eL timeout --signal=TERM --kill-after=1m 45m \
-              node --experimental-strip-types --max-old-space-size=8192 \
+            stdbuf -oL -eL timeout --signal=TERM --kill-after=1m 75m \
+              node --experimental-strip-types --max-old-space-size=12288 \
               ./node_modules/gulp/bin/gulp.js "$1" 2>&1 | stdbuf -oL tee -a "$build_log"
             local status="${PIPESTATUS[0]}"
             echo "=== stage: $1 (finished $(date -Is), status $status) ==="
