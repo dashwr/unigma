@@ -9,6 +9,27 @@ const SHA1 = /^[a-f0-9]{40}$/i;
 const SHA256 = /^[a-f0-9]{64}$/i;
 const SERVER_ARCHIVE_PATH = 'server/unigma-server.tar.gz';
 
+/** The product metadata fixes this folder name for all versioned server data. */
+export const REMOTE_SERVER_DATA_FOLDER = '.unigma-server';
+export const REMOTE_SERVER_SOCKET_FILE = '.unigma-server.sock';
+
+export interface RemoteServerPathsInput {
+	readonly remoteUserBaseDirectory: string;
+	readonly commit: string;
+}
+
+export interface RemoteServerPaths {
+	readonly dataDirectory: string;
+	readonly versionedDirectory: string;
+	readonly executablePath: string;
+	readonly serverDataDirectory: string;
+	readonly socketPath: string;
+}
+
+export type RemoteServerPathsValidation =
+	| { readonly valid: true; readonly paths: RemoteServerPaths }
+	| { readonly valid: false; readonly code: 'staging-invalid-base-directory' | 'staging-invalid-commit' };
+
 export interface RemoteStagingPlanInput {
 	readonly manifest: BootstrapManifest;
 	readonly remoteUserBaseDirectory: string;
@@ -99,6 +120,32 @@ function isBootstrapFile(value: unknown): value is BootstrapManifestFile {
 function joinPosix(base: string, ...parts: readonly string[]): string {
 	const prefix = base === '/' ? '' : base.replace(/\/+$/, '');
 	return `/${[prefix.replace(/^\/+/, ''), ...parts].filter(Boolean).join('/')}`;
+}
+
+/** Derives paths used after activation, keeping them aligned with the staging plan. */
+export function deriveRemoteServerPaths(input: RemoteServerPathsInput): RemoteServerPathsValidation {
+	if (!isRecord(input)) {
+		return { valid: false, code: 'staging-invalid-base-directory' };
+	}
+	if (!isAbsolutePosixPath(input.remoteUserBaseDirectory)) {
+		return { valid: false, code: 'staging-invalid-base-directory' };
+	}
+	if (typeof input.commit !== 'string' || !SHA1.test(input.commit)) {
+		return { valid: false, code: 'staging-invalid-commit' };
+	}
+
+	const dataDirectory = joinPosix(input.remoteUserBaseDirectory, REMOTE_SERVER_DATA_FOLDER);
+	const versionedDirectory = joinPosix(dataDirectory, 'bin', input.commit);
+	return {
+		valid: true,
+		paths: {
+			dataDirectory,
+			versionedDirectory,
+			executablePath: joinPosix(versionedDirectory, 'bin', 'unigma-server'),
+			serverDataDirectory: joinPosix(versionedDirectory, 'data'),
+			socketPath: joinPosix(versionedDirectory, REMOTE_SERVER_SOCKET_FILE),
+		}
+	};
 }
 
 /** Builds a deterministic remote payload plan without performing any I/O. */
