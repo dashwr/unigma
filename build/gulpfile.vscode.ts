@@ -37,6 +37,7 @@ import globCallback from 'glob';
 import rceditCallback from 'rcedit';
 import { spawnTsgo } from './lib/tsgo.ts';
 import { runEsbuildTranspile, runEsbuildBundle } from './lib/esbuild.ts';
+import { distributionExcludedExtensions } from './unigma/distribution-excluded-extensions.ts';
 
 
 const glob = promisify(globCallback);
@@ -48,11 +49,6 @@ const packageLock = JSON.parse(fs.readFileSync(path.join(root, 'package-lock.jso
 };
 
 const hasBuiltInCopilot = product.builtInExtensions.some(({ name }) => name === 'copilot');
-const distributionExcludedExtensions = [
-	'github',
-	'github-authentication',
-	'microsoft-authentication',
-];
 
 function getLockedPackageVersion(packageName: string): string {
 	const version = packageLock.packages?.[`node_modules/${packageName}`]?.version;

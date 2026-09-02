@@ -6,6 +6,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { basename, join, relative, resolve } from 'node:path';
+import { distributionExcludedExtensions, retiredExtensions } from './distribution-excluded-extensions.ts';
 
 const expected = {
 	licenseUrl: 'https://github.com/dashwr/unigma/blob/main/LICENSE.txt',
@@ -13,10 +14,8 @@ const expected = {
 	bugsUrl: 'https://github.com/dashwr/unigma/issues',
 };
 const prohibitedExtensions = new Set([
-	'github',
-	'github-authentication',
-	'microsoft-authentication',
-	'tunnel-forwarding',
+	...distributionExcludedExtensions,
+	...retiredExtensions,
 ]);
 const prohibitedPackagePaths = new Set([
 	'.git',

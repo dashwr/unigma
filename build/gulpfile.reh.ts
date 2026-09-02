@@ -26,6 +26,7 @@ import { compileBuildWithManglingTask } from './gulpfile.compile.ts';
 import { useEsbuildTranspile } from './buildConfig.ts';
 import { runEsbuildBundle } from './lib/esbuild.ts';
 import { copyCodiconsTask } from './lib/compilation.ts';
+import { distributionExcludedExtensions } from './unigma/distribution-excluded-extensions.ts';
 import { cleanExtensionsBuildTask, compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileExtensionMediaBuildTask, compileCopilotExtensionBuildTask } from './gulpfile.extensions.ts';
 import { vscodeWebResourceIncludes, createVSCodeWebFileContentMapper } from './gulpfile.vscode.web.ts';
 import * as cp from 'child_process';
@@ -356,21 +357,29 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 			.pipe(filter(['**', '!**/*.{js,css}.map']));
 
 		const workspaceExtensionPoints = ['debuggers', 'jsonValidation'];
-		const isUIExtension = (manifest: { extensionKind?: string; main?: string; contributes?: Record<string, unknown> }) => {
-			switch (manifest.extensionKind) {
-				case 'ui': return true;
-				case 'workspace': return false;
-				default: {
-					if (manifest.main) {
-						return false;
-					}
-					if (manifest.contributes && Object.keys(manifest.contributes).some(key => workspaceExtensionPoints.indexOf(key) !== -1)) {
-						return false;
-					}
-					// Default is UI Extension
-					return true;
-				}
+		const isUIExtension = (manifest: { extensionKind?: string | string[]; main?: string; contributes?: Record<string, unknown> }) => {
+			// `extensionKind` is declared as an array in the extension manifest
+			// schema, and every extension in this repository writes it that way.
+			// Comparing the raw value against a string therefore never matched and
+			// every extension fell through to the heuristic below, which ships any
+			// extension that has a `main` — including UI-only ones such as
+			// `unigma-remote-ssh`, whose code has no business on the remote host.
+			const kinds = typeof manifest.extensionKind === 'string'
+				? [manifest.extensionKind]
+				: manifest.extensionKind;
+			if (kinds?.length) {
+				// An extension that declares both kinds can run on the remote side,
+				// so only a purely UI declaration is skipped.
+				return kinds.every(kind => kind === 'ui');
 			}
+			if (manifest.main) {
+				return false;
+			}
+			if (manifest.contributes && Object.keys(manifest.contributes).some(key => workspaceExtensionPoints.indexOf(key) !== -1)) {
+				return false;
+			}
+			// Default is UI Extension
+			return true;
 		};
 		const localWorkspaceExtensions = glob.sync('extensions/*/package.json')
 			.filter((extensionPath) => {
@@ -383,7 +392,11 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 				const manifest = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, extensionPath)).toString());
 				return !isUIExtension(manifest);
 			}).map((extensionPath) => path.basename(path.dirname(extensionPath)))
-			.filter(name => name !== 'vscode-api-tests' && name !== 'vscode-test-resolver'); // Do not ship the test extensions
+			.filter(name => name !== 'vscode-api-tests' && name !== 'vscode-test-resolver') // Do not ship the test extensions
+			// The desktop package has always filtered these; the server package did
+			// not, so it shipped GitHub and Microsoft identity extensions that
+			// `build/unigma/audit-distribution.ts` rejects.
+			.filter(name => !distributionExcludedExtensions.includes(name));
 		const builtInExtensions: Array<{ name: string; platforms?: string[]; clientOnly?: boolean }> = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'product.json'), 'utf8')).builtInExtensions;
 		const marketplaceExtensions = builtInExtensions
 			.filter(entry => !entry.platforms || new Set(entry.platforms).has(platform))
