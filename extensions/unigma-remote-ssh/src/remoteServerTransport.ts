@@ -48,6 +48,8 @@ export interface RemoteServerEndpoint {
 
 export interface RemoteServerSession {
 	readonly endpoint: RemoteServerEndpoint;
+	/** Private local socket used by explicit staging actions on this connection. */
+	readonly controlPath: string;
 	dispose(): Promise<void>;
 }
 
@@ -326,7 +328,7 @@ export async function openRemoteServer(input: RemoteServerTransportInput, deps: 
 					fail(failure('ssh.forward-failed', 'forward', code ?? undefined));
 					return;
 				}
-				complete({ endpoint: { host: '127.0.0.1', port: localPort }, dispose: disposeProcess });
+				complete({ endpoint: { host: '127.0.0.1', port: localPort }, controlPath: control.path, dispose: disposeProcess });
 			});
 			try {
 				forwardChild.stdin.end();

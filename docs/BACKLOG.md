@@ -8,6 +8,14 @@
 > As demais tarefas além dos recortes 2A/2B continuam futuras. Este arquivo não
 > autoriza distribuição ou publicação.
 
+> feito: 2026-09-02 — T-052 implementou staging explícito com confirmação
+> obrigatória, script POSIX entregue sem corpo em argv, payload tar em stdin,
+> validação remota de manifesto/tamanho/SHA-256, extração e `mv -T` atômico sem
+> apagar a versão anterior. O smoke separado passou localmente com o payload real
+> A execução local não é aceite: o runner é a autoridade e o smoke
+> correspondente ainda não rodou lá. Matriz oficial e fiação do resolver
+> permanecem pendentes.
+
 > feito: 2026-09-02 — o auditor ganhou perfil explícito `--server` para o pacote
 > REH Linux, com guarda de layout, identidade, gallery desabilitada, extensões
 > proibidas/UI-only e conteúdo transitório; o workflow audita antes de publicar

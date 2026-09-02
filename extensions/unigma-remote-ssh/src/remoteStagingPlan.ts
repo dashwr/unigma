@@ -41,8 +41,11 @@ type RemoteServerPathSegment =
 	| { readonly type: 'commit-prefix-socket' };
 
 const COMMIT_SEGMENT: RemoteServerPathSegment = { type: 'commit' };
-const REMOTE_SERVER_PATH_TEMPLATES: Readonly<Record<keyof RemoteServerPaths, readonly RemoteServerPathSegment[]>> = {
+type RemoteServerPathTemplateKey = keyof RemoteServerPaths | 'stagingDirectory' | 'activationPath';
+const REMOTE_SERVER_PATH_TEMPLATES: Readonly<Record<RemoteServerPathTemplateKey, readonly RemoteServerPathSegment[]>> = {
 	dataDirectory: [{ type: 'literal', value: REMOTE_SERVER_DATA_FOLDER }],
+	stagingDirectory: [{ type: 'literal', value: REMOTE_SERVER_DATA_FOLDER }, { type: 'literal', value: 'staging' }, COMMIT_SEGMENT],
+	activationPath: [{ type: 'literal', value: REMOTE_SERVER_DATA_FOLDER }, { type: 'literal', value: 'bin' }, COMMIT_SEGMENT],
 	versionedDirectory: [{ type: 'literal', value: REMOTE_SERVER_DATA_FOLDER }, { type: 'literal', value: 'bin' }, COMMIT_SEGMENT],
 	executablePath: [{ type: 'literal', value: REMOTE_SERVER_DATA_FOLDER }, { type: 'literal', value: 'bin' }, COMMIT_SEGMENT, { type: 'literal', value: 'bin' }, { type: 'literal', value: 'unigma-server' }],
 	serverDataDirectory: [{ type: 'literal', value: REMOTE_SERVER_DATA_FOLDER }, { type: 'literal', value: 'bin' }, COMMIT_SEGMENT, { type: 'literal', value: 'data' }],
@@ -183,6 +186,30 @@ export function buildRemoteServerPathShellFragments(): RemoteServerPathShellFrag
 		executablePath: shellPath(REMOTE_SERVER_PATH_TEMPLATES.executablePath),
 		serverDataDirectory: shellPath(REMOTE_SERVER_PATH_TEMPLATES.serverDataDirectory),
 		socketPath: shellPath(REMOTE_SERVER_PATH_TEMPLATES.socketPath)
+	};
+}
+
+export interface RemoteStagingPathShellFragments {
+	readonly stagingDirectory: string;
+	readonly activationPath: string;
+}
+
+/** Generates staging expressions from the same path templates as the pure plan. */
+export function buildRemoteStagingPathShellFragments(): RemoteStagingPathShellFragments {
+	const shellPath = (segments: readonly RemoteServerPathSegment[]): string => {
+		const suffix = segments.map(segment => {
+			switch (segment.type) {
+				case 'literal': return segment.value;
+				case 'commit': return '$COMMIT';
+				case 'commit-prefix': return '$COMMIT_PREFIX';
+				case 'commit-prefix-socket': return `$COMMIT_PREFIX${REMOTE_SERVER_SOCKET_FILE}`;
+			}
+		}).join('/');
+		return `"$BASE/${suffix}"`;
+	};
+	return {
+		stagingDirectory: shellPath(REMOTE_SERVER_PATH_TEMPLATES.stagingDirectory),
+		activationPath: shellPath(REMOTE_SERVER_PATH_TEMPLATES.activationPath)
 	};
 }
 
