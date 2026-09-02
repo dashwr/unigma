@@ -5,9 +5,9 @@
 
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import { createServer, get as httpGet } from 'node:http';
-import { accessSync, appendFileSync, chmodSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { accessSync, appendFileSync, chmodSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { homedir, userInfo } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createConnection } from 'node:net';
 import { createRequire } from 'node:module';
@@ -162,6 +162,41 @@ function clientKeyRunner(identityPath: string, tracePath: string, port: number):
 	};
 }
 
+/**
+ * Assembles the payload from the artifacts published by the Linux workflows.
+ *
+ * On the runner the checkout paths above do not exist, because they belong to a
+ * developer machine outside WSL. The published store is the only place where a
+ * real server and a real opencode are both present, which is what makes the
+ * version assertion mean anything.
+ */
+function payloadInputsFromStore(workDirectory: string): { server: string; opencode: string; license: string; commit: string; mode: 'real' } | undefined {
+	const store = process.env['UNIGMA_ARTIFACT_ROOT'] ?? join(homedir(), '.local', 'share', 'unigma-artifacts');
+	const serverTree = join(store, 'unigma-server-latest');
+	const opencodeTree = join(store, 'opencode-latest');
+	const serverProvenance = join(serverTree, 'PROVENANCE.txt');
+	const opencode = join(opencodeTree, 'bin', 'opencode');
+	const license = join(opencodeTree, 'LICENSE-opencode.txt');
+	if (!existsSync(serverProvenance) || !existsSync(opencode) || !existsSync(license)) {
+		return undefined;
+	}
+	const commit = readFileSync(serverProvenance, 'utf8').split(/\r?\n/).find(line => line.startsWith('commit='))?.slice('commit='.length) ?? '';
+	if (!COMMIT.test(commit)) {
+		return undefined;
+	}
+	// The store keeps the server extracted, while the payload format transports a
+	// single archive, so it is repacked here rather than published twice.
+	const archive = join(workDirectory, 'store-server.tar.gz');
+	// The store pointer is a symlink, and tar would archive the link instead of
+	// the tree behind it, so the version directory is resolved first.
+	const resolved = realpathSync(serverTree);
+	execFileSync(executable('tar') ?? 'tar', [
+		'--owner=0', '--group=0', '-czf', archive,
+		'-C', dirname(resolved), basename(resolved)
+	]);
+	return { server: archive, opencode, license, commit, mode: 'real' };
+}
+
 function payloadInputs(workDirectory: string): { server: string; opencode: string; license: string; commit: string; mode: 'real' | 'synthetic' } {
 	const serverArchive = process.env['UNIGMA_SMOKE_SERVER_ARCHIVE'] ?? '/home/dasher/projects/unigma/buildlinuxdounigmaserver/unigma-server-linux-x64-09aa87ffbb694b578c37f10ef8288c3590dfe252/server/unigma-server.tar.gz';
 	const opencodeBinary = process.env['UNIGMA_SMOKE_OPENCODE'] ?? '/home/dasher/projects/unigma/buildlinuxdoopencode/opencode/bin/opencode';
@@ -172,6 +207,20 @@ function payloadInputs(workDirectory: string): { server: string; opencode: strin
 		if (COMMIT.test(commit)) {
 			return { server: serverArchive, opencode: opencodeBinary, license: licenseFile, commit, mode: 'real' };
 		}
+	}
+
+	const fromStore = payloadInputsFromStore(workDirectory);
+	if (fromStore) {
+		return fromStore;
+	}
+
+	// The synthetic server answers GET /version with a commit it was told to
+	// print, so a run using it proves the staging mechanics and nothing about the
+	// real server. Falling back to it silently turned the version assertion into
+	// a mock confirming itself, which `AGENTS.md` refuses to accept as evidence
+	// of support. It now has to be asked for by name.
+	if (process.env['UNIGMA_SMOKE_SYNTHETIC'] !== '1') {
+		throw new Error('no real payload inputs: publish the server and opencode artifacts, or set UNIGMA_SMOKE_SYNTHETIC=1 to accept a mock');
 	}
 
 	const root = join(workDirectory, 'synthetic-source', 'vscode-reh-linux-x64');

@@ -30,6 +30,7 @@ jobs:
           $drive = $matches[1].ToLowerInvariant()
           $path = $matches[2]
           [System.IO.File]::AppendAllText($env:GITHUB_ENV, "WSL_OUTPUT=/mnt/$drive/$path/opencode-artifact`n")
+          [System.IO.File]::AppendAllText($env:GITHUB_ENV, "WSL_SOURCE=/mnt/$drive/$path`n")
 
       - name: install node-gyp prerequisite in WSL
         run: |
@@ -44,6 +45,7 @@ jobs:
 
           output="$1"
           commit="$2"
+          source="$3"
           bun_version="1.3.14"
           toolchain="$HOME/.local/share/unigma-toolchains/bun-$bun_version"
           if [ ! -x "$toolchain/bin/bun" ]; then
@@ -140,11 +142,17 @@ jobs:
             printf 'license=MIT\n'
             sha256sum "$output/bin/opencode"
           } > "$output/PROVENANCE.txt"
+
+          # Publish into the same persistent store as the client and the server, so
+          # a staging smoke can assemble a real payload without any of the three
+          # being rebuilt or fetched from outside WSL.
+          bash "$source/build/unigma/publish-latest-artifact.sh" \
+            opencode "$output" "$commit" target=linux-x64 version=1.18.23
           '@
           $script = $script -replace "`r`n?", "`n"
           [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))
           $scriptPathWsl = "/mnt/$($scriptPath.Substring(0, 1).ToLowerInvariant())/$($scriptPath.Substring(3).Replace('\', '/'))"
-          & wsl.exe -d Ubuntu --user dasher -- bash $scriptPathWsl $env:WSL_OUTPUT $env:OPENCODE_COMMIT
+          & wsl.exe -d Ubuntu --user dasher -- bash $scriptPathWsl $env:WSL_OUTPUT $env:OPENCODE_COMMIT $env:WSL_SOURCE
           $exitCode = $LASTEXITCODE
           Remove-Item -Force $scriptPath -ErrorAction SilentlyContinue
           if ($exitCode -ne 0) { exit $exitCode }
