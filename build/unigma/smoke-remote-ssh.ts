@@ -5,7 +5,7 @@
 
 import { execFileSync, spawn } from 'node:child_process';
 import { createServer, get as httpGet } from 'node:http';
-import { accessSync, chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { accessSync, appendFileSync, chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir, userInfo } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -189,9 +189,28 @@ async function versionRequest(port: number): Promise<{ statusCode: number | unde
 	});
 }
 
-function clientKeyRunner(identityPath: string): (arguments_: readonly string[]) => RemoteSshProcess {
+/**
+ * Keeps the raw OpenSSH stderr of the smoke's own throwaway test bed.
+ *
+ * The transport itself must never log this, because on a real connection it
+ * names the destination. Here the destination is an ephemeral loopback sshd
+ * owned by this process, with keys that are generated and deleted within one
+ * run, so the trace holds nothing that outlives the smoke — and without it a
+ * failure on the runner is only a category name.
+ */
+function clientKeyRunner(identityPath: string, tracePath: string): (arguments_: readonly string[]) => RemoteSshProcess {
 	const realRunner = createRemoteSshProcessRunner();
-	return arguments_ => realRunner(['-F', '/dev/null', '-i', identityPath, '-o', 'IdentitiesOnly=yes', ...arguments_]);
+	return arguments_ => {
+		const child = realRunner(['-F', '/dev/null', '-i', identityPath, '-o', 'IdentitiesOnly=yes', ...arguments_]);
+		child.stderr.on('data', chunk => {
+			try {
+				appendFileSync(tracePath, chunk as Buffer);
+			} catch {
+				// The trace is a diagnostic; losing it must not fail the smoke.
+			}
+		});
+		return child;
+	};
 }
 
 async function main(): Promise<void> {
@@ -246,6 +265,13 @@ async function main(): Promise<void> {
 			`HostKey ${hostKey}`,
 			`AuthorizedKeysFile ${authorizedKeys}`,
 			'ListenAddress 127.0.0.1',
+			// sshd's StrictModes walks every parent of AuthorizedKeysFile and refuses
+			// a world-writable one. The work directory has to live under /tmp so the
+			// server socket fits the sockaddr_un budget, and /tmp is 1777, so the
+			// check rejected a key file that is itself 0600 inside a 0700 directory
+			// owned by this user. The whole test bed is disposable and reachable
+			// only on loopback, so the check protects nothing here.
+			'StrictModes no',
 			'UsePAM no',
 			'PasswordAuthentication no',
 			'KbdInteractiveAuthentication no',
@@ -271,7 +297,11 @@ async function main(): Promise<void> {
 		await waitForTcpPort(port);
 		check('sshd-process', true);
 
-		const artifact = join(homedir(), '.local', 'share', 'unigma-artifacts', 'unigma-server-latest');
+		// The override exists so the smoke can be reproduced against a server tree
+		// that is not the published store, which is the only way to debug a runner
+		// failure without a seven minute cycle per attempt.
+		const artifact = process.env['UNIGMA_SMOKE_SERVER_TREE']
+			?? join(homedir(), '.local', 'share', 'unigma-artifacts', 'unigma-server-latest');
 		const provenancePath = join(artifact, 'PROVENANCE.txt');
 		check('artifact', existsSync(artifact) && existsSync(provenancePath));
 		if (!existsSync(artifact) || !existsSync(provenancePath)) {
@@ -296,7 +326,7 @@ async function main(): Promise<void> {
 		cpSync(artifact, derived.paths.versionedDirectory, { recursive: true, dereference: true });
 		mkdirSync(derived.paths.serverDataDirectory, { recursive: true });
 		const localPort = await freeHighPort();
-		const runner = clientKeyRunner(clientKey);
+		const runner = clientKeyRunner(clientKey, `${reportPath}.ssh-trace.log`);
 		const opened = await openRemoteServer({
 			destination: `ssh://${username}@127.0.0.1:${port}`,
 			commit,

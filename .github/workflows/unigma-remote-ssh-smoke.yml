@@ -119,6 +119,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: unigma-remote-ssh-smoke-${{ github.run_id }}
-          path: .build/unigma-remote-ssh-smoke.txt
+          path: |
+            .build/unigma-remote-ssh-smoke.txt
+            .build/unigma-remote-ssh-smoke.txt.ssh-trace.log
           if-no-files-found: warn
           retention-days: 7
