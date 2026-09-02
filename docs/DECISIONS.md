@@ -164,6 +164,34 @@ Este registro confirma direção, não implementação ou suporte funcional.
   para outro protocolo ou outro servidor. A matriz de clientes suportados ainda
   precisa ser colhida no runner.
 
+### D-033 — o hash do manifesto aparece na confirmação de escrita remota
+
+> confirmada em 2026-09-02, ao implementar `T-052`.
+
+- A regra geral do projeto é não exibir hashes: eles poluem a saída e raramente
+  ajudam quem lê. A confirmação de `§5` do contrato SSH é a exceção.
+- Ali o valor tem função real para uma pessoa: é o que permite conferir o que
+  está prestes a ser escrito numa máquina remota, antes de autorizar.
+- A exceção é estreita. O hash continua proibido em log, em relatório de smoke,
+  em provenance exibida e em qualquer saída de agente.
+- A confirmação em si é obrigatória e falha fechado; ausência de callback ou
+  resposta negativa recusa a escrita.
+
+### D-034 — os caminhos remotos são derivados no host, não no cliente
+
+> confirmada em 2026-09-02, ao implementar `T-051`.
+
+- O cliente não sabe o `$HOME` do host remoto, e o host é a fonte de verdade
+  sobre si mesmo. O script de bootstrap deriva os caminhos de `$HOME` e valida
+  remotamente home inválido e limite de endereço de socket.
+- Isso colide com `ssh -L <porta>:<socket>`, que exige o caminho no momento em
+  que a sessão é criada, e o sshd não expande `~`. A saída é `ControlMaster`:
+  uma conexão, uma autenticação, o handshake devolve o `socketPath` efetivo e o
+  encaminhamento é acrescentado com `ssh -O forward`. A alternativa recusada era
+  uma sessão de sondagem extra só para ler o home.
+- A convenção de caminho vive numa tabela de templates única, consumida pelo
+  TypeScript e pelo shell, para que as duas metades não possam divergir.
+
 ### detalhes de D-016 ainda abertos
 
 - fórmula, escala e estimativa do `intelligence index`, com sua comparação ao

@@ -171,11 +171,35 @@ e exige confirmação explícita para aquele host. O payload entra em diretório
 versionado pertencente ao usuário remoto; somente após validar o manifesto ocorre
 a ativação atômica. A versão anterior não é apagada por este fluxo.
 
+Exibir o hash aqui é uma exceção deliberada à regra geral do projeto de não
+mostrar hashes, autorizada pelo mantenedor em 2026-09-02: esta confirmação é o
+único ponto onde o valor tem função para uma pessoa, porque é o que permite
+conferir o que está prestes a ser escrito numa máquina remota. O hash continua
+proibido em log, em relatório de smoke e em qualquer outra saída.
+
+A confirmação é obrigatória e falha fechado: `stageRemotePayload` exige um
+callback de confirmação e recusa quando ele falta ou responde negativamente.
+Nada é escrito por omissão.
+
 No payload local v1, `unigma-server` é o arquivo `server/unigma-server.tar.gz`:
 um tar.gz da distribuição Linux x64 completa do servidor deste fork. O wrapper
 `bin/unigma-server` não pode ser transportado isoladamente, porque depende da
-árvore de runtime e extensões do servidor. A extração no staging remoto pertence
-ao transporte/ativação de T-050 e ainda não está implementada.
+árvore de runtime e extensões do servidor.
+
+O transporte e a ativação estão implementados (`T-051`, `T-052`) e validados no
+runner. O staging reaproveita a conexão `ControlMaster` do transporte: uma
+conexão, uma autenticação, duas invocações. O script de staging vai por stdin e
+nunca em argv, que é visível no `ps` do host remoto, e o payload chega como um
+único stream tar no stdin da segunda invocação. O host valida cada arquivo
+declarado no manifesto por tamanho e SHA-256, apaga o staging em qualquer
+divergência, e só então ativa com `mv -T`, atômico no mesmo filesystem. Um
+commit já ativado é deixado intacto, de modo que a operação é idempotente.
+
+Os caminhos remotos são derivados de `$HOME` **no próprio host**: o cliente não
+sabe o home do host remoto, e o host é a fonte de verdade sobre si mesmo. O
+socket do servidor não fica dentro do diretório versionado, porque
+`sockaddr_un.sun_path` guarda 108 bytes no Linux e o commit sozinho gasta 40 —
+um diretório base comum já provocava `listen EINVAL`.
 
 Não há CDN, `updateUrl`, download automático, elevação ou instalação global. A
 entrega ainda precisa de artefato local aceito, manifesto/hashes e testes de

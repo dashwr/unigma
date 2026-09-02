@@ -12,19 +12,38 @@
 - Documentação, fixture ou mock não converte direção em suporte: critérios só
   passam com comando, teste, artefato e cenário reproduzíveis registrados.
 
-## próximo trabalho — CLI e SSH remoto
+## próximo trabalho — SSH remoto
 
-- A frente ativa é `docs/planos/2026-08-29-cli-ssh-remoto.md`: etapa A desacopla
-  o Agent Host do CLI Rust e etapa B implementa o SSH remoto (T-050…T-053). Ela
-  emenda em `docs/planos/2026-08-28-ondas-refundacao.md` entre a onda 1 e a
-  colheita da onda 2.
+- A frente ativa é `docs/planos/2026-08-29-cli-ssh-remoto.md`, etapa B
+  (T-050…T-053). **O próximo passo é a fiação do resolver**: hoje
+  `extensions/unigma-remote-ssh/src/extension.ts` roda os gates de pré-conexão e
+  então devolve `NotAvailable` para toda autoridade, mesmo com transporte,
+  staging e ativação prontos e validados no runner.
+- Já feito e com evidência de runner: par versionado (`T-050`), transporte por
+  OpenSSH (`T-051`) e staging com ativação atômica (`T-052`). Depois do resolver
+  vêm a matriz oficial (`T-053`/`AC-007`), o passo de Welcome que sugere uma
+  identidade SSH sem gerar chave, e os épicos de produto.
 - **Não remova o Code Server** (`cli/src/tunnels/code_server.rs`,
   `server_bridge.rs`, `server_multiplexer.rs`, `protocol.rs`, o RPC genérico de
   `control_server.rs` e o entry point `command-shell`): é a base do extension
   host remoto, preservada por `D-027`. Só o subsistema `agent_host*`/AHP sai.
 - O servidor do host remoto é o `unigma-server` deste fork, acoplado por commit
-  ao cliente (`D-028`); a forma de entrega é decisão aberta.
+  ao cliente (`D-028`). A entrega é o push do par pela sessão SSH (`D-032`), com
+  confirmação explícita antes de qualquer escrita.
 - Os testes de cada etapa ficam concentrados no fim dela, conforme o plano.
+
+## depósito de artefatos no WSL
+
+- Os três workflows Linux publicam em `~/.local/share/unigma-artifacts` dentro do
+  WSL do runner, ao lado do depósito de toolchains: versões em
+  `versions/<nome>/<commit>` e os ponteiros `unigma-latest`,
+  `unigma-server-latest` e `opencode-latest`, trocados com `mv -T`. O script é
+  `build/unigma/publish-latest-artifact.sh`.
+- Só entra no depósito o que já passou os próprios gates: o cliente depois da
+  auditoria e do smoke, o servidor depois de `audit-distribution.ts --server`.
+- É de lá que os smokes remotos montam o par. Caminhos de artefato numa máquina
+  de desenvolvimento **não** existem dentro do WSL; um smoke que dependa deles
+  no runner está silenciosamente testando outra coisa.
 
 ## contexto anterior — ondas E00–E03
 
@@ -84,9 +103,19 @@
 
 ## comandos focados
 
-- **não rode typecheck amplo nesta máquina**. Para validações de tipos, prefira
-  o runner self-hosted disponível; localmente só use um alvo mínimo de poucos
-  arquivos quando for indispensável e autorizado.
+- **não rode typecheck amplo, build, empacotamento ou smoke nesta máquina**. Ela
+  já travou executando um smoke com payload real e precisou ser reiniciada. O
+  runner self-hosted é a autoridade e também o lugar de execução; localmente use
+  só alvo mínimo de poucos arquivos, e apenas quando for indispensável e
+  autorizado.
+- Custo a considerar ao escolher o que validar: um ciclo de runner leva algo
+  entre cinco e vinte minutos. Código puro e determinístico compensa empacotar e
+  cobrir com teste; código acoplado ao ambiente — shell, socket, `sshd`,
+  permissões, versão de OpenSSH, layout de pacote — compensa executar cedo e uma
+  peça por vez, porque foi exatamente aí que todo defeito real apareceu.
+- **Um check verde merece a pergunta "o que exatamente isso provou?"**. O smoke
+  de staging já passou contra um servidor sintético que respondia `/version` com
+  um commit que mandaram ele imprimir: um mock confirmando a si mesmo.
 
 Rode a partir da raiz, na ordem mínima afetada:
 
@@ -131,6 +160,14 @@ npm run test-build-scripts
   `.github/workflows/unigma-linux-wsl-validation.yml` (Ubuntu WSL2 no runner
   Windows). A sequência é dependências → runtime compile/test → checks focados →
   pacote → `build/unigma/audit-distribution.ts` → smoke → evidência.
+- Os demais workflows executáveis, todos `workflow_dispatch` e self-hosted:
+  `unigma-server-linux-artifact.yml` (pacote REH, auditado com `--server` antes
+  de publicar), `opencode-linux-artifact.yml` (OpenCode fixado em `1.18.23`),
+  `unigma-remote-ssh-smoke.yml` (conexão remota) e
+  `unigma-remote-staging-smoke.yml` (push do payload, ativação e idempotência).
+- Os workflows herdados que agendavam em pools `1ES.Pool` da Microsoft foram
+  removidos: nunca puderam ser escalonados neste fork e só produziam check
+  vermelho sem sinal.
 - O workflow Windows exige bibliotecas Spectre do Visual Studio e `signtool.exe`;
   se o preflight falhar, pare e registre o bloqueio em vez de instalar privilégio.
   O workflow Linux copia o checkout para um caminho de build dentro do WSL.
@@ -147,6 +184,16 @@ npm run test-build-scripts
 - Preserve tabs no código; `package.json` e YAML usam dois espaços conforme
   `.editorconfig`. Novos arquivos TypeScript devem obedecer ao header exigido por
   `eslint.config.js` (runtime próprio usa copyright `2026 unigma contributors`).
+  O header de `2026 unigma contributors` só é aceito em
+  `extensions/unigma-agent-runtime/**`; em `build/` e nas demais extensões o
+  header é o do upstream. **Não altere `eslint.config.js` para acomodar um
+  arquivo novo** — copie o header do vizinho.
+- O hook de pre-commit roda hygiene, que verifica formatação. O formatador do
+  repositório é `node --experimental-strip-types build/lib/formatter.ts --replace
+  <arquivos>`. **Não use `npx prettier`**: ele usa outra configuração, converte
+  as aspas e a indentação e transforma dois avisos de formatação em centenas de
+  erros de hygiene. Ele também não sabe nada de shell — apontá-lo para um `.sh`
+  corrompe o script.
 - Ao concluir uma etapa, atualize `docs/status/WORKBENCH.md`, registre uma linha
   curta `feito:` em `docs/BACKLOG.md` e atualize o status histórico/`ACCEPTANCE.md`
   somente com evidência real. Release, publicação e clearance legal exigem

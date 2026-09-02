@@ -8,13 +8,26 @@
 > As demais tarefas além dos recortes 2A/2B continuam futuras. Este arquivo não
 > autoriza distribuição ou publicação.
 
-> feito: 2026-09-02 — T-052 implementou staging explícito com confirmação
-> obrigatória, script POSIX entregue sem corpo em argv, payload tar em stdin,
-> validação remota de manifesto/tamanho/SHA-256, extração e `mv -T` atômico sem
-> apagar a versão anterior. O smoke separado passou localmente com o payload real
-> Validado no runner com payload real (`33686239262`), incluindo idempotência e
-> `GET /version` do servidor ativado. Matriz oficial e fiação do resolver
-> permanecem pendentes.
+> feito: 2026-09-02 — `T-052` implementou staging explícito com confirmação
+> obrigatória, script POSIX entregue por stdin e nunca em argv, payload tar em
+> stdin, validação remota de manifesto/tamanho/SHA-256, extração e `mv -T`
+> atômico sem apagar a versão anterior. Validado no runner com payload real
+> (`33686239262`), incluindo idempotência e `GET /version` do servidor ativado.
+> A fiação do resolver e a matriz oficial permanecem pendentes.
+
+> feito: 2026-09-02 — `T-051` implementou o transporte OpenSSH. Os caminhos
+> remotos passaram a ser derivados de `$HOME` no próprio host (`D-034`), com
+> `ControlMaster` para conciliar isso com o `-L`, que exige o caminho do socket
+> antes de a sessão existir. Smoke de conexão passou no runner (`33660552878`).
+
+> feito: 2026-09-02 — os três workflows Linux passaram a publicar em
+> `~/.local/share/unigma-artifacts` dentro do WSL, com ponteiros
+> `unigma-latest`, `unigma-server-latest` e `opencode-latest` trocados
+> atomicamente. É de lá que os smokes remotos montam o par sem reconstruir nada.
+
+> feito: 2026-09-02 — poda de superfície morta: a extensão `tunnel-forwarding`,
+> as specs `code-tunnel`, entradas i18n de diretórios inexistentes e sete
+> workflows presos a runners do upstream. `cli/` intocado por `D-027`.
 
 > feito: 2026-09-02 — o auditor ganhou perfil explícito `--server` para o pacote
 > REH Linux, com guarda de layout, identidade, gallery desabilitada, extensões
@@ -823,6 +836,23 @@ estão pendentes.
 - **bloqueia:** AC-028.
 
 ## E-05 — remoto SSH
+
+> **estado em 2026-09-02.** O caminho remoto está construído e validado no runner
+> menos o último fio. Existem, com evidência: par versionado e manifesto,
+> transporte OpenSSH sobre `ControlMaster`, staging com validação de manifesto e
+> ativação atômica idempotente, e dois smokes contra `sshd` e servidor reais
+> (`unigma-remote-ssh-smoke` `33660552878` e `unigma-remote-staging-smoke`
+> `33686239262`). **Falta a fiação do resolver**: `extension.ts` ainda devolve
+> `NotAvailable` para toda autoridade, então nenhuma janela remota abre. Depois
+> dele vêm a matriz oficial e o passo de Welcome.
+
+> **nota de numeração.** Os títulos de `T-051` e `T-052` abaixo descrevem o
+> recorte antigo — iniciar o runtime remoto e integrar o fluxo de agente. O que
+> foi executado sob esses identificadores em 2026-09-02 foi o recorte do plano
+> `2026-08-29-cli-ssh-remoto.md`: `T-051` como transporte OpenSSH e `T-052` como
+> staging e ativação. O trabalho de runtime e de fluxo de agente descrito aqui
+> continua pendente e é posterior à fiação do resolver. Registrado para que a
+> divergência não seja lida como escopo entregue.
 
 > feito: 2026-09-02 — `remoteStagingPlan.ts` calcula, sem qualquer I/O, o plano de
 > staging e ativação a partir do manifesto validado: diretório versionado por

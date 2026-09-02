@@ -5,6 +5,36 @@
 > é o próximo passo**.
 
 **última atualização:** 2026-09-02
+
+## onde estamos, em uma leitura
+
+O caminho remoto por SSH está construído e validado no runner de ponta a ponta,
+**menos o último fio**. Existe um par versionado, um transporte OpenSSH, um
+staging com ativação atômica e dois smokes que provam os dois lados contra um
+`sshd` real e um servidor real. O que falta para alguém abrir uma janela remota
+é a fiação do resolver: `extensions/unigma-remote-ssh/src/extension.ts` roda os
+gates e então recusa toda autoridade com `NotAvailable`.
+
+**próximo passo**, uma coisa só: fiar o resolver para devolver
+`ResolvedAuthority`, usando `openRemoteServer`, e falhar com erro acionável
+quando a versão não estiver staged — nunca provisionar em silêncio.
+
+**logo depois**, num pacote: o passo de Welcome que sugere configurar uma
+identidade SSH sem gerar nem guardar chave (`D-033` do lado do hash já está
+decidido; este é escopo de UI e visível só em sessão SSH), e a matriz oficial
+`T-053`/`AC-007`.
+
+**depois disso**, por natureza do bloqueio: notices, titularidade e branding
+(`E00-A`/`E00-B`) dependem de decisão humana; os épicos de produto
+(`AC-003`, `AC-004`, `AC-006`, `AC-010`, `AC-011`, `T-043`) vêm quando o remoto
+estiver fechado.
+
+**dívidas conhecidas**, registradas para não virarem surpresa: o smoke de
+conexão pré-popula o servidor em vez de exercitar o push do payload, por decisão
+explícita, e quem cobre o push é o smoke de staging; `remote/LICENSE` ainda
+carrega copyright herdado; e o auditor de distribuição, embora agora cubra o
+pacote do servidor, não cobre o payload montado.
+
 **foco atual:** implementação incremental de `E02/E03` no runtime OpenCode e
 workbench nativo, mantendo os gates `E00/E01` em review/partial
 do CLI Rust **preservando o Code Server**, em
@@ -104,7 +134,11 @@ adiciona uma asserção negativa. `compile-client`, `typecheck-client`, 60 teste
 | ambiente/permissão | `E01-A` / `E01-C` / `E01-D` | Node `24.18.0`/npm `<12` já disponível localmente; runner Windows/WSL e host Linux x64 autorizado continuam pendentes; nenhum segredo deve ser coletado | pendente |
 | decisão técnica | `E01-B` / `E01-C` | bundle OpenCode fixado e inventário confiável de plugins/regras | pendente |
 | escopo/aceite | `E02/E03` | manter 2A/2B como recortes verificados, sem promover os épicos sem os gates E00/E01 | pendente |
-| implementação | `T-052` / `AC-007` | staging, confirmação fail-closed e ativação atômica passam no runner com payload real; falta a fiação do resolver, que ainda devolve sempre `NotAvailable` | fiação do resolver |
+| implementação | `T-051` / `T-052` | transporte, staging, confirmação fail-closed e ativação atômica passam no runner com payload real | concluído |
+| implementação | resolver / `AC-007` | `extension.ts` ainda devolve `NotAvailable` para toda autoridade; é o único fio que falta para abrir uma janela remota | próximo passo |
+| implementação | Welcome / identidade SSH | passo de walkthrough visível só em sessão SSH, que sugere e explica o comando; não gera nem guarda chave, porque isso tornaria o produto custodiante de credencial | pacote seguinte |
+| verificação | `T-053` / `AC-007` | matriz oficial SSH depois do resolver | pendente |
+| dívida | payload | o auditor de distribuição cobre desktop e servidor, mas não o payload montado; o smoke de conexão pré-popula em vez de exercitar o push, por decisão explícita | registrado |
 | decisão/poda | `Q-3` / `CLI-003` | poda concluída e validada no runner em 2026-09-02; o que resta é decisão futura, não trabalho pendente | concluído |
 | autorização | `E00-A` / `E00-B` / notices | `remote/LICENSE` distribuído com o pacote do servidor ainda carrega o copyright herdado; titularidade, notices de terceiros e clearance continuam decisão humana | pendente |
 
