@@ -116,11 +116,11 @@ jobs:
           ls -la "$server_root" || { echo "server root missing at $server_root" >&2; ls -la "$build/.." >&2; exit 1; }
           ls -la "$server_root/bin" || true
           test -x "$server_root/bin/unigma-server"
-          test -f "$server_root/LICENSE.txt"
+          test -f "$server_root/LICENSE"
           rm -rf "$output"
           mkdir -p "$output/server"
           tar --owner=0 --group=0 -czf "$output/server/unigma-server.tar.gz" -C "$(dirname "$server_root")" "$(basename "$server_root")"
-          cp "$server_root/LICENSE.txt" "$output/LICENSE-unigma-server.txt"
+          cp "$server_root/LICENSE" "$output/LICENSE-unigma-server.txt"
           {
             printf 'source=unigma\n'
             printf 'commit=%s\n' "$commit"
