@@ -62,7 +62,7 @@ jobs:
           git -C "$build" init --quiet
           cd "$build"
           export BUILD_SOURCEVERSION="$commit"
-          export NODE_OPTIONS="--max-old-space-size=12288"
+          export NODE_OPTIONS="--max-old-space-size=4096"
           export UV_THREADPOOL_SIZE=12
           export CMAKE_BUILD_PARALLEL_LEVEL=12
           export MAKEFLAGS=-j12
@@ -72,7 +72,7 @@ jobs:
           free -m
           build_log="$build/unigma-server-build.log"
           set +e
-          node --experimental-strip-types --max-old-space-size=12288 ./node_modules/gulp/bin/gulp.js vscode-reh-linux-x64-min > "$build_log" 2>&1
+          node --experimental-strip-types --max-old-space-size=4096 ./node_modules/gulp/bin/gulp.js vscode-reh-linux-x64-min > "$build_log" 2>&1
           gulp_status=$?
           set -e
           echo "--- gulp exit status: $gulp_status ---"
