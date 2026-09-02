@@ -68,7 +68,7 @@ jobs:
           export MAKEFLAGS=-j12
           node build/azure-pipelines/common/disableFoundryLocalInstall.ts
           npm ci --no-audit --no-fund
-          node --experimental-strip-types --max-old-space-size=12288 ./node_modules/gulp/bin/gulp.js vscode-reh-linux-x64-min-ci
+          node --experimental-strip-types --max-old-space-size=12288 ./node_modules/gulp/bin/gulp.js vscode-reh-linux-x64-min
           server_root="$build/../vscode-reh-linux-x64"
           test -x "$server_root/bin/unigma-server"
           test -f "$server_root/LICENSE.txt"
