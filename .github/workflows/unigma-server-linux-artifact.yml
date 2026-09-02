@@ -56,7 +56,11 @@ jobs:
           node --version | grep -Fx "v$node_version"
           npm --version | grep -Ev '^(1[2-9]|[2-9][0-9])\.'
 
-          build="$(mktemp -d)"
+          build_root="$HOME/.cache/unigma/server-build"
+          mkdir -p "$build_root"
+          echo "--- build filesystem ---"
+          df -h "$build_root" /tmp
+          build="$(mktemp -d -p "$build_root")"
           trap 'rm -rf "$build"' EXIT
           tar --exclude=.git --exclude=node_modules --exclude=.build -C "$source" -cf - . | tar -C "$build" -xf -
           git -C "$build" init --quiet
