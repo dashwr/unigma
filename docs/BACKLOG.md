@@ -802,6 +802,26 @@ estão pendentes.
 > OpenCode `1.18.23`/MIT no commit `c2eacd72…`; build do checkout, notices e
 > qualquer distribuição continuam pendentes.
 
+> feito: 2026-09-02 — o artefato `unigma-server` Linux x64 foi produzido no
+> runner WSL (run `33610235193`) e o par v1 foi montado localmente com o OpenCode
+> `1.18.23`; `validateBootstrapManifest` aceitou o `manifest.json` real. Duas
+> correções de build tornaram isso possível: o servidor passou a ser empacotado
+> por esbuild, como o alvo desktop já fazia, em vez da trilha `gulp-tsb` com
+> mangling (44 s contra mais de 40 min sem terminar), e `remote/LICENSE` passou a
+> existir para que o pacote do servidor carregue a licença. Transporte OpenSSH,
+> staging, ativação remota e VPS continuam pendentes.
+
+> extensão: 2026-09-02 — o payload v1 passou a transportar o servidor como
+> `server/unigma-server.tar.gz` completo, não um wrapper isolado, e
+> `.github/workflows/unigma-server-linux-artifact.yml` empacota esse arquivo no
+> runner WSL. O artefato ainda **não** foi produzido: os runs expuseram e
+> corrigiram quatro defeitos reais (empacotamento Copilot exigido sem
+> `builtInExtensions`, uso da task `-ci` sem compile prévio, membros `protected`
+> promovidos a públicos em `ChangesetReviewActionViewItem` e três erros de tipo
+> em `unigmaAgent`) e um problema de ambiente (`/tmp` do WSL é tmpfs e consumia
+> ~5,5 GB de RAM, deixando ~5,3 GB disponíveis). Transporte, staging, ativação e
+> VPS continuam pendentes.
+
 - **objetivo:** integrar `unigma-remote-ssh` ao modelo de autoridade remota do
   Code - OSS usando OpenSSH existente.
 - **responsável lógico:** engenharia remota.
