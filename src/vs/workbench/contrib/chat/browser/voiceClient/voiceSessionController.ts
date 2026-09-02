@@ -32,7 +32,6 @@ import { IVoiceModelSelectionResult, IVoiceToolDispatchService, VoiceToolDispatc
 import { IVoicePlaybackService } from '../../common/voicePlaybackService.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { AgentSessionStatus } from '../agentSessions/agentSessionsModel.js';
-import { toAgentHostBackendSessionUri } from '../agentSessions/agentHost/agentHostSessionUri.js';
 import { ChatSendResult, IChatConfirmation, IChatElicitationRequest, IChatPlanReview, IChatQuestionCarousel, IChatService, IChatToolInvocation, ToolConfirmKind, IChatModelReference } from '../../common/chatService/chatService.js';
 import { getDisplayedQuestionText, getOptionsWithDefaultsFirst } from '../../common/chatService/chatQuestionCarouselHelpers.js';
 import { formatQuestionPrompt } from '../../common/voiceClient/voicePendingNarration.js';
@@ -46,7 +45,6 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { INotificationService, IPromptChoice, Severity } from '../../../../../platform/notification/common/notification.js';
-import { SESSION_META_EHCLI_ADOPTABLE_KEY } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { ChatEntitlement, IChatEntitlementService, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
 import {
@@ -542,18 +540,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 */
 	private readonly _deferredResponses = new Map<string, IDeferredResponse[]>();
 	/**
-	 * Maps a backend chat resource string (bare provider scheme, e.g.
-	 * `copilotcli:/<id>`) to the UI agent-host session resource string
-	 * (`agent-host-<provider>:/<id>`) that owns it. The voice backend tags a
-	 * background (unfocused) session's audio with its bare backend id, while the
-	 * UI - focus tracking, defer/flush buffer keys, and the sessions-list pending
-	 * indicator - all work in the agent-host resource space. Canonicalizing an
-	 * incoming id through this map keeps a deferred response's buffer key aligned
-	 * with the resource we flush on focus, so it is read exactly once when the
-	 * session becomes focused rather than stranded forever. Rebuilt from the live
-	 * session list and cleared on disconnect.
+	 * Session identifiers are normalized before they are used as keys for deferred
+	 * audio, focus tracking, and pending-response indicators.
 	 */
-	private readonly _uiResourceByBackendId = new Map<string, string>();
 	/** Sessions currently showing a pending-response indicator because they are
 	 *  awaiting confirmation while unfocused (client-driven, no audio needed). */
 	private readonly _confirmationPendingSessions = new Set<string>();
@@ -931,7 +920,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				// Keep the backend→UI resource alias fresh so a response the voice
 				// backend tags with the bare backend id (for an unfocused session)
 				// canonicalizes to this UI resource for defer/flush/pending keys.
-				this._recordSessionAlias(s.resource);
 				const model = this.chatService.getSession(s.resource);
 				if (model) {
 					modelsToCheck.push({ model, resource: s.resource, label: s.label || 'Untitled session' });
@@ -1829,12 +1817,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				});
 				this._telemetryPttUpMs = undefined;
 			}
-			// The backend tags a background (unfocused) session's audio with its
-			// bare backend id, while focus tracking and the deferred-buffer keys
-			// live in the UI agent-host resource space. Canonicalize once here so a
-			// deferred response's buffer key matches the resource we flush on focus
-			// (otherwise it is stranded and never read). Untagged / non-agent-host
-			// ids pass through unchanged.
+			// Normalize the session id before using it for focus tracking and deferred
+			// response buffering.
 			const codingSessionId = this._canonicalSessionId(e.codingSessionId ?? solicitedNarration?.sessionId ?? (e.responseId ? this._responseSessionIds.get(e.responseId) : undefined));
 			if (e.responseId && codingSessionId) {
 				this._responseSessionIds.set(e.responseId, codingSessionId);
@@ -2307,7 +2291,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._suppressIncomingAudio = false;
 		this._interruptedAudioIds.clear();
 		this._clearDeferredResponses();
-		this._uiResourceByBackendId.clear();
 		this._liveReplyKeys.clear();
 		this._lastShownSessionId = undefined;
 		// Terminal disconnect: drop the routing target and pending-confirmation
@@ -3978,76 +3961,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 	// --- Deferred responses for non-focused sessions ---
 
-	/**
-	 * Record the backend→UI resource alias for an agent-host session so a response
-	 * the voice backend tags with the bare backend id resolves to this UI session
-	 * resource (the space in which focus, defer/flush buffer keys, and the pending
-	 * indicator operate). No-op for non-agent-host resources.
-	 */
-	private _recordSessionAlias(uiResource: URI): void {
-		const backend = toAgentHostBackendSessionUri(uiResource);
-		if (!backend) {
-			return;
-		}
-		const from = backend.toString();
-		const to = uiResource.toString();
-		if (this._uiResourceByBackendId.get(from) === to) {
-			return;
-		}
-		this._uiResourceByBackendId.set(from, to);
-		// A newly-learned alias means any state stored under the bare backend id
-		// must move to the canonical UI key, so the two id spaces never diverge and
-		// no alias-aware iteration is needed anywhere else.
-		this._rekeySession(from, to);
-	}
-
-	/** Move every session-scoped entry (and the visible indicator) from a bare
-	 *  backend id to its canonical UI key once the alias becomes known. */
-	private _rekeySession(from: string, to: string): void {
-		if (from === to) {
-			return;
-		}
-		const rekeyMap = <V>(m: Map<string, V>): void => {
-			if (m.has(from)) {
-				if (!m.has(to)) {
-					m.set(to, m.get(from)!);
-				}
-				m.delete(from);
-			}
-		};
-		const rekeySet = (s: Set<string>): void => {
-			if (s.has(from)) {
-				s.delete(from);
-				s.add(to);
-			}
-		};
-		rekeyMap(this._deferredResponses);
-		rekeyMap(this._pendingResponseSummaries);
-		rekeyMap(this._lastNarratedText);
-		rekeyMap(this._lastHeardTranscriptById);
-		rekeyMap(this._recentlyReadResponse);
-		rekeyMap(this._lastResponseSummaryById);
-		rekeyMap(this._pendingNarrationRetries);
-		rekeyMap(this._deferredNarrations);
-		rekeyMap(this._narratedPending);
-		rekeySet(this._confirmationPendingSessions);
-		rekeySet(this._liveReplyKeys);
-		rekeySet(this._sessionsAwaitingResponseSummary);
-		rekeySet(this._pendingIdleNarration);
-		this._markPendingResponse(from, false);
-		if (this._pendingOwned(to)) {
-			this._markPendingResponse(to, true);
-		}
-	}
-
-	/**
-	 * The single canonical key for a session: the UI agent-host resource when the
-	 * backend tagged it with the bare backend id, else the id unchanged. Every
-	 * session-scoped collection is keyed by this, so the two id spaces never
-	 * diverge and ownership checks are plain O(1) map/set lookups.
-	 */
 	private _sessionKey(id: string): string {
-		return this._uiResourceByBackendId.get(id) ?? id;
+		return id;
 	}
 
 	/** Whether any of the three indicator owners still holds this canonical key. */
@@ -4057,13 +3972,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			|| this._pendingResponseSummaries.has(key);
 	}
 
-	/**
-	 * Canonicalize a session id to the UI agent-host resource space when the
-	 * backend tagged it with the bare backend id. Untagged / non-agent-host ids
-	 * pass through unchanged.
-	 */
 	private _canonicalSessionId(id: string | undefined): string | undefined {
-		return id ? (this._uiResourceByBackendId.get(id) ?? id) : id;
+		return id;
 	}
 
 	/**
@@ -4115,7 +4025,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 
 		this._widgetSessionListeners.set(widget, widget.onDidChangeViewModel(e => {
-			this._rebindMaterializedSession(e.previousSessionResource, e.currentSessionResource);
 			this._onSessionShown(e.currentSessionResource);
 		}));
 		// Seed from the widget's current view-model. When a session opens in a
@@ -4124,48 +4033,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// and the shown session would otherwise be missed (leaving a buffered
 		// response stuck until the stale focus path happens to catch up).
 		this._onSessionShown(widget.viewModel?.sessionResource);
-	}
-
-	private _rebindMaterializedSession(previous: URI | undefined, current: URI | undefined): void {
-		if (
-			!previous
-			|| !current
-			|| previous.scheme !== current.scheme
-			|| !previous.scheme.startsWith('agent-host-')
-			|| !previous.path.replace(/^\//, '').startsWith('untitled-')
-			|| current.path.replace(/^\//, '').startsWith('untitled-')
-		) {
-			return;
-		}
-
-		const from = previous.toString();
-		const to = current.toString();
-		const canonicalFrom = this._sessionKey(from);
-		const target = this._targetSession.get();
-		if (target && isEqual(target, previous)) {
-			this._setTargetSession(current);
-		}
-		if (this._activeSessionShown === from) {
-			this._activeSessionShown = to;
-		}
-		if (this._lastShownSessionId === from) {
-			this._lastShownSessionId = to;
-		}
-		if (this._currentPlaybackSessionId === from) {
-			this._currentPlaybackSessionId = to;
-		}
-		if (this._lastSpokenResponseSessionId === from) {
-			this._lastSpokenResponseSessionId = to;
-		}
-
-		this._rekeySession(canonicalFrom, to);
-		this._uiResourceByBackendId.set(from, to);
-		const previousBackend = toAgentHostBackendSessionUri(previous);
-		if (previousBackend) {
-			this._uiResourceByBackendId.set(previousBackend.toString(), to);
-		}
-		this._recordSessionAlias(current);
-		this.logService.trace(`[voice] rebound materialized session ${from.slice(-32)} -> ${to.slice(-32)}`);
 	}
 
 	/** A session became visible (opened/revealed): treat like a focus change — make it active, flush any buffered response, clear its pending indicator, and narrate its pending item. */
@@ -4191,15 +4058,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		const key = resource.toString();
 		this._lastShownSessionId = key;
 		this._suspendPlaybackForHiddenSessions();
-		// Refresh the backend→UI alias for this resource up front so a response
-		// buffered under the bare backend id (alias not yet known at arrival)
-		// resolves to this key, and so future responses for it route correctly.
-		this._recordSessionAlias(resource);
 		// Nothing can be flushed or narrated while disconnected: requestNarration
 		// can't send, and doing this work here (e.g. from a focus/widget event, or
 		// the _onFocusedSessionChanged() call at the start of connect()) would
 		// stash a pending narration that session_init later replays - stopping the
-		// freshly entered listening turn. Alias/last-shown bookkeeping above is
+		// freshly entered listening turn. Last-shown bookkeeping above is
 		// kept so routing is correct once connected; the reply is narrated on the
 		// next focus/state event (or an explicit activateSession) after connect.
 		if (!this._isConnected.get()) {
@@ -6575,12 +6438,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// cycles from starting concurrent loads whose refs would overwrite each
 		// other in _eagerModelRefs and leak the prior ref.
 		if (this._eagerModelRefs.has(key) || this._eagerModelLoading.has(key) || this.chatService.getSession(resource)) {
-			return;
-		}
-		// A surfaced-but-un-adopted legacy Copilot CLI session must NOT be eagerly
-		// loaded: loading its model subscribes/restores it on the agent host, which
-		// adopts (migrates) it. Migration must happen only on explicit user open.
-		if (this.agentSessionsService.model.getSession(resource)?.metadata?.[SESSION_META_EHCLI_ADOPTABLE_KEY] === true) {
 			return;
 		}
 		this.logService.trace(`[voice] eagerly loading model for session ${key.slice(-32)}`);

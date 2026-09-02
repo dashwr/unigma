@@ -39,7 +39,7 @@ import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
-import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
+import { CHAT_AUTO_REPLY_ANSWER } from '../../../common/constants.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { getChatMarkdownRenderOptions } from '../chatContentMarkdownRenderer.js';
 import './media/chatQuestionCarousel.css';
@@ -1814,7 +1814,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	 * Formats an answer for display in the summary.
 	 */
 	private formatAnswerForSummary(question: IChatQuestion, answer: IChatQuestionAnswerValue): string {
-		if (this.carousel.autoReply && answer === AgentHostAutoReplyAnswer) {
+		if (this.carousel.autoReply && answer === CHAT_AUTO_REPLY_ANSWER) {
 			return localize('chat.questionCarousel.autoReplyAnswer', "The user is not available to answer your question. Choose a pragmatic option best aligned with the context of the request.");
 		}
 

@@ -44,8 +44,6 @@ import { IMarkdownRenderer } from '../../../../../platform/markdown/browser/mark
 import { isDark } from '../../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
-import { parseRemoteAgentHostSessionTypeAuthority } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
-import { isCreateChatTool, isCreateSessionTool, isSendMessageTool } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { CodiconActionViewItem } from '../../../notebook/browser/view/cellParts/cellActionView.js';
 import { annotateSpecialMarkdownContent, extractSubAgentInvocationIdFromText, hasCodeblockUriTag, hasEditCodeblockUriTag } from '../../common/widget/annotations.js';
@@ -57,18 +55,17 @@ import { chatSubcommandLeader } from '../../common/requestParser/chatParserTypes
 import { ChatAgentVoteDirection, ChatErrorLevel, ChatRequestQueueKind, IChatConfirmation, IChatContentReference, IChatDisabledClaudeHooksPart, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatExternalEdit, IChatFollowup, IChatHookPart, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatPlanReview, IChatPlanReviewResult, IChatPullRequestContent, IChatQuestionAnswerValue, IChatQuestionAnswers, IChatQuestionCarousel, IChatService, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsageModelTotal, isChatFollowup } from '../../common/chatService/chatService.js';
 import { ChatPlanReviewData } from '../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ChatQuestionCarouselData } from '../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
-import { localChatSessionType, SessionType } from '../../common/chatSessionsService.js';
+import { localChatSessionType } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { getExplicitFileOrImageAttachmentSummary, IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, isPasteVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { getStickyScrollTargetItem, IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM, IChatPendingDividerViewModel, isPendingDividerVM, IChatTurnPillsPart } from '../../common/model/chatViewModel.js';
 import { getNWords } from '../../common/model/chatWordCounter.js';
-import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../common/constants.js';
 import { formatChatRequestTimestamp, formatChatResponseDetails, formatChatResponseElapsedTime } from '../../common/chatProgressFormatting.js';
 import { ClickAnimation } from '../../../../../base/browser/ui/animations/animations.js';
 import { ForkConversationActionId } from '../actions/chatForkActions.js';
 import { MarkHelpfulActionId } from '../actions/chatTitleActions.js';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidgetService } from '../chat.js';
-import { AgentHostSnapshotController } from '../agentSessions/agentHost/agentHostSnapshotController.js';
 import { RestoreCheckpointActionId, StartOverActionId } from '../chatEditing/chatEditingActions.js';
 import { ChatForkActionViewItem } from './chatForkActionViewItem.js';
 import { ChatRestoreCheckpointActionViewItem } from './chatRestoreCheckpointActionViewItem.js';
@@ -95,7 +92,6 @@ import { ChatQuestionCarouselPart } from './chatContentParts/chatQuestionCarouse
 import { ChatExtensionsContentPart } from './chatContentParts/chatExtensionsContentPart.js';
 import { ChatMarkdownContentPart, codeblockHasClosingBackticks } from './chatContentParts/chatMarkdownContentPart.js';
 import { ChatMcpServersInteractionContentPart } from './chatContentParts/chatMcpServersInteractionContentPart.js';
-import { ChatMcpAuthenticationContentPart } from './chatContentParts/chatMcpAuthenticationContentPart.js';
 import { ChatMcpServersStartingContentPart } from './chatContentParts/chatMcpServersStartingContentPart.js';
 import { ChatDisabledClaudeHooksContentPart } from './chatContentParts/chatDisabledClaudeHooksContentPart.js';
 import { ChatMultiDiffContentPart } from './chatContentParts/chatMultiDiffContentPart.js';
@@ -126,7 +122,6 @@ import { HookType } from '../../common/promptSyntax/hookTypes.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { AccessibilityWorkbenchSettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { isAskQuestionsToolInvocation, isMcpToolInvocation } from './chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
-import { AgentSessionProviders, isAgentHostTarget } from '../agentSessions/agentSessions.js';
 
 const $ = dom.$;
 
@@ -541,8 +536,8 @@ export function shouldShowFileChangesSummaryForSettings(isComplete: boolean, isL
 	return isComplete && isLocalSession && showFileChanges;
 }
 
-export function shouldShowPillsSummaryForSettings(isComplete: boolean, isAgentHostSession: boolean, turnStatusPills: ChatTurnStatusPillsSetting | undefined): boolean {
-	return isComplete && isAgentHostSession && isChatTurnStatusPillsEnabled(turnStatusPills);
+export function shouldShowPillsSummaryForSettings(isComplete: boolean, isContributedSession: boolean, turnStatusPills: ChatTurnStatusPillsSetting | undefined): boolean {
+	return isComplete && isContributedSession && isChatTurnStatusPillsEnabled(turnStatusPills);
 }
 
 export function shouldPinToolInvocationToThinking(state: IChatToolInvocation.StateKind, hasConfirmationMessages: boolean, hasMcpAppData: boolean): boolean {
@@ -581,17 +576,10 @@ export interface IChatRendererDelegate {
 
 const mostRecentResponseClassName = 'chat-most-recent-response';
 
-export function shouldHideChatUserIdentity(username: string, sessionResource: URI, isResponse: boolean, isSessionsWindow: boolean, isSystemInitiatedRequest: boolean): boolean {
-	const sessionType = getChatSessionType(sessionResource);
+export function shouldHideChatUserIdentity(username: string, _sessionResource: URI, _isResponse: boolean, isSessionsWindow: boolean, isSystemInitiatedRequest: boolean): boolean {
 	return username === COPILOT_USERNAME ||
-		(isResponse && isAgentHostCopilotSessionType(sessionType)) ||
 		isSessionsWindow ||
 		isSystemInitiatedRequest;
-}
-
-function isAgentHostCopilotSessionType(sessionType: string): boolean {
-	return sessionType === AgentSessionProviders.AgentHostCopilot ||
-		parseRemoteAgentHostSessionTypeAuthority(sessionType, SessionType.CopilotCLI) !== undefined;
 }
 
 function upvoteAnimationSettingToEnum(value: string | undefined): ClickAnimation | undefined {
@@ -1143,7 +1131,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const requestId = isRequestVM(context) ? context.id : context.requestId;
 		const model = this.chatService.getSession(context.sessionResource);
 		const session = model?.editingSession;
-		if (!model || !(session instanceof AgentHostSnapshotController)) {
+		if (!model || !session) {
 			return false;
 		}
 
@@ -1920,16 +1908,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (this.shouldShowPillsSummary(element) || !this.shouldShowFileChangesSummary(element)) {
 			return undefined;
 		}
-		// Agent host sessions compute their per-turn changes server-side and
-		// supply them via IChatResponseFileChangesService; the summary part
-		// resolves them asynchronously and self-hides when the turn produced no
-		// edits. Other sessions surface diff data through the chat editing
-		// session, which only has data when the response carries text/notebook
-		// edit groups — so skip the summary for those unless such a group is
-		// present.
-		const sessionType = getChatSessionType(element.sessionResource);
-		if (!isAgentHostTarget(sessionType) &&
-			!element.model.entireResponse.value.some(part => part.kind === 'textEditGroup' || part.kind === 'notebookEditGroup')) {
+		if (!element.model.entireResponse.value.some(part => part.kind === 'textEditGroup' || part.kind === 'notebookEditGroup')) {
 			return undefined;
 		}
 
@@ -1938,10 +1917,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private getChatTurnPillsPart(element: IChatResponseViewModel): IChatTurnPillsPart | undefined {
 		// The turn status pills mirror the floating pills shown above the input
-		// while the turn streams. They are opt-in per pill, only apply to agent
-		// host sessions (which supply authoritative per-turn changes via
-		// IChatResponseFileChangesService) and, like the pills above the input,
-		// appear once the turn is complete.
+		// while the turn streams and appear once the turn is complete.
 		if (!this.shouldShowPillsSummary(element)) {
 			return undefined;
 		}
@@ -2688,7 +2664,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private shouldShowFileChangesSummary(element: IChatResponseViewModel): boolean {
 		// Only show file changes summary for local sessions - background sessions already have their own file changes part
 		const sessionType = getChatSessionType(element.sessionResource);
-		const isLocalSession = sessionType === localChatSessionType || isAgentHostTarget(sessionType);
+		const isLocalSession = sessionType === localChatSessionType;
 		return shouldShowFileChangesSummaryForSettings(
 			element.isComplete,
 			isLocalSession,
@@ -2697,9 +2673,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private shouldShowPillsSummary(element: IChatResponseViewModel): boolean {
+		const sessionType = getChatSessionType(element.sessionResource);
 		return shouldShowPillsSummaryForSettings(
 			element.isComplete,
-			isAgentHostTarget(getChatSessionType(element.sessionResource)),
+			sessionType !== localChatSessionType,
 			this.configService.getValue<ChatTurnStatusPillsSetting | undefined>(ChatConfiguration.TurnStatusPills),
 		);
 	}
@@ -2814,14 +2791,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		// Don't pin subagent tools to thinking parts - they have their own grouping
 		if ((part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && isSubagentToolInvocation(part)) {
-			return false;
-		}
-
-		// Don't pin session-created tools (create_session / create_chat) — their
-		// "Open Session" button must stay visible, not hidden inside a collapsed
-		// thinking group. Keyed on toolId so this holds while the tool streams too
-		// (before `toolSpecificData` is set on completion).
-		if ((part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && (isCreateSessionTool(part.toolId) || isCreateChatTool(part.toolId) || isSendMessageTool(part.toolId))) {
 			return false;
 		}
 
@@ -3033,15 +3002,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const currentTemplateData = this.getTemplateDataForRequestId(context.element.id);
 			const currentSubagentPart = this.getSubagentPart(currentTemplateData?.renderedParts, targetSubAgentId) ?? subagentPart;
 			const chatResource = currentSubagentPart.getChatResource();
-			if (this.environmentService.isSessionsWindow && chatResource) {
-				void this.commandService.executeCommand(CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, { chatResource });
-			} else {
+			if (chatResource) {
 				currentSubagentPart.domNode.scrollIntoView({ behavior: 'smooth', block: 'center' });
 			}
 		};
-		const revealSubagentLabel = this.environmentService.isSessionsWindow
-			? localize('openSubagentChat', "Open {0} Chat", agentName)
-			: undefined;
+		const revealSubagentLabel = undefined;
 
 		const navigateToCarousel = (targetSubAgentId: string) => {
 			widget.inputPart.activateCarouselForSubagent(targetSubAgentId);
@@ -3189,8 +3154,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return this.renderTurnPills(content, context);
 			} else if (content.kind === 'mcpServersStarting') {
 				return this.renderMcpServersInteractionRequired(content, context, templateData);
-			} else if (content.kind === 'mcpAuthenticationRequired') {
-				return this.instantiationService.createInstance(ChatMcpAuthenticationContentPart, content);
 			} else if (content.kind === 'mcpServersStartingSlow') {
 				return this.instantiationService.createInstance(ChatMcpServersStartingContentPart, content, {
 					onDidFinishStarting: () => this.showWorkingProgressAfterMcp(context, templateData),

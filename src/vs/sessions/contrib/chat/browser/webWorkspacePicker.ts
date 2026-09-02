@@ -3,25 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from '../../../../base/common/codicons.js';
-import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
-import { ActionListItemKind, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IMenuService } from '../../../../platform/actions/common/actions.js';
-import { IRemoteAgentHostService } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsRecentWorkspacesService } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
-import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
-import { IWorkspacePickerItem, IWorkspacePickerOptions, WorkspacePicker } from './sessionWorkspacePicker.js';
+import { IWorkspacePickerOptions, WorkspacePicker } from './sessionWorkspacePicker.js';
 import { showMobileWorkspacePickerSheet, shouldUseMobileWorkspacePickerSheet } from './mobile/mobileWorkspacePickerSheet.js';
 
 /**
@@ -50,48 +43,29 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@ISessionsRecentWorkspacesService recentWorkspacesService: ISessionsRecentWorkspacesService,
-		@IRemoteAgentHostService remoteAgentHostService: IRemoteAgentHostService,
-		@IConfigurationService configurationService: IConfigurationService,
 		@ICommandService commandService: ICommandService,
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@INotificationService notificationService: INotificationService,
-		@IAgentHostFilterService private readonly _agentHostFilterService: IAgentHostFilterService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 	) {
 		super(
 			{
 				...options,
-				sessionWorkspaceProviderFilter: providerId => providerId === _agentHostFilterService.selectedProviderId,
 			},
 			actionWidgetService,
 			uriIdentityService,
 			sessionsProvidersService,
 			recentWorkspacesService,
-			remoteAgentHostService,
-			configurationService,
 			commandService,
 			menuService,
 			contextKeyService,
 			instantiationService,
 			fileDialogService,
 			telemetryService,
-			notificationService,
 		);
-
-		// When the scoped host changes, if the current selection no longer
-		// belongs to the selected host, reset it: prefer the most recent
-		// workspace for the new host, otherwise clear the selection.
-		this._register(this._agentHostFilterService.onDidChange(() => this._onScopedHostChanged()));
-	}
-
-	protected override _showTabs(): boolean {
-		// Scoped picker is already filtered to a single host — the categorical
-		// tab bar would be redundant.
-		return false;
 	}
 
 	override showPicker(): void {
@@ -116,62 +90,4 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		);
 	}
 
-	private _onScopedHostChanged(): void {
-		const scopedProviderId = this._agentHostFilterService.selectedProviderId;
-		const currentResolved = this.selectedResolved;
-		if (currentResolved && scopedProviderId !== undefined && currentResolved.providerId === scopedProviderId) {
-			this._onDidChangeSelection.fire();
-			return;
-		}
-
-		this._resetAutomaticSelection();
-	}
-
-	protected override _buildItems(): IActionListItem<IWorkspacePickerItem>[] {
-		const items: IActionListItem<IWorkspacePickerItem>[] = [];
-
-		const scopedProviderId = this._agentHostFilterService.selectedProviderId;
-		if (scopedProviderId === undefined) {
-			return [];
-		}
-		const provider = this.sessionsProvidersService.getProvider(scopedProviderId);
-		if (!provider) {
-			return items;
-		}
-
-		// 1. Recent workspaces for the scoped provider
-		const recents = this._getRecentWorkspaces().filter(w => w.providerId === scopedProviderId);
-		for (const { workspace, providerId } of recents) {
-			const folderUri = workspace.folders[0]?.root;
-			if (!folderUri) {
-				continue;
-			}
-			const checked = this._isSelectedFolder(folderUri);
-			items.push({
-				kind: ActionListItemKind.Action,
-				label: workspace.label,
-				description: workspace.description,
-				group: { title: '', icon: workspace.icon },
-				item: { folderUri, providerId, checked: checked || undefined },
-				onRemove: () => this._removeRecentWorkspace(folderUri),
-			});
-		}
-
-		// 2. "Select Folder..." — dispatches the scoped provider's first browse action
-		const allBrowseActions = this._getAllBrowseActions();
-		const browseIndex = allBrowseActions.findIndex(a => a.providerId === scopedProviderId);
-		if (browseIndex >= 0 && !this._isProviderUnavailable(scopedProviderId)) {
-			if (items.length > 0) {
-				items.push({ kind: ActionListItemKind.Separator, label: '' });
-			}
-			items.push({
-				kind: ActionListItemKind.Action,
-				label: localize('scopedWorkspacePicker.selectFolder', "Select Folder..."),
-				group: { title: '', icon: Codicon.folderOpened },
-				item: { browseActionIndex: browseIndex },
-			});
-		}
-
-		return items;
-	}
 }

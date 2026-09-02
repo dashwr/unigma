@@ -58,7 +58,7 @@ type IStoredBrowserPluginCache = Record<string, IBrowserPluginCacheEntry>;
  *
  * Per-target metadata is persisted via {@link IStorageService} so `revParse`
  * answers locally, `pull()` skips the re-download when the upstream SHA has
- * not moved, and the persisted SHA feeds `CustomizationRef.nonce` for AHP
+	 * not moved, and the persisted SHA feeds `CustomizationRef.nonce` for the provider
  * dedupe.
  */
 export class BrowserPluginGitCommandService implements IPluginGitService {

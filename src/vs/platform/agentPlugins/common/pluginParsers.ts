@@ -13,10 +13,61 @@ import { URI } from '../../../base/common/uri.js';
 import { IFileService } from '../../files/common/files.js';
 import { parseFrontMatter } from '../../../base/common/yaml.js';
 import { IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpStdioServerConfiguration, McpServerType } from '../../mcp/common/mcpPlatformTypes.js';
-import { CustomizationType, McpServerStatus, type AgentCustomization, type HookCustomization, type McpServerCustomization, type RuleCustomization, type SkillCustomization } from '../../agentHost/common/state/protocol/state.js';
-import { DEFAULT_MCP_APP } from '../../agentHost/common/state/protocol/mcpAppDefaults.js';
-import { customizationId } from '../../agentHost/common/state/sessionState.js';
 import { readAgentPluginManifest } from './agentPluginParser.js';
+
+export const enum CustomizationType {
+	Agent = 'agent',
+	Skill = 'skill',
+	Rule = 'rule',
+	Hook = 'hook',
+	McpServer = 'mcpServer',
+}
+
+export const enum McpServerStatus {
+	Starting = 'starting',
+	Ready = 'ready',
+	AuthRequired = 'authRequired',
+	Error = 'error',
+	Stopped = 'stopped',
+}
+
+interface CustomizationBase {
+	readonly id: string;
+	readonly uri: string;
+	readonly name: string;
+}
+
+export interface AgentCustomization extends CustomizationBase {
+	readonly type: CustomizationType.Agent;
+	readonly description?: string;
+	readonly model?: string;
+	readonly tools?: string[];
+	readonly disableModelInvocation?: boolean;
+	readonly disableUserInvocation?: boolean;
+}
+
+export interface SkillCustomization extends CustomizationBase {
+	readonly type: CustomizationType.Skill;
+	readonly description?: string;
+}
+
+export interface RuleCustomization extends CustomizationBase {
+	readonly type: CustomizationType.Rule;
+	readonly description?: string;
+}
+
+export interface HookCustomization extends CustomizationBase {
+	readonly type: CustomizationType.Hook;
+}
+
+export interface McpServerCustomization extends CustomizationBase {
+	readonly type: CustomizationType.McpServer;
+	readonly state: { readonly kind: McpServerStatus };
+}
+
+export function customizationId(uri: string): string {
+	return uri;
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -374,7 +425,6 @@ export function makeMcpServerCustomization(definitionUri: URI, name: string): Mc
 		uri: definitionUri.toString(),
 		name,
 		state: { kind: McpServerStatus.Stopped },
-		mcpApp: DEFAULT_MCP_APP,
 	};
 }
 
@@ -1295,7 +1345,7 @@ export function parseMcpServerDefinitionMap(
 /**
  * Parses a plugin directory to extract hooks, MCP servers, skills, agents,
  * and instructions.
- * This is the main entry point for the agent host to discover plugin contents.
+	 * This is the main entry point for a session provider to discover plugin contents.
  */
 export async function parsePlugin(
 	pluginUri: URI,

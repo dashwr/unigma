@@ -29,6 +29,13 @@ export interface NoticeEntry {
 	 * names/lengths are unaffected.
 	 */
 	licenseText?: string;
+	/**
+	 * The single leading URL line stripped from `licenseText`, if the entry had
+	 * one. Kept so callers that re-render a NOTICE (merge-notices.ts) can put the
+	 * URL back on its own line instead of folding it into the license body.
+	 * Empty string when the entry carries no URL line.
+	 */
+	url?: string;
 }
 
 /**
@@ -78,6 +85,44 @@ export function isPackageHeader(line: string): boolean {
 	return false;
 }
 
+/** "name version - license" — the canonical CG header shape. */
+const NAME_VERSION_LICENSE = /^(.+?)\s+([\d][^\s]*)\s+-\s+(.+)$/;
+/** "name - license" — no version in the header. */
+const NAME_LICENSE = /^(.+?)\s+-\s+(.+)$/;
+/**
+ * "name version" — no license in the header. The version token is either
+ * digit-led (`1.1.2`, `3.7.1`, `5.9`) or a 40-char git SHA
+ * (`amazon-q-developer-cli f66e0b0e...`). Headers with no version token at all
+ * (`codex`, `vscode-win32-app-container-tokens`) fall through to name-only —
+ * a version is never invented.
+ */
+const NAME_VERSION = /^(.+?)\s+((?:\d[^\s]*)|(?:[0-9a-f]{40}))$/;
+
+/**
+ * Split a package header into name / version / license.
+ *
+ * Handles all four header shapes found in ThirdPartyNotices files. Fields that
+ * the header does not carry come back as empty strings; nothing is inferred.
+ */
+export function parseHeaderLine(headerLine: string): { name: string; version: string; license: string } {
+	const withLicense = headerLine.match(NAME_VERSION_LICENSE);
+	if (withLicense) {
+		return { name: withLicense[1], version: withLicense[2], license: withLicense[3] };
+	}
+
+	const licenseOnly = headerLine.match(NAME_LICENSE);
+	if (licenseOnly) {
+		return { name: licenseOnly[1], version: '', license: licenseOnly[2] };
+	}
+
+	const versionOnly = headerLine.match(NAME_VERSION);
+	if (versionOnly) {
+		return { name: versionOnly[1], version: versionOnly[2], license: '' };
+	}
+
+	return { name: headerLine, version: '', license: '' };
+}
+
 export function parseNoticeFile(filePath: string): NoticeEntry[] {
 	const content = fs.readFileSync(filePath, 'utf8');
 	const lines = content.split('\n');
@@ -116,33 +161,15 @@ export function parseNoticeFile(filePath: string): NoticeEntry[] {
 
 		// Validate that this looks like a real package header, not license
 		// prose that happens to follow a decorative dash line.
-		// Real headers: "name version - license", "name - license", or "name"
+		// Real headers: "name version - license", "name - license",
+		//   "name version", or "name"
 		// False positives: "END OF TERMS AND CONDITIONS", "Apache License",
 		//   "The MIT License (MIT)", "Copyright (c) ...", etc.
 		if (!isPackageHeader(headerLine)) {
 			continue;
 		}
 
-		// Parse: "name version - license" or just "name"
-		const match = headerLine.match(/^(.+?)\s+([\d][^\s]*)\s+-\s+(.+)$/);
-		let name: string, version: string, license: string;
-		if (match) {
-			name = match[1];
-			version = match[2];
-			license = match[3];
-		} else {
-			// Try: "name - license" (no version)
-			const match2 = headerLine.match(/^(.+?)\s+-\s+(.+)$/);
-			if (match2) {
-				name = match2[1];
-				version = '';
-				license = match2[2];
-			} else {
-				name = headerLine;
-				version = '';
-				license = '';
-			}
-		}
+		const { name, version, license } = parseHeaderLine(headerLine);
 
 		// Measure license text length (everything until next separator) and
 		// capture the body slice. The body strips a single leading URL line so
@@ -162,9 +189,11 @@ export function parseNoticeFile(filePath: string): NoticeEntry[] {
 		while (bodyLines.length > 0 && !bodyLines[0].trim()) {
 			bodyLines.shift();
 		}
+		let url = '';
 		if (bodyLines.length > 0) {
 			const first = bodyLines[0].trim();
 			if (first.startsWith('http://') || first.startsWith('https://')) {
+				url = first;
 				bodyLines.shift();
 			}
 		}
@@ -177,6 +206,7 @@ export function parseNoticeFile(filePath: string): NoticeEntry[] {
 			licenseTextLength: textLength,
 			lineNumber: headerIdx + 1, // 1-indexed
 			licenseText,
+			url,
 		});
 	}
 

@@ -136,7 +136,7 @@ function getElevatedWarningCopy(level: ChatPermissionLevel, defaultSettingKey: s
  *
  * `options.defaultSettingKey` controls which "make this the default" setting
  * the dialog links to — local chat uses `chat.permissions.default` (the
- * default), while agent-host sessions pass
+ * default), while remote sessions pass
  * `chat.defaultConfiguration`.
  */
 export async function maybeConfirmElevatedPermissionLevel(

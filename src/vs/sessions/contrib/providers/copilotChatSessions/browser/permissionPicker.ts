@@ -39,7 +39,7 @@ const PERMISSION_LEVEL_OPTION_ID = 'permissionLevel';
  *
  * Implementations live with the provider they back (e.g.
  * {@link CopilotPermissionPickerDelegate} below for the default Copilot
- * provider, or `AgentHostPermissionPickerDelegate` in the agent-host folder).
+ * provider-specific permission picker delegate.
  */
 export interface IPermissionPickerDelegate {
 	/**
@@ -68,7 +68,7 @@ export interface IPermissionPickerDelegate {
 
 	/**
 	 * The setting id the elevated-level warning dialog links to as "make this
-	 * the default". Defaults to `chat.permissions.default`; agent-host sessions
+	 * the default". Defaults to `chat.permissions.default`; provider sessions
 	 * pass `chat.defaultConfiguration`.
 	 */
 	readonly defaultSettingKey?: string;
@@ -233,7 +233,7 @@ export class PermissionPicker extends Disposable {
 				// the inner slot leaves the wrapper occupying its `min-width`
 				// floor and produces a visible empty gap in the chip row when
 				// the picker isn't applicable to the active session (e.g.
-				// Claude agent host has no `autoApprove` in its schema).
+				// Claude runtime has no `autoApprove` in its schema).
 				container.style.display = visible ? '' : 'none';
 			}));
 		}

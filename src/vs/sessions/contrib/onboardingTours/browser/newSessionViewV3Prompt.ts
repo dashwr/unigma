@@ -6,9 +6,7 @@
 import { raceTimeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
-import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { format } from '../../../../base/common/strings.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -19,7 +17,6 @@ import { IGitService } from '../../../../workbench/contrib/git/common/gitService
 import { getGitHubRemoteInfo, IGitHubRemoteInfo } from '../../../../workbench/contrib/git/common/utils.js';
 import { getOnboardingDeveloperModeVariation, isOnboardingDeveloperModeEnabled, OnboardingDeveloperModeVariations, ONBOARDING_DEVELOPER_MODE_VARIATIONS_CONFIG } from '../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { IWorkbenchAssignmentService } from '../../../../workbench/services/assignment/common/assignmentService.js';
-import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { INewSessionComposer, INewSessionComposerService, INewSessionPromptOption, INewSessionPromptOptionsController, NEW_SESSION_PROMPT_TYPING_DURATION_MS, NewSessionPromptOptionsState } from '../../chat/browser/newSessionComposerService.js';
@@ -73,12 +70,6 @@ interface INewSessionViewV3RepositoryContext {
 	readonly folderUri: string;
 	readonly repository: IGitHubRemoteInfo;
 }
-
-type AgentHostRepositoryResolution =
-	| { readonly kind: 'pending' }
-	| { readonly kind: 'sessionChanged' }
-	| { readonly kind: 'noGitHubRemote' }
-	| { readonly kind: 'resolved'; readonly context: INewSessionViewV3RepositoryContext };
 
 type GitHubPromptResult =
 	| { readonly kind: 'candidate'; readonly candidate: INewSessionViewV3GitHubCandidate }
@@ -713,23 +704,6 @@ export class NewSessionViewV3PromptRunner {
 				this._logService.warn(`${LOG_PREFIX} Reading Git repository metadata directly from the selected workspace failed.`, error);
 			}
 
-			if (!enterpriseHost && isAgentHostProviderId(activeSession.providerId)) {
-				this._logService.info(`${LOG_PREFIX} Waiting for Agent Host git metadata for the active draft.`);
-				const result = await this._waitForAgentHostRepository(activeSession, token);
-				if (result.kind === 'sessionChanged') {
-					this._logService.info(`${LOG_PREFIX} The active draft changed while waiting for Agent Host git metadata; retrying.`);
-					continue;
-				}
-				if (result.kind === 'noGitHubRemote') {
-					this._logService.info(`${LOG_PREFIX} Agent Host git metadata reports that the selected workspace has no GitHub remote.`);
-					return undefined;
-				}
-				if (result.kind === 'resolved') {
-					this._logService.info(`${LOG_PREFIX} Resolved GitHub repository '${result.context.repository.owner}/${result.context.repository.repo}' from asynchronously published Agent Host metadata.`);
-					return result.context;
-				}
-			}
-
 			this._logService.trace(`${LOG_PREFIX} Session metadata, workspace URIs, and .git/config did not identify GitHub; inspecting Git extension remotes.`);
 			const repository = await this._gitService.openRepository(folder.workingDirectory);
 			if (!repository) {
@@ -745,45 +719,6 @@ export class NewSessionViewV3PromptRunner {
 			return this._createRepositoryContext(activeSession, workspace.uri.toString(), folder.workingDirectory.toString(), repositoryFromRemote);
 		}
 		return undefined;
-	}
-
-	private _waitForAgentHostRepository(activeSession: IActiveSession, token: CancellationToken): Promise<AgentHostRepositoryResolution> {
-		return new Promise((resolve, reject) => {
-			const disposables = new DisposableStore();
-			const reaction = disposables.add(new MutableDisposable());
-			const finish = (result: AgentHostRepositoryResolution) => {
-				disposables.dispose();
-				resolve(result);
-			};
-			reaction.value = autorun(reader => {
-				if (this._sessionsService.activeSession.read(reader) !== activeSession || activeSession.isCreated.read(reader)) {
-					finish({ kind: 'sessionChanged' });
-					return;
-				}
-				const workspace = activeSession.workspace.read(reader);
-				const folder = workspace?.folders[0];
-				const gitRepository = folder?.gitRepository;
-				const gitHubInfo = gitRepository?.gitHubInfo.read(reader);
-				if (workspace && folder && gitHubInfo) {
-					finish({
-						kind: 'resolved',
-						context: this._createRepositoryContext(activeSession, workspace.uri.toString(), folder.workingDirectory.toString(), { owner: gitHubInfo.owner, repo: gitHubInfo.repo }),
-					});
-					return;
-				}
-				if (gitRepository?.hasGitHubRemote === false) {
-					finish({ kind: 'noGitHubRemote' });
-				}
-			});
-			disposables.add(token.onCancellationRequested(() => {
-				disposables.dispose();
-				reject(new CancellationError());
-			}));
-			if (token.isCancellationRequested) {
-				disposables.dispose();
-				reject(new CancellationError());
-			}
-		});
 	}
 
 	private _logWorkspaceSnapshot(activeSession: IActiveSession): void {

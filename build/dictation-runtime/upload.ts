@@ -8,7 +8,7 @@
  * account. Callable as both a library function (`uploadOne(...)`) and a thin CLI.
  *
  * Auth: reads `AZURE_STORAGE_ACCOUNT`, `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`,
- * `AZURE_ID_TOKEN` from env — same shape as `build/agent-sdk/upload.ts`.
+ * `AZURE_ID_TOKEN` from env, using the standard CDN uploader credential shape.
  *
  * Idempotency: HEAD-first on the `.tgz` blob.
  *   - Absent → upload.

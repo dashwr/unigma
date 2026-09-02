@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { IDelayedHoverOptions, IHoverLifecycleOptions } from '../../../../../base/browser/ui/hover/hover.js';
-import { Event } from '../../../../../base/common/event.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -15,16 +14,10 @@ import { IContextViewDelegate, IContextViewService, IOpenContextView } from '../
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
-import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
-import { observableValue } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { AgentFeedbackAttachmentContribution } from '../../browser/agentFeedbackAttachment.js';
 import { AgentFeedbackAttachmentWidget } from '../../browser/agentFeedbackAttachmentWidget.js';
-import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackChangeEvent, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
+import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
 import { buildNewSessionPrompt } from '../../browser/agentFeedbackAttachmentEntry.js';
 import { IAgentFeedbackVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 
@@ -72,50 +65,6 @@ suite('AgentFeedbackAttachmentContribution', () => {
 	teardown(() => store.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('skips chat widget attachments for agent host sessions', () => {
-		const sessionResource = URI.parse('agent-host-copilot:/session-1');
-		const feedback: IAgentFeedback = {
-			id: 'feedback-1',
-			text: 'Check this',
-			resourceUri: URI.file('/workspace/a.ts'),
-			range: new Range(1, 1, 1, 5),
-			sessionResource,
-			kind: AgentFeedbackKind.UserReview,
-			state: AgentFeedbackState.Accepted,
-		};
-		let getWidgetCallCount = 0;
-		let listener: ((event: IAgentFeedbackChangeEvent) => void) | undefined;
-
-		const feedbackService = new class extends mock<IAgentFeedbackService>() {
-			override onDidChangeFeedback = (callback: (event: IAgentFeedbackChangeEvent) => void) => {
-				listener = callback;
-				return { dispose: () => { listener = undefined; } };
-			};
-			override getFeedback(): readonly IAgentFeedback[] { return [feedback]; }
-		};
-		const widgetService = new class extends mock<IChatWidgetService>() {
-			override getWidgetBySessionResource(_sessionResource: URI): IChatWidget | undefined {
-				getWidgetCallCount++;
-				throw new Error('attachments should not be read for agent host sessions');
-			}
-		};
-		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
-			override onDidChangeSessions = Event.None;
-			override getSession(resource: URI): ISession | undefined {
-				return resource.toString() === sessionResource.toString()
-					? { providerId: LOCAL_AGENT_HOST_PROVIDER_ID, status: observableValue('status', SessionStatus.InProgress) } as unknown as ISession
-					: undefined;
-			}
-		};
-
-		store.add(new AgentFeedbackAttachmentContribution(feedbackService, widgetService, sessionsManagementService));
-		assert.ok(listener, 'expected feedback listener to be registered');
-
-		listener!({ sessionResource, feedbackItems: [feedback] });
-
-		assert.strictEqual(getWidgetCallCount, 0);
-	});
-
 	test('formats new-session prompts with comment locations and nested replies', () => {
 		const sessionResource = URI.parse('agent-feedback:/new-session');
 		const feedback = (id: string, text: string, path: string, range: Range, replies?: readonly string[]): IAgentFeedback => ({
@@ -149,7 +98,7 @@ suite('AgentFeedbackAttachmentContribution', () => {
 
 	test('single comment uses a preview label and reveals directly', () => {
 		const instantiationService = store.add(new TestInstantiationService());
-		const sessionResource = URI.parse('agent-host-copilot:/session-1');
+		const sessionResource = URI.parse('test-session:/session-1');
 		const revealedFeedbackIds: string[] = [];
 		const feedbackService = new class extends mock<IAgentFeedbackService>() {
 			override async revealFeedback(_sessionResource: URI, feedbackId: string): Promise<void> {
@@ -201,7 +150,7 @@ suite('AgentFeedbackAttachmentContribution', () => {
 
 	test('multiple comments toggle a context view without revealing a comment', () => {
 		const instantiationService = store.add(new TestInstantiationService());
-		const sessionResource = URI.parse('agent-host-copilot:/session-1');
+		const sessionResource = URI.parse('test-session:/session-1');
 		const revealedFeedbackIds: string[] = [];
 		const feedbackService = new class extends mock<IAgentFeedbackService>() {
 			override async revealFeedback(_sessionResource: URI, feedbackId: string): Promise<void> {

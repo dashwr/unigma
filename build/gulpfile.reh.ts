@@ -13,7 +13,7 @@ import * as optimize from './lib/optimize.ts';
 import { inlineMeta } from './lib/inlineMeta.ts';
 import product from '../product.json' with { type: 'json' };
 import { getProductionDependencies } from './lib/dependencies.ts';
-import { readISODate } from './lib/date.ts';
+import { readISODate, writeISODate } from './lib/date.ts';
 import vfs from 'vinyl-fs';
 import packageJson from '../package.json' with { type: 'json' };
 import { untar } from './lib/util.ts';
@@ -23,6 +23,9 @@ import glob from 'glob';
 import { promisify } from 'util';
 import rceditCallback from 'rcedit';
 import { compileBuildWithManglingTask } from './gulpfile.compile.ts';
+import { useEsbuildTranspile } from './buildConfig.ts';
+import { runEsbuildBundle } from './lib/esbuild.ts';
+import { copyCodiconsTask } from './lib/compilation.ts';
 import { cleanExtensionsBuildTask, compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileExtensionMediaBuildTask, compileCopilotExtensionBuildTask } from './gulpfile.extensions.ts';
 import { vscodeWebResourceIncludes, createVSCodeWebFileContentMapper } from './gulpfile.vscode.web.ts';
 import * as cp from 'child_process';
@@ -32,7 +35,6 @@ import buildfile from './buildfile.ts';
 import { fetchUrls } from './lib/fetch.ts';
 import { downloadFeedPackage } from './lib/azureFeed.ts';
 import { ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getCopilotTgrepExcludeFilter, getMxcExcludeFilter, getRipgrepExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';
-import { readAgentSdkResults } from './agent-sdk/common.ts';
 
 
 const rcedit = promisify(rceditCallback);
@@ -41,6 +43,10 @@ const REPO_ROOT = path.dirname(import.meta.dirname);
 const commit = getVersion(REPO_ROOT);
 const BUILD_ROOT = path.dirname(REPO_ROOT);
 const REMOTE_FOLDER = path.join(REPO_ROOT, 'remote');
+
+const hasBuiltInCopilot = product.builtInExtensions.some(({ name }) => name === 'copilot');
+const sourceMappingURLBase = `https://main.vscode-cdn.net/sourcemaps/${commit}`;
+const isCI = !!process.env['CI'] || !!process.env['BUILD_ARTIFACTSTAGINGDIRECTORY'] || !!process.env['GITHUB_WORKSPACE'];
 
 // Targets
 
@@ -414,16 +420,6 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 				json.commit = commit;
 				json.date = readISODate(sourceFolderName);
 				json.version = version;
-				// Stamp agentSdks from the per-platform results file produced
-				// by `build/agent-sdk/produce.ts`. REH-only: REH-web is
-				// browser-served and the agent host is node-only, so the
-				// SDK config has no consumer there.
-				if (type === 'reh') {
-					const agentSdks = readAgentSdkResults();
-					if (Object.keys(agentSdks).length > 0) {
-						json.agentSdks = agentSdks;
-					}
-				}
 				return json;
 			}))
 			.pipe(es.through(function (file) {
@@ -442,8 +438,12 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 			.pipe(filter(['**', '!**/package-lock.json', '!**/*.{js,css}.map']))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, '.moduleignore')))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, `.moduleignore.${process.platform}`)));
-		ensureCopilotPlatformPackage(platform, arch, 'remote/node_modules');
-		const copilotRuntimePrebuilds = gulp.src(getCopilotRuntimePrebuildFiles(platform, arch, 'remote/node_modules'), { base: 'remote', dot: true, allowEmpty: true });
+		if (hasBuiltInCopilot) {
+			ensureCopilotPlatformPackage(platform, arch, 'remote/node_modules');
+		}
+		const copilotRuntimePrebuilds = hasBuiltInCopilot
+			? gulp.src(getCopilotRuntimePrebuildFiles(platform, arch, 'remote/node_modules'), { base: 'remote', dot: true, allowEmpty: true })
+			: es.readArray([]);
 		const deps = es.merge(cleanedDeps, copilotRuntimePrebuilds)
 			.pipe(filter(getCopilotExcludeFilter(platform, arch)))
 			.pipe(filter(getCopilotTgrepExcludeFilter(platform, arch)))
@@ -586,7 +586,7 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 			await rcedit(fullPath, {
 				'file-version': baseVersion,
 				'version-string': {
-					'CompanyName': 'Microsoft Corporation',
+					'CompanyName': 'unigma contributors',
 					'FileDescription': productContents.nameLong,
 					'FileVersion': packageJsonContents.version,
 					'InternalName': basename,
@@ -604,6 +604,9 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 
 function prepareCopilotRipgrepShimTaskREH(platform: string, arch: string, destinationFolderName: string) {
 	return async () => {
+		if (!hasBuiltInCopilot) {
+			return;
+		}
 		const outputDir = path.join(BUILD_ROOT, destinationFolderName);
 		const nodeModulesDir = path.join(outputDir, 'node_modules');
 
@@ -671,15 +674,35 @@ function tweakProductForServerWeb(product: typeof import('../product.json')) {
 			const serverTaskCI = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(...packageTasks));
 			task.task(serverTaskCI);
 
-			const serverTask = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
-				compileBuildWithManglingTask,
-				cleanExtensionsBuildTask,
-				compileNonNativeExtensionsBuildTask,
-				compileCopilotExtensionBuildTask,
-				compileExtensionMediaBuildTask,
-				minified ? minifyTask : bundleTask,
-				serverTaskCI
-			));
+			// Mirror the desktop packaging path: when esbuild transpilation is
+			// enabled the server bundle is produced by esbuild instead of the
+			// gulp-tsb mangling pipeline, which the desktop task already uses.
+			const serverTask = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}`, useEsbuildTranspile
+				? task.series(
+					copyCodiconsTask,
+					cleanExtensionsBuildTask,
+					compileNonNativeExtensionsBuildTask,
+					...(hasBuiltInCopilot ? [compileCopilotExtensionBuildTask] : []),
+					compileExtensionMediaBuildTask,
+					writeISODate('out-build'),
+					task.define(`esbuild-bundle-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}`, () => runEsbuildBundle(
+						sourceFolderName,
+						!!minified,
+						true,
+						type === 'reh' ? 'server' : 'server-web',
+						minified && isCI ? `${sourceMappingURLBase}/core` : undefined
+					)),
+					serverTaskCI
+				)
+				: task.series(
+					compileBuildWithManglingTask,
+					cleanExtensionsBuildTask,
+					compileNonNativeExtensionsBuildTask,
+					...(hasBuiltInCopilot ? [compileCopilotExtensionBuildTask] : []),
+					compileExtensionMediaBuildTask,
+					minified ? minifyTask : bundleTask,
+					serverTaskCI
+				));
 			task.task(serverTask);
 		});
 	});

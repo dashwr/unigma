@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import type { DisposableLike } from '../domain/runtime';
-import type { RuntimePorts } from '../application/runtimePorts';
+import type { LocalIntegrationPreflightResult, RuntimePorts } from '../application/runtimePorts';
 import { RedactedDiagnosticSink } from './diagnostics';
 import { OpenCodeHttpClient } from './openCodeHttpClient';
 import { ChildProcessManager } from './processManager';
@@ -23,6 +23,10 @@ export function createRuntimeInfrastructure(context: vscode.ExtensionContext): R
 	const processManager = new ChildProcessManager();
 	const openCodeClient = new OpenCodeHttpClient({ diagnostics });
 	const sessionReferenceStore = new WorkspaceStateSessionReferenceStore(context.workspaceState);
+	const workspaceTrust = {
+		isTrusted: (workspace: { readonly uri: string }): boolean => vscode.workspace.isTrusted
+			&& vscode.workspace.workspaceFolders?.some(folder => folder.uri.toString() === workspace.uri) === true,
+	};
 	let disconnectPromise: Promise<void> | undefined;
 	let stopPromise: Promise<void> | undefined;
 	const disconnect = (): Promise<void> => disconnectPromise ??= openCodeClient.disconnect();
@@ -36,13 +40,23 @@ export function createRuntimeInfrastructure(context: vscode.ExtensionContext): R
 
 	return {
 		ports: {
+			workspaceTrust,
 			processManager: {
 				ensureStarted: workspace => processManager.ensureStarted(workspace),
 				stopOwned,
 			},
+			localIntegrationPreflight: (workspace, _requested): LocalIntegrationPreflightResult => {
+				if (!workspaceTrust.isTrusted(workspace)) {
+					return { accepted: false, code: 'workspaceUntrusted' };
+				}
+				// O extension host ainda nao enumera plugin/regra; ausencia de classificador proprio recusa.
+				return { accepted: false, code: 'unknownOrigin' };
+			},
 			openCodeClient: {
 				connect: process => openCodeClient.connect(process),
 				disconnect,
+				send: request => openCodeClient.send(request),
+				onEvent: listener => openCodeClient.onEvent(listener),
 			},
 			sessionReferenceStore,
 			diagnostics,

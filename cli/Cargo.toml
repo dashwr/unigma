@@ -37,7 +37,6 @@ dialoguer = "0.10.4"
 hyper = { version = "1", features = ["server", "http1", "client"] }
 hyper-util = { version = "0.1", features = ["tokio", "server-auto"] }
 http-body-util = "0.1"
-tokio-tungstenite = { version = "0.29", features = ["native-tls"] }
 indicatif = "0.17.4"
 tempfile = "3.5.0"
 clap_lex = "1"
@@ -53,8 +52,6 @@ console = "0.15.7"
 bytes = "1.11.1"
 tar = "0.4.46"
 local-ip-address = "0.6"
-ahp = "0.7.0"
-ahp-types = "0.7.0"
 
 [build-dependencies]
 serde = { version="1.0.163", features = ["derive"] }
@@ -66,10 +63,6 @@ winreg = "0.56"
 winapi = "0.3.9"
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_Security_Authorization", "Win32_System_Console", "Win32_System_Threading", "Win32_UI_Input_KeyboardAndMouse"] }
 
-[patch.crates-io]
-russh = { git = "https://github.com/microsoft/vscode-russh", branch = "main" }
-russh-cryptovec = { git = "https://github.com/microsoft/vscode-russh", branch = "main" }
-russh-keys = { git = "https://github.com/microsoft/vscode-russh", branch = "main" }
 
 [profile.release]
 strip = true

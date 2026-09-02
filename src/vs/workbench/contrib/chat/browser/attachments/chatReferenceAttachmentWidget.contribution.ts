@@ -13,7 +13,7 @@ import { IChatAttachmentWidgetRegistry } from './chatAttachmentWidgetRegistry.js
 
 /**
  * Registers the {@link ChatReferenceAttachmentWidget} with the shared
- * {@link IChatAttachmentWidgetRegistry} so agent-host chat-reference
+ * {@link IChatAttachmentWidgetRegistry} so chat-reference
  * (`#chat:<title>`) attachments render as clickable chips in both the chat
  * input pill area and rendered past-request tiles. The widget is matched by the
  * first-class `chatReference` attachment `kind`.

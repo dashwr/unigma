@@ -4,9 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import type { ErrorInfo } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChatEntitlement } from '../../../services/chat/common/chatEntitlementService.js';
 import { ChatErrorLevel, IChatResponseErrorDetails } from './chatService/chatService.js';
+
+export interface ErrorInfo {
+	readonly errorType: string;
+	readonly message: string;
+	readonly stack?: string;
+	readonly _meta?: Record<string, unknown>;
+}
 
 /**
  * Mirror of the Copilot extension's `ChatFetchResponseType` (see

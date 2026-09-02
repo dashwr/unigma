@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) 2026 unigma contributors
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
@@ -16,16 +16,42 @@ export const enum AgentCommandType {
 	Reject = 'reject',
 	ListWorktrees = 'worktrees',
 	ApplyConfiguration = 'configure',
+	ListCatalog = 'catalog',
+	ListModels = 'models',
 }
+
+/** Sanitized result from the local integration preflight. */
+export type AgentLocalIntegrationPreflightCode =
+	| 'workspaceUntrusted'
+	| 'unknownOrigin'
+	| 'ambiguousPrecedence'
+	| 'pathOutsideApprovedScope'
+	| 'externalSymlink'
+	| 'pathUnavailable'
+	| 'configurationInvalid'
+	| 'installerCommand'
+	| 'npmPlugin'
+	| 'startupInstallation'
+	| 'insecureUrl'
+	| 'silentOAuth'
+	| 'permissionDenied';
+
+export type AgentLocalIntegrationPreflight =
+	| { readonly accepted: true }
+	| { readonly accepted: false; readonly code: AgentLocalIntegrationPreflightCode };
 
 export const enum AgentEventType {
 	State = 'state',
 	Content = 'content',
 	Diff = 'diff',
 	Permission = 'permission',
+	PermissionResolved = 'permissionResolved',
 	Worktrees = 'worktrees',
 	Result = 'result',
 	Error = 'error',
+	Catalog = 'catalog',
+	Models = 'models',
+	Configuration = 'configuration',
 }
 
 export const enum AgentSessionState {
@@ -49,7 +75,30 @@ export const enum AgentErrorCode {
 	WorktreeNotFound = 'worktreeNotFound',
 	ConfigurationInvalid = 'configurationInvalid',
 	Internal = 'internal',
+	CapabilityUnavailable = 'capabilityUnavailable',
 }
+
+/** Transient, sanitized entries returned by a documented OpenCode catalog. */
+export type AgentCatalogEntryKind = 'command' | 'skill';
+
+export interface AgentCatalogEntry {
+	readonly id: string;
+	readonly name: string;
+	readonly description: string;
+	readonly kind: AgentCatalogEntryKind;
+}
+
+export interface AgentCatalogUnavailable {
+	readonly available: false;
+	readonly error: AgentError;
+}
+
+export interface AgentCatalogAvailable {
+	readonly available: true;
+	readonly entries: readonly AgentCatalogEntry[];
+}
+
+export type AgentCatalogResult = AgentCatalogAvailable | AgentCatalogUnavailable;
 
 export const enum AgentApprovalKind {
 	Edit = 'edit',
@@ -81,6 +130,8 @@ export interface AgentStartSessionCommand extends AgentCommandBase {
 	readonly sessionId?: string;
 	/** Workspace reference only. The runtime resolves files and processes. */
 	readonly workspaceUri?: string;
+	/** No raw integration configuration or credentials cross this boundary. */
+	readonly localIntegrationPreflight: AgentLocalIntegrationPreflight;
 }
 
 export interface AgentStopSessionCommand extends AgentSessionCommandBase {
@@ -114,17 +165,20 @@ export interface AgentListWorktreesCommand extends AgentSessionCommandBase {
 }
 
 /** Configuration contains identifiers only; credentials stay with the runtime/provider. */
-export interface AgentConfiguration {
-	readonly provider?: string;
-	readonly model?: string;
-	readonly worktreeId?: string;
+export interface AgentModelConfiguration {
+	readonly provider: string;
+	readonly model: string;
 }
 
-export interface AgentApplyConfigurationCommand extends AgentCommandBase {
+export interface AgentApplyConfigurationCommand extends AgentSessionCommandBase {
 	readonly type: AgentCommandType.ApplyConfiguration;
-	readonly sessionId?: string;
-	readonly configuration: AgentConfiguration;
+	readonly configuration: AgentModelConfiguration;
 }
+
+export interface AgentListCatalogCommand extends AgentSessionCommandBase {
+	readonly type: AgentCommandType.ListCatalog;
+}
+export interface AgentListModelsCommand extends AgentSessionCommandBase { readonly type: AgentCommandType.ListModels }
 
 export type AgentCommand =
 	| AgentStartSessionCommand
@@ -134,12 +188,26 @@ export type AgentCommand =
 	| AgentApproveCommand
 	| AgentRejectCommand
 	| AgentListWorktreesCommand
-	| AgentApplyConfigurationCommand;
+	| AgentApplyConfigurationCommand
+	| AgentListCatalogCommand
+	| AgentListModelsCommand;
+
+export interface AgentModelEntry { readonly providerId: string; readonly modelId: string; readonly label: string; readonly providerLabel: string }
+export interface AgentModelsEvent extends AgentSessionEventBase { readonly type: AgentEventType.Models; readonly entries: readonly AgentModelEntry[] }
+export interface AgentConfigurationEvent extends AgentSessionEventBase { readonly type: AgentEventType.Configuration; readonly selection: { readonly providerId: string; readonly modelId: string } }
+
+export interface AgentCatalogEvent extends AgentSessionEventBase {
+	readonly type: AgentEventType.Catalog;
+	readonly entries: readonly AgentCatalogEntry[];
+}
 
 export interface AgentDiffFile {
 	readonly path: string;
-	readonly original: string;
-	readonly modified: string;
+	/** Legacy full-content representation used by fixtures. */
+	readonly original?: string;
+	readonly modified?: string;
+	/** Unified patch representation returned by OpenCode. */
+	readonly patch?: string;
 }
 
 export interface AgentDiff {
@@ -153,6 +221,18 @@ export interface AgentPermissionRequest {
 	readonly title: string;
 	readonly description?: string;
 	readonly diffId?: string;
+}
+
+/** The reply values documented by the pinned OpenCode release. */
+export type AgentPermissionReply = 'once' | 'always' | 'reject';
+
+/**
+ * Reports how a permission request was actually answered by the runtime.
+ * The UI must not retire an approval before receiving this.
+ */
+export interface AgentPermissionResolution {
+	readonly approvalId: string;
+	readonly reply: AgentPermissionReply;
 }
 
 export interface AgentWorktree {
@@ -172,6 +252,22 @@ export interface AgentError {
 	readonly code: AgentErrorCode;
 	readonly message: string;
 	readonly retryable: boolean;
+}
+
+export function validateAgentCatalog(value: unknown): AgentValidationResult<readonly AgentCatalogEntry[]> {
+	if (!Array.isArray(value)) {
+		return { valid: false, error: { code: AgentErrorCode.InvalidPayload, message: 'Catalog must be an array.', retryable: false } };
+	}
+	const entries: AgentCatalogEntry[] = [];
+	for (const entry of value) {
+		if (!isRecord(entry) || !hasOnlyKeys(entry, ['id', 'name', 'description', 'kind'])
+			|| !isNonEmptyString(entry.id) || !isNonEmptyString(entry.name) || typeof entry.description !== 'string'
+			|| (entry.kind !== 'command' && entry.kind !== 'skill')) {
+			return { valid: false, error: { code: AgentErrorCode.InvalidPayload, message: 'Catalog entry is invalid.', retryable: false } };
+		}
+		entries.push({ id: entry.id, name: entry.name, description: entry.description, kind: entry.kind });
+	}
+	return { valid: true, value: entries };
 }
 
 export interface AgentEventBase {
@@ -207,6 +303,11 @@ export interface AgentPermissionEvent extends AgentSessionEventBase {
 	readonly permission: AgentPermissionRequest;
 }
 
+export interface AgentPermissionResolvedEvent extends AgentSessionEventBase {
+	readonly type: AgentEventType.PermissionResolved;
+	readonly resolution: AgentPermissionResolution;
+}
+
 export interface AgentWorktreesEvent extends AgentSessionEventBase {
 	readonly type: AgentEventType.Worktrees;
 	readonly worktrees: readonly AgentWorktree[];
@@ -229,9 +330,14 @@ export type AgentEvent =
 	| AgentContentEvent
 	| AgentDiffEvent
 	| AgentPermissionEvent
+	| AgentPermissionResolvedEvent
 	| AgentWorktreesEvent
 	| AgentResultEvent
-	| AgentErrorEvent;
+	| AgentErrorEvent
+	| AgentCatalogEvent
+	| AgentModelsEvent
+	| AgentConfigurationEvent;
+
 
 export interface AgentValidationSuccess<T> {
 	readonly valid: true;
@@ -255,6 +361,39 @@ function isNonEmptyString(value: unknown): value is string {
 
 function isOptionalString(value: unknown): value is string | undefined {
 	return value === undefined || isNonEmptyString(value);
+}
+
+function isAgentLocalIntegrationPreflightCode(value: unknown): value is AgentLocalIntegrationPreflightCode {
+	switch (value) {
+		case 'workspaceUntrusted':
+		case 'unknownOrigin':
+		case 'ambiguousPrecedence':
+		case 'pathOutsideApprovedScope':
+		case 'externalSymlink':
+		case 'pathUnavailable':
+		case 'configurationInvalid':
+		case 'installerCommand':
+		case 'npmPlugin':
+		case 'startupInstallation':
+		case 'insecureUrl':
+		case 'silentOAuth':
+		case 'permissionDenied':
+			return true;
+		default:
+			return false;
+	}
+}
+
+function isAgentLocalIntegrationPreflight(value: unknown): value is AgentLocalIntegrationPreflight {
+	if (!isRecord(value) || !('accepted' in value)) {
+		return false;
+	}
+	if (value.accepted === true) {
+		return Object.keys(value).length === 1;
+	}
+	return value.accepted === false
+		&& Object.keys(value).length === 2
+		&& isAgentLocalIntegrationPreflightCode(value.code);
 }
 
 function hasOnlyKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
@@ -340,20 +479,16 @@ function isAgentErrorCode(value: unknown): value is AgentErrorCode {
 		case AgentErrorCode.WorktreeNotFound:
 		case AgentErrorCode.ConfigurationInvalid:
 		case AgentErrorCode.Internal:
+		case AgentErrorCode.CapabilityUnavailable:
 			return true;
 		default:
 			return false;
 	}
 }
 
-export function isAgentConfiguration(value: unknown): value is AgentConfiguration {
-	if (!isRecord(value) || !hasOnlyKeys(value, ['provider', 'model', 'worktreeId'])) {
-		return false;
-	}
-
-	return isOptionalString(value.provider)
-		&& isOptionalString(value.model)
-		&& isOptionalString(value.worktreeId);
+export function isAgentModelConfiguration(value: unknown): value is AgentModelConfiguration {
+	return isRecord(value) && hasOnlyKeys(value, ['provider', 'model'])
+		&& isNonEmptyString(value.provider) && isNonEmptyString(value.model);
 }
 
 export function isAgentDiff(value: unknown): value is AgentDiff {
@@ -365,13 +500,13 @@ export function isAgentDiff(value: unknown): value is AgentDiff {
 	}
 
 	return value.files.every(file => {
-		if (!isRecord(file) || !hasOnlyKeys(file, ['path', 'original', 'modified'])) {
+		if (!isRecord(file) || !isNonEmptyString(file.path)) {
 			return false;
 		}
-
-		return isNonEmptyString(file.path)
-			&& typeof file.original === 'string'
-			&& typeof file.modified === 'string';
+		if (hasOnlyKeys(file, ['path', 'original', 'modified'])) {
+			return typeof file.original === 'string' && typeof file.modified === 'string';
+		}
+		return hasOnlyKeys(file, ['path', 'patch']) && typeof file.patch === 'string';
 	});
 }
 
@@ -387,6 +522,13 @@ function isAgentPermissionRequest(value: unknown): value is AgentPermissionReque
 	}
 
 	return true;
+}
+
+function isAgentPermissionResolution(value: unknown): value is AgentPermissionResolution {
+	return isRecord(value)
+		&& hasOnlyKeys(value, ['approvalId', 'reply'])
+		&& isNonEmptyString(value.approvalId)
+		&& (value.reply === 'once' || value.reply === 'always' || value.reply === 'reject');
 }
 
 function isAgentWorktree(value: unknown): value is AgentWorktree {
@@ -406,6 +548,20 @@ function isAgentResult(value: unknown): value is AgentResult {
 		&& isOptionalString(value.diffId);
 }
 
+function isAgentCatalogEntry(value: unknown): value is AgentCatalogEntry {
+	return isRecord(value)
+		&& hasOnlyKeys(value, ['id', 'name', 'description', 'kind'])
+		&& isNonEmptyString(value.id)
+		&& isNonEmptyString(value.name)
+		&& typeof value.description === 'string'
+		&& (value.kind === 'command' || value.kind === 'skill');
+}
+function isAgentModelEntry(value: unknown): value is AgentModelEntry {
+	return isRecord(value) && hasOnlyKeys(value, ['providerId', 'modelId', 'label', 'providerLabel'])
+		&& isNonEmptyString(value.providerId) && isNonEmptyString(value.modelId)
+		&& isNonEmptyString(value.label) && isNonEmptyString(value.providerLabel);
+}
+
 function isAgentError(value: unknown): value is AgentError {
 	return isRecord(value)
 		&& hasOnlyKeys(value, ['code', 'message', 'retryable'])
@@ -423,13 +579,15 @@ function getAgentCommandError(value: unknown): AgentError | undefined {
 	const command = value as Record<string, unknown>;
 	switch (command.type) {
 		case AgentCommandType.StartSession:
-			return hasOnlyKeys(command, ['version', 'requestId', 'type', 'sessionId', 'workspaceUri'])
+			return hasOnlyKeys(command, ['version', 'requestId', 'type', 'sessionId', 'workspaceUri', 'localIntegrationPreflight'])
 				&& isOptionalString(command.sessionId)
 				&& isOptionalString(command.workspaceUri)
+				&& isAgentLocalIntegrationPreflight(command.localIntegrationPreflight)
 				? undefined
-				: invalidPayload('Start command has an invalid sessionId or workspaceUri.');
+				: invalidPayload('Start command has an invalid sessionId, workspaceUri, or local integration preflight.');
 		case AgentCommandType.StopSession:
 		case AgentCommandType.ListWorktrees:
+		case AgentCommandType.ListCatalog:
 			return hasOnlyKeys(command, ['version', 'requestId', 'type', 'sessionId'])
 				&& isNonEmptyString(command.sessionId)
 				? undefined
@@ -458,8 +616,8 @@ function getAgentCommandError(value: unknown): AgentError | undefined {
 				: invalidPayload('Approval command requires a sessionId and approvalId.');
 		case AgentCommandType.ApplyConfiguration:
 			return hasOnlyKeys(command, ['version', 'requestId', 'type', 'sessionId', 'configuration'])
-				&& isOptionalString(command.sessionId)
-				&& isAgentConfiguration(command.configuration)
+				&& isNonEmptyString(command.sessionId)
+				&& isAgentModelConfiguration(command.configuration)
 				? undefined
 				: invalidPayload('Configuration command has an invalid sessionId or configuration.');
 		default:
@@ -502,6 +660,12 @@ function getAgentEventError(value: unknown): AgentError | undefined {
 				&& isAgentPermissionRequest(event.permission)
 				? undefined
 				: invalidPayload('Permission event requires a sessionId and valid permission.');
+		case AgentEventType.PermissionResolved:
+			return hasOnlyKeys(event, ['version', 'type', 'requestId', 'sessionId', 'resolution'])
+				&& sessionIdIsValid
+				&& isAgentPermissionResolution(event.resolution)
+				? undefined
+				: invalidPayload('Permission resolved event requires a sessionId and valid resolution.');
 		case AgentEventType.Worktrees:
 			return hasOnlyKeys(event, ['version', 'type', 'requestId', 'sessionId', 'worktrees'])
 				&& sessionIdIsValid
@@ -515,6 +679,22 @@ function getAgentEventError(value: unknown): AgentError | undefined {
 				&& isAgentResult(event.result)
 				? undefined
 				: invalidPayload('Result event requires a sessionId and valid result.');
+		case AgentEventType.Catalog:
+			return hasOnlyKeys(event, ['version', 'type', 'requestId', 'sessionId', 'entries'])
+				&& sessionIdIsValid
+				&& Array.isArray(event.entries)
+				&& event.entries.every(isAgentCatalogEntry)
+				? undefined
+				: invalidPayload('Catalog event requires a sessionId and sanitized entries.');
+		case AgentEventType.Models:
+			return hasOnlyKeys(event, ['version', 'type', 'requestId', 'sessionId', 'entries']) && sessionIdIsValid
+				&& Array.isArray(event.entries) && event.entries.every(isAgentModelEntry)
+				? undefined : invalidPayload('Models event requires a sessionId and sanitized entries.');
+		case AgentEventType.Configuration:
+			return hasOnlyKeys(event, ['version', 'type', 'requestId', 'sessionId', 'selection']) && sessionIdIsValid
+				&& isRecord(event.selection) && hasOnlyKeys(event.selection, ['providerId', 'modelId'])
+				&& isNonEmptyString(event.selection.providerId) && isNonEmptyString(event.selection.modelId)
+				? undefined : invalidPayload('Configuration event requires a sanitized selection.');
 		case AgentEventType.Error:
 			return hasOnlyKeys(event, ['version', 'type', 'requestId', 'sessionId', 'error'])
 				&& isOptionalString(event.sessionId)

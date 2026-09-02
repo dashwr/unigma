@@ -11,7 +11,6 @@ import { AbstractChatResponseFileChangesService, IChatResponseFileChangesOpenCon
 import { IEditSessionEntryDiff } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISession, ISessionChangeset, ISessionFileChange, TURN_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -44,13 +43,9 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 		}
 		if (context.isLastTurn) {
 			if (requestId === undefined) {
-				if (isAgentHostProviderId(owner.session.providerId)) {
-					void this._openSessionTurnChanges(owner.session);
-				} else {
-					const changes = owner.chat.lastTurnChanges;
-					if (changes) {
-						this._openTransientLastTurnChanges(owner.session, owner.chat.resource.toString(), changes);
-					}
+				const changes = owner.chat.lastTurnChanges;
+				if (changes) {
+					this._openTransientLastTurnChanges(owner.session, owner.chat.resource.toString(), changes);
 				}
 				return;
 			}

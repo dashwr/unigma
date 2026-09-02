@@ -14,10 +14,9 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackKind, AgentFeedbackService, AgentFeedbackState, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
 import { getSessionEditorComments } from '../../browser/sessionEditorComments.js';
 import { IChatEditingService } from '../../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
-import { IChatWidget, IChatWidgetService, IChatAcceptInputOptions, IChatWidgetViewModelChangeEvent } from '../../../../../workbench/contrib/chat/browser/chat.js';
-import { IAgentFeedbackVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IEditorService, IVisibleEditorsChangeEvent } from '../../../../../workbench/services/editor/common/editorService.js';
@@ -27,7 +26,7 @@ import { whenChatWidgetForSession } from '../../../chat/browser/chatWidgetUtils.
 import { ISession, SessionFileOperation, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
-import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
+
 
 function r(startLine: number, endLine: number = startLine): Range {
 	return new Range(startLine, 1, endLine, 1);
@@ -670,11 +669,7 @@ suite('AgentFeedbackService - State', () => {
 	let service: IAgentFeedbackService;
 	let session: URI;
 	let fileA: URI;
-	/** When set, getSession reports the session under this provider id. */
-	let sessionProviderId: string | undefined;
-
 	setup(() => {
-		sessionProviderId = undefined;
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() { });
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
@@ -688,9 +683,7 @@ suite('AgentFeedbackService - State', () => {
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override onDidDeleteSession = Event.None;
 			override getSession(_resource: URI) {
-				return sessionProviderId
-					? { providerId: sessionProviderId, sessionId: 'session-1' } as unknown as ISession
-					: undefined;
+				return undefined;
 			}
 		});
 		instantiationService.stub(ISessionsService, { activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined) } as unknown as ISessionsService);
@@ -717,7 +710,7 @@ suite('AgentFeedbackService - State', () => {
 		assert.strictEqual(service.getFeedback(session)[0].state, AgentFeedbackState.Accepted);
 	});
 
-	test('markFeedbackSubmitted resolves accepted items directly for non-agent-host sessions', () => {
+	test('markFeedbackSubmitted resolves accepted items directly', () => {
 		const accepted = service.addFeedback(session, fileA, r(10), 'accepted');
 		const created = service.addFeedback(session, fileA, r(20), 'created', undefined, undefined, undefined, AgentFeedbackKind.AgentReview, AgentFeedbackState.Created);
 
@@ -733,18 +726,8 @@ suite('AgentFeedbackService - State', () => {
 		});
 	});
 
-	test('markFeedbackSubmitted keeps accepted items submitted for agent-host sessions', () => {
-		sessionProviderId = LOCAL_AGENT_HOST_PROVIDER_ID;
-		service.addFeedback(session, fileA, r(10), 'accepted');
-
-		service.markFeedbackSubmitted(session);
-
-		assert.strictEqual(service.getFeedback(session)[0].state, AgentFeedbackState.Submitted);
-	});
-
 	test('resolving and un-resolving moves between resolved and submitted', () => {
 		const feedback = service.addFeedback(session, fileA, r(10), 'feedback');
-		// Non-agent-host submit resolves the comment directly.
 		service.markFeedbackSubmitted(session);
 		assert.strictEqual(service.getFeedback(session)[0].state, AgentFeedbackState.Resolved);
 
@@ -753,172 +736,6 @@ suite('AgentFeedbackService - State', () => {
 
 		service.setFeedbackResolved(session, feedback.id, true);
 		assert.strictEqual(service.getFeedback(session)[0].state, AgentFeedbackState.Resolved);
-	});
-});
-
-suite('AgentFeedbackService - Submit (agent host)', () => {
-
-	const store = new DisposableStore();
-	let service: IAgentFeedbackService;
-	let session: URI;
-	let fileA: URI;
-	let widgetOps: string[];
-	let addedEntries: IAgentFeedbackVariableEntry[];
-	/** Resolves when the (possibly queued) request is actually sent, i.e. when `acceptInput` resolves. */
-	let acceptInputSent: DeferredPromise<void>;
-	/** Whether the widget hands the request over to the chat service. */
-	let acceptsRequest: boolean;
-	/** Whether the widget has the session's chat model loaded. */
-	let sessionLoaded: boolean;
-	/** Simulates the widget loading the session's chat model. */
-	let loadSession: () => void;
-
-	setup(() => {
-		widgetOps = [];
-		addedEntries = [];
-		acceptInputSent = new DeferredPromise<void>();
-		acceptsRequest = true;
-		sessionLoaded = true;
-		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() { });
-		instantiationService.stub(ITelemetryService, NullTelemetryService);
-		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
-			override onDidVisibleEditorsChange = Event.None;
-			override visibleEditorPanes = [];
-		});
-		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
-			override getProvider<T extends ISessionsProvider>(_providerId: string): T | undefined { return undefined; }
-		});
-		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
-			override onDidDeleteSession = Event.None;
-			override getSession(_resource: URI) {
-				return { providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionId: 'session-1' } as unknown as ISession;
-			}
-		});
-		instantiationService.stub(ISessionsService, { activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined) } as unknown as ISessionsService);
-
-		const onDidChangeViewModel = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
-		const widget = {
-			onDidChangeViewModel: onDidChangeViewModel.event,
-			attachmentModel: {
-				attachments: [],
-				delete: (id: string) => widgetOps.push(`delete:${id}`),
-				addContext: (...entries: IAgentFeedbackVariableEntry[]) => {
-					addedEntries.push(...entries);
-					widgetOps.push(`add:${entries[0]?.id}`);
-				},
-			},
-			acceptInput: async (query: string, options?: IChatAcceptInputOptions) => {
-				widgetOps.push(`accept:${query}`);
-				if (acceptsRequest) {
-					options?.onRequestAccepted?.();
-				}
-				await acceptInputSent.p;
-				widgetOps.push(`sent:${query}`);
-				return undefined;
-			},
-		} as unknown as IChatWidget;
-		loadSession = () => {
-			sessionLoaded = true;
-			onDidChangeViewModel.fire({ previousSessionResource: undefined, currentSessionResource: session });
-		};
-		instantiationService.stub(IChatWidgetService, new class extends mock<IChatWidgetService>() {
-			override onDidAddWidget = Event.None;
-			override getAllWidgets(): readonly IChatWidget[] { return [widget]; }
-			override getWidgetBySessionResource(_resource: URI): IChatWidget | undefined {
-				return sessionLoaded ? widget : undefined;
-			}
-		});
-
-		service = store.add(instantiationService.createInstance(AgentFeedbackService));
-		session = URI.parse('test://session/1');
-		fileA = URI.parse('file:///a.ts');
-	});
-
-	teardown(() => store.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('attaches the just-submitted feedback to the request and clears the attachment afterwards', async () => {
-		service.addFeedback(session, fileA, r(10), 'Please simplify');
-
-		await service.submitFeedback(session);
-
-		const attachmentId = `agentFeedback:${session.toString()}`;
-		assert.deepStrictEqual(widgetOps, [
-			`delete:${attachmentId}`,
-			`add:${attachmentId}`,
-			'accept:/act-on-feedback',
-			`delete:${attachmentId}`,
-		]);
-		assert.deepStrictEqual({
-			count: addedEntries.length,
-			kind: addedEntries[0]?.kind,
-			texts: addedEntries[0]?.feedbackItems.map(item => item.text),
-			state: service.getFeedback(session)[0].state,
-		}, {
-			count: 1,
-			kind: 'agentFeedback',
-			texts: ['Please simplify'],
-			state: AgentFeedbackState.Submitted,
-		});
-	});
-
-	test('marks feedback as submitted once the request is queued behind an in-progress request', async () => {
-		service.addFeedback(session, fileA, r(10), 'Please simplify');
-
-		// `acceptInputSent` is still pending: the request was queued and only runs
-		// once the in-progress request completes.
-		const submitted = await service.submitFeedback(session);
-
-		assert.deepStrictEqual({
-			submitted,
-			state: service.getFeedback(session)[0].state,
-			sent: widgetOps.includes('sent:/act-on-feedback'),
-		}, {
-			submitted: true,
-			state: AgentFeedbackState.Submitted,
-			sent: false,
-		});
-	});
-
-	test('keeps feedback accepted when the request is not accepted by the widget', async () => {
-		acceptsRequest = false;
-		acceptInputSent.complete();
-		service.addFeedback(session, fileA, r(10), 'Please simplify');
-
-		const submitted = await service.submitFeedback(session);
-
-		assert.deepStrictEqual({
-			submitted,
-			state: service.getFeedback(session)[0].state,
-		}, {
-			submitted: false,
-			state: AgentFeedbackState.Accepted,
-		});
-	});
-
-	test('waits for the session model to load into the widget before submitting', async () => {
-		sessionLoaded = false;
-		service.addFeedback(session, fileA, r(10), 'Please simplify');
-
-		const pending = service.submitFeedback(session);
-		await timeout(0);
-		const submittedBeforeLoad = widgetOps.length > 0;
-
-		loadSession();
-
-		assert.deepStrictEqual({
-			submittedBeforeLoad,
-			submitted: await pending,
-			state: service.getFeedback(session)[0].state,
-			accepted: widgetOps.includes('accept:/act-on-feedback'),
-		}, {
-			submittedBeforeLoad: false,
-			submitted: true,
-			state: AgentFeedbackState.Submitted,
-			accepted: true,
-		});
 	});
 });
 

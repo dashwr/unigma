@@ -87,10 +87,6 @@ import { InspectProfilingService as V8InspectProfilingService } from '../../../p
 import { IV8InspectProfilingService } from '../../../platform/profiling/common/profiling.js';
 import { IExtensionsScannerService } from '../../../platform/extensionManagement/common/extensionsScannerService.js';
 import { ExtensionsScannerService } from '../../../platform/extensionManagement/node/extensionsScannerService.js';
-import { ISSHRemoteAgentHostMainService, SSH_REMOTE_AGENT_HOST_CHANNEL } from '../../../platform/agentHost/common/sshRemoteAgentHost.js';
-import { SSHRemoteAgentHostMainService } from '../../../platform/agentHost/node/sshRemoteAgentHostService.js';
-import { IWSLRemoteAgentHostMainService, WSL_REMOTE_AGENT_HOST_CHANNEL } from '../../../platform/agentHost/common/wslRemoteAgentHost.js';
-import { WSLRemoteAgentHostMainService } from '../../../platform/agentHost/node/wslRemoteAgentHostService.js';
 import { IUserDataProfilesService } from '../../../platform/userDataProfile/common/userDataProfile.js';
 import { IExtensionsProfileScannerService } from '../../../platform/extensionManagement/common/extensionsProfileScannerService.js';
 import { PolicyChannelClient } from '../../../platform/policy/common/policyIpc.js';
@@ -410,12 +406,6 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		// Local Git
 		services.set(ILocalGitService, new SyncDescriptor(LocalGitService, undefined, false /* proxied to other processes */));
 
-		// SSH Remote Agent Host
-		services.set(ISSHRemoteAgentHostMainService, new SyncDescriptor(SSHRemoteAgentHostMainService, undefined, true));
-
-		// WSL Remote Agent Host
-		services.set(IWSLRemoteAgentHostMainService, new SyncDescriptor(WSLRemoteAgentHostMainService, undefined, true));
-
 		return new InstantiationService(services);
 	}
 
@@ -487,14 +477,6 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		// Local Git
 		const localGitChannel = ProxyChannel.fromService(accessor.get(ILocalGitService), this._store);
 		this.server.registerChannel('localGit', localGitChannel);
-
-		// SSH Remote Agent Host
-		const sshRemoteAgentHostChannel = ProxyChannel.fromService(accessor.get(ISSHRemoteAgentHostMainService), this._store);
-		this.server.registerChannel(SSH_REMOTE_AGENT_HOST_CHANNEL, sshRemoteAgentHostChannel);
-
-		// WSL Remote Agent Host
-		const wslRemoteAgentHostChannel = ProxyChannel.fromService(accessor.get(IWSLRemoteAgentHostMainService), this._store);
-		this.server.registerChannel(WSL_REMOTE_AGENT_HOST_CHANNEL, wslRemoteAgentHostChannel);
 
 	}
 

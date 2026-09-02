@@ -16,8 +16,6 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import product from '../../../../../platform/product/common/product.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { AGENT_HOST_SCHEME } from '../../../../../platform/agentHost/common/agentHostUri.js';
-import { AGENT_HOST_SESSION_LINK_SCHEME } from '../../../../../platform/agentHost/common/openSessionLink.js';
 
 const _remoteImageDisallowed = () => false;
 
@@ -108,7 +106,7 @@ export function getChatMarkdownRenderOptions(options?: MarkdownRenderOptions): M
 				override: allowedChatMarkdownHtmlTags,
 			},
 			...options?.sanitizerConfig,
-			allowedLinkSchemes: { augment: [product.urlProtocol, 'copilot-skill', Schemas.vscodeBrowser, AGENT_HOST_SCHEME, AGENT_HOST_SESSION_LINK_SCHEME] },
+			allowedLinkSchemes: { augment: [product.urlProtocol, 'copilot-skill', Schemas.vscodeBrowser] },
 			remoteImageIsAllowed: _remoteImageDisallowed,
 		}
 	};

@@ -21,11 +21,9 @@ import { ISharedWebContentExtractorService } from '../../../../../platform/webCo
 import { IExtensionService, isProposedApiEnabled } from '../../../../services/extensions/common/extensions.js';
 import { extractSCMHistoryItemDropData } from '../../../scm/browser/scmHistoryChatContext.js';
 import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
-import { isAgentHostTarget } from '../../common/chatSessionsService.js';
-import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IChatAttachmentTarget, IChatWidget } from '../chat.js';
 import { IChatAttachmentResolveService, ImageTransferData } from '../attachments/chatAttachmentResolveService.js';
-import { isCrossAgentHostChatReferenceDrop, isSelfChatReferenceDrop, resolveChatReferenceDropEntry } from './chatReferenceDrop.js';
+import { isSelfChatReferenceDrop, resolveChatReferenceDropEntry } from './chatReferenceDrop.js';
 import { IChatInputStyles } from './input/chatInputPart.js';
 import { convertStringToUInt8Array } from '../chatImageUtils.js';
 
@@ -228,31 +226,26 @@ export class ChatDragAndDrop extends Themable {
 	}
 
 	/**
-	 * Resolves the drop type for a dragged chat reference. Only agent-host-backed
-	 * chat inputs can reference another chat, and a chat may reference any other
-	 * chat of the *same agent host* — including one from a different session shown
-	 * side by side in the Agents window.
+	 * Resolves the drop type for a dragged chat reference. A chat input may
+	 * reference another chat, including one from a different session.
 	 *
-	 * Two payload-dependent guards suppress the overlay entirely (rather than
-	 * appearing droppable and then doing nothing):
-	 * - a self-reference (a chat dropped onto its *own* input), and
-	 * - a cross-agent-host reference, which the owning host could never resolve.
+	 * A self-reference suppresses the overlay entirely rather than appearing
+	 * droppable and then doing nothing.
 	 *
 	 * The dragged chat's client resource is read from the in-process
 	 * {@link LocalSelectionTransfer} (readable during `dragover`) with the
 	 * `dataTransfer` mime payload as a fallback (readable on `drop`), and compared
 	 * against this input's own client session resource. Both are opaque client
-	 * URIs, so the workbench never touches an AHP chat URI.
+	 * URIs, so the workbench never interprets the resource identity.
 	 */
 	private guessChatReferenceDropType(e: DragEvent): ChatDragAndDropType | undefined {
 		const sessionResource = this.widgetRef()?.viewModel?.model.sessionResource;
-		if (!sessionResource || !isAgentHostTarget(getChatSessionType(sessionResource))) {
+		if (!sessionResource) {
 			return undefined;
 		}
 		const droppedClientResource = this.getDraggedClientResource(e);
 		if (droppedClientResource !== undefined
-			&& (isSelfChatReferenceDrop(droppedClientResource, sessionResource.toString())
-				|| isCrossAgentHostChatReferenceDrop(droppedClientResource, sessionResource.toString()))) {
+			&& isSelfChatReferenceDrop(droppedClientResource, sessionResource.toString())) {
 			return undefined;
 		}
 		return ChatDragAndDropType.CHAT_REFERENCE;
@@ -352,12 +345,12 @@ export class ChatDragAndDrop extends Themable {
 	}
 
 	/**
-	 * Resolves a dropped chat reference (a chat tab from the Agents window) to a
+	 * Resolves a dropped chat reference to a
 	 * plain chat-reference attachment (a pill) — the same shape every other drop
 	 * type produces, with no inline text, range, or editor manipulation.
 	 *
-	 * The target must be an agent-host-backed input; the actual resolution and
-	 * the self / cross-agent-host guards live in {@link resolveChatReferenceDropEntry}.
+	 * The actual resolution and self-reference guard live in
+	 * {@link resolveChatReferenceDropEntry}.
 	 * Returns `[]` when any guard rejects.
 	 */
 	private resolveChatReferenceAttachContext(e: DragEvent): IChatRequestVariableEntry[] {
@@ -367,9 +360,7 @@ export class ChatDragAndDrop extends Themable {
 		}
 
 		const sessionResource = this.widgetRef()?.viewModel?.model.sessionResource;
-		const ownClientResource = sessionResource && isAgentHostTarget(getChatSessionType(sessionResource))
-			? sessionResource.toString()
-			: undefined;
+		const ownClientResource = sessionResource?.toString();
 
 		const entry = resolveChatReferenceDropEntry(data, ownClientResource);
 		return entry ? [entry] : [];

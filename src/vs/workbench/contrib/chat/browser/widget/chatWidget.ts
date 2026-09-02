@@ -33,11 +33,9 @@ import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRang
 import { Range } from '../../../../../editor/common/core/range.js';
 import { localize } from '../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
-import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 
 import { ITextResourceEditorInput } from '../../../../../platform/editor/common/editor.js';
@@ -91,8 +89,6 @@ import { ChatListWidget } from './chatListWidget.js';
 import { ChatFindWidget, IChatFindHost } from './chatFind/chatFindWidget.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatViewWelcomePart, IChatViewWelcomeContent } from '../viewsWelcome/chatViewWelcomeController.js';
-import { hasImmutablePrimaryWorkingDirectory, resolveFolderPickerDecisionUpdate, IAgentHostNewSessionFolderService } from '../agentSessions/agentHost/agentHostNewSessionFolderService.js';
-import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
 import { IChatTipService } from '../chatTipService.js';
 import { ChatInputTipPresenter } from './input/chatInputTipPresenter.js';
 import { ChatProgressSubPart } from './chatContentParts/chatProgressContentPart.js';
@@ -412,17 +408,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		name: string;
 		prefix: string;
 		displayName: string;
-		agentHostProviderId?: string;
 	};
 	private readonly _lockedToCodingAgentContextKey: IContextKey<boolean>;
 	private readonly _lockedCodingAgentIdContextKey: IContextKey<string>;
 	private readonly _readOnlyContextKey: IContextKey<boolean>;
-	private readonly _chatIsAgentHostSessionContextKey: IContextKey<boolean>;
-	private readonly _chatAgentHostProviderIdContextKey: IContextKey<string>;
-	private readonly _chatAgentHostHasImmutablePrimaryWorkingDirectoryContextKey: IContextKey<boolean>;
-	private readonly _chatAgentHostFolderPickerVisibleContextKey: IContextKey<boolean>;
-	/** The session resource the {@link _chatAgentHostFolderPickerVisibleContextKey} value currently reflects, so a transient `undefined` decision during provisional recreation retains the value instead of flashing the chip. */
-	private _folderPickerDecisionSessionResource: URI | undefined;
 	private readonly _chatSessionSupportsForkContextKey: IContextKey<boolean>;
 	private readonly _agentSupportsAttachmentsContextKey: IContextKey<boolean>;
 	private readonly _sessionIsEmptyContextKey: IContextKey<boolean>;
@@ -547,10 +536,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatGoalSummaryService private readonly chatGoalSummaryService: IChatGoalSummaryService,
 		@IChatSubmitRequestHandlerService private readonly chatSubmitRequestHandlerService: IChatSubmitRequestHandlerService,
 		@IChatPetService private readonly chatPetService: IChatPetService,
-		@IAgentHostService private readonly _agentHostService: IAgentHostService,
-		@IAgentHostCustomizationService private readonly _agentHostCustomizationService: IAgentHostCustomizationService,
-		@IAgentHostNewSessionFolderService private readonly _agentHostNewSessionFolderService: IAgentHostNewSessionFolderService,
-		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
 
@@ -563,10 +548,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._lockedToCodingAgentContextKey = ChatContextKeys.lockedToCodingAgent.bindTo(this.contextKeyService);
 		this._lockedCodingAgentIdContextKey = ChatContextKeys.lockedCodingAgentId.bindTo(this.contextKeyService);
 		this._readOnlyContextKey = ChatContextKeys.readOnly.bindTo(this.contextKeyService);
-		this._chatIsAgentHostSessionContextKey = ChatContextKeys.chatIsAgentHostSession.bindTo(this.contextKeyService);
-		this._chatAgentHostProviderIdContextKey = ChatContextKeys.chatAgentHostProviderId.bindTo(this.contextKeyService);
-		this._chatAgentHostHasImmutablePrimaryWorkingDirectoryContextKey = ChatContextKeys.chatAgentHostHasImmutablePrimaryWorkingDirectory.bindTo(this.contextKeyService);
-		this._chatAgentHostFolderPickerVisibleContextKey = ChatContextKeys.chatAgentHostFolderPickerVisible.bindTo(this.contextKeyService);
 		this._chatSessionSupportsForkContextKey = ChatContextKeys.chatSessionSupportsFork.bindTo(this.contextKeyService);
 		this._agentSupportsAttachmentsContextKey = ChatContextKeys.agentSupportsAttachments.bindTo(this.contextKeyService);
 		this._sessionIsEmptyContextKey = ChatContextKeys.chatSessionIsEmpty.bindTo(this.contextKeyService);
@@ -579,33 +560,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this._sessionHasDebugDataContextKey.set(true);
 			}
 		}));
-
-		// The folder picker's visibility depends on whether the locked Agent Host
-		// provider pins an immutable primary working directory. That capability
-		// hydrates after the agent host connects (and can reset on restart), and
-		// `rootState` is a placeholder subscription whose `onDidChange` is
-		// `Event.None` until then — so (re)bind on every start and listen for both
-		// value and error transitions, mirroring agentHostSignedOutModelsNotification.
-		const rootStateListeners = this._register(new DisposableStore());
-		const bindRootState = () => {
-			rootStateListeners.clear();
-			const rootState = this._agentHostService.rootState;
-			rootStateListeners.add(rootState.onDidChange(() => this._updateAgentHostWorkingDirectoryContextKeys(this._lockedAgent?.agentHostProviderId)));
-			if (rootState.onDidError) {
-				rootStateListeners.add(rootState.onDidError(() => this._updateAgentHostWorkingDirectoryContextKeys(this._lockedAgent?.agentHostProviderId)));
-			}
-			this._updateAgentHostWorkingDirectoryContextKeys(this._lockedAgent?.agentHostProviderId);
-		};
-		bindRootState();
-		this._register(this._agentHostService.onAgentHostStart(bindRootState));
-
-		// The harness may hide the Folder picker (and pin a primary) via a
-		// per-session decision in `_meta` — e.g. Copilot auto-selects the sole
-		// workspace folder carrying hooks. Read it from the customization service
-		// (which already subscribes to the session's state) and recompute when it
-		// changes or the widget rebinds to another session.
-		this._register(this._agentHostCustomizationService.onDidChangeCustomizations(() => this._updateFolderPickerDecision()));
-		this._register(this.onDidChangeViewModel(() => this._updateFolderPickerDecision()));
 
 		this.viewContext = viewContext ?? {};
 
@@ -819,58 +773,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const supportsAttachments = Object.keys(filter(this._attachmentCapabilities, (key, value) => value === true)).length > 0;
 		this._agentSupportsAttachmentsContextKey.set(supportsAttachments);
-	}
-
-	/**
-	 * Updates the context key that gates the multi-root folder picker: it is set
-	 * only when the locked Agent Host provider pins an immutable primary working
-	 * directory. Defaults to (and falls back to) `false`, so the picker stays
-	 * hidden until the provider's capabilities are known.
-	 */
-	private _updateAgentHostWorkingDirectoryContextKeys(agentHostProviderId: string | undefined): void {
-		this._chatAgentHostHasImmutablePrimaryWorkingDirectoryContextKey.set(
-			!!agentHostProviderId && hasImmutablePrimaryWorkingDirectory(this._agentHostService.rootState.value, agentHostProviderId));
-	}
-
-	/**
-	 * Applies the harness-owned Folder-picker decision for the current session:
-	 * it sets the visibility context key from the decision and, when the decision
-	 * pins a primary and the session is still empty, auto-selects that folder. The
-	 * decision lives in the session's `_meta` and is surfaced by
-	 * {@link IAgentHostCustomizationService}; the resolution itself lives in the
-	 * pure {@link resolveFolderPickerDecisionUpdate} so it stays testable.
-	 *
-	 * The picker is hidden by default and only revealed once a decision says so,
-	 * so it never flashes visible-then-hidden. A transient `undefined` decision
-	 * for the *same* session is retained rather than reset, so the chip does not
-	 * flicker while a folder change recreates the provisional session.
-	 */
-	private _updateFolderPickerDecision(): void {
-		const sessionResource = this.viewModel?.sessionResource;
-		const agentHostProviderId = this._lockedAgent?.agentHostProviderId;
-		const decision = sessionResource && agentHostProviderId
-			? this._agentHostCustomizationService.getFolderPickerDecision(sessionResource)
-			: undefined;
-		const update = resolveFolderPickerDecisionUpdate(
-			sessionResource,
-			agentHostProviderId,
-			decision,
-			this._folderPickerDecisionSessionResource,
-			!!this.viewOptions.isSessionsWindow,
-			(this.viewModel?.model.getRequests().length ?? 0) === 0,
-			sessionResource ? this._agentHostNewSessionFolderService.getFolder(sessionResource) : undefined,
-			this._uriIdentityService.extUri,
-		);
-		if (update.kind === 'noop') {
-			return;
-		}
-		this._chatAgentHostFolderPickerVisibleContextKey.set(update.visible);
-		this._folderPickerDecisionSessionResource = update.trackedSessionResource;
-		// `setFolder` deliberately overrides any prior selection, since a hidden
-		// picker leaves the user no way to choose.
-		if (update.selectPrimary && sessionResource) {
-			this._agentHostNewSessionFolderService.setFolder(sessionResource, update.selectPrimary);
-		}
 	}
 
 	get supportsFileReferences(): boolean {
@@ -1291,7 +1193,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.viewModel.resetInputPlaceholder();
 		}
 		if (this._lockedAgent) {
-			this.lockToCodingAgent(this._lockedAgent.name, this._lockedAgent.displayName, this._lockedAgent.id, this._lockedAgent.agentHostProviderId);
+			this.lockToCodingAgent(this._lockedAgent.name, this._lockedAgent.displayName, this._lockedAgent.id);
 		} else {
 			this.unlockFromCodingAgent();
 		}
@@ -2770,8 +2672,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	// Coding agent locking methods
-	lockToCodingAgent(name: string, displayName: string, agentId: string, agentHostProviderId?: string): void {
-		if (this._lockedAgent?.id === agentId && this._lockedAgent.name === name && this._lockedAgent.displayName === displayName && this._lockedAgent.agentHostProviderId === agentHostProviderId) {
+	lockToCodingAgent(name: string, displayName: string, agentId: string): void {
+		if (this._lockedAgent?.id === agentId && this._lockedAgent.name === name && this._lockedAgent.displayName === displayName) {
 			return;
 		}
 
@@ -2780,14 +2682,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			name,
 			prefix: `@${name} `,
 			displayName,
-			agentHostProviderId
 		};
 		this._lockedToCodingAgentContextKey.set(true);
 		this._lockedCodingAgentIdContextKey.set(agentId);
-		this._chatIsAgentHostSessionContextKey.set(!!agentHostProviderId);
-		this._chatAgentHostProviderIdContextKey.set(agentHostProviderId ?? '');
-		this._updateAgentHostWorkingDirectoryContextKeys(agentHostProviderId);
-		this._updateFolderPickerDecision();
 		this.renderWelcomeViewContentIfNeeded();
 		// Update capabilities for the locked agent
 		const agent = this.chatAgentService.getAgent(agentId);
@@ -2808,11 +2705,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._lockedAgent = undefined;
 		this._lockedToCodingAgentContextKey.set(false);
 		this._lockedCodingAgentIdContextKey.set('');
-		this._chatIsAgentHostSessionContextKey.set(false);
-		this._chatAgentHostProviderIdContextKey.set('');
-		this._chatAgentHostHasImmutablePrimaryWorkingDirectoryContextKey.set(false);
-		this._chatAgentHostFolderPickerVisibleContextKey.set(false);
-		this._folderPickerDecisionSessionResource = undefined;
 		this._chatSessionSupportsForkContextKey.set(false);
 		this._updateAgentCapabilitiesContextKeys(undefined);
 

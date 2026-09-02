@@ -6,9 +6,6 @@
 import { ipcRenderer } from '../../../../base/parts/sandbox/electron-browser/globals.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { IAgentHostByokLmHandler } from '../../../../platform/agentHost/common/agentHostByokLm.js';
-import { AgentHostByokLmHandler } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostByokLmHandler.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -20,7 +17,6 @@ import { SessionsView, SessionsViewId as SessionsListViewId } from '../../sessio
 import { ISessionsSetUpService } from '../../../browser/sessionsSetUpService.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
-import { SessionsCopilotConfigSlashSubmitHandlerContribution } from '../browser/copilotConfigSlashSubmitHandler.js';
 import { AgentsWindowOpenSource, isAgentsWindowOpenSource } from '../../../../platform/window/common/window.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -227,7 +223,6 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 
 registerWorkbenchContribution2(SelectAgentsFolderContribution.ID, SelectAgentsFolderContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(SessionsWindowStartupExperiment.ID, SessionsWindowStartupExperiment, WorkbenchPhase.BlockStartup);
-registerWorkbenchContribution2(SessionsCopilotConfigSlashSubmitHandlerContribution.ID, SessionsCopilotConfigSlashSubmitHandlerContribution, WorkbenchPhase.AfterRestored);
 
 // Renderer-side BYOK language-model handler that backs the node agent host's
 // OpenAI proxy, mirroring the registration in the workbench's
@@ -235,5 +230,4 @@ registerWorkbenchContribution2(SessionsCopilotConfigSlashSubmitHandlerContributi
 // extension host whose LM API holds the user's BYOK models, so registering the
 // handler here lets the Agents window serve BYOK too — necessary when it is the
 // only window connected to the node host. Lazily instantiated when the node host
-// resolves it via `AgentHostClientByokLmChannel`.
-registerSingleton(IAgentHostByokLmHandler, AgentHostByokLmHandler, InstantiationType.Delayed);
+// resolves it via the provider model channel.

@@ -166,7 +166,7 @@ suite('ChatListRenderer', () => {
 					source: ToolDataSource.Internal,
 					toolSpecificData: {
 						kind: 'sessionCreated',
-						openLink: 'agent-host-session://local/session',
+						openLink: 'test-session://local/session',
 						label: 'Implement issue',
 					},
 				};
@@ -215,7 +215,7 @@ suite('ChatListRenderer', () => {
 					source: ToolDataSource.Internal,
 					toolSpecificData: {
 						kind: 'sessionCreated',
-						openLink: 'agent-host-session://local/session',
+						openLink: 'test-session://local/session',
 						label: 'Implement issue',
 					},
 				};
@@ -807,7 +807,7 @@ suite('ChatListRenderer', () => {
 				pillsSummary: shouldShowPillsSummaryForSettings(true, true, true),
 				pillsSummaryLegacy: shouldShowPillsSummaryForSettings(true, true, { preview: true }),
 				pillsSummaryIncomplete: shouldShowPillsSummaryForSettings(false, true, true),
-				pillsSummaryNonAgentHost: shouldShowPillsSummaryForSettings(true, false, true),
+				pillsSummaryNonSession: shouldShowPillsSummaryForSettings(true, false, true),
 				pillsSummaryDisabled: shouldShowPillsSummaryForSettings(true, true, false),
 			}, {
 				fileSummary: true,
@@ -817,7 +817,7 @@ suite('ChatListRenderer', () => {
 				pillsSummary: true,
 				pillsSummaryLegacy: true,
 				pillsSummaryIncomplete: false,
-				pillsSummaryNonAgentHost: false,
+				pillsSummaryNonSession: false,
 				pillsSummaryDisabled: false,
 			});
 		});

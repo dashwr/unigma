@@ -1,6 +1,6 @@
 ---
 name: code-oss-logs
-description: 'Find and read timestamped process logs from Code OSS dev builds, including main.log, renderer.log, extension host logs, and agenthost.log. For bundles produced by Export Agent Host Debug Logs, use agent-host-logs.'
+description: 'Find and read timestamped process logs from Code OSS dev builds, including main.log, renderer.log, and extension host logs.'
 ---
 
 # Code OSS Logs

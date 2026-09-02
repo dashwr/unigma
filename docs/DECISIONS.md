@@ -26,6 +26,20 @@ trabalho.
 | D-014 | O fork Code - OSS será desmarcado e preservará avisos, licenças e copyrights aplicáveis em toda distribuição. | aprovado em 2026-08-22 | S-02, S-03, S-11 |
 | D-015 | O upstream inicial é `microsoft/vscode` na tag `1.134.0`, commit `474a349ad5b745e512ef86b864d1c74f7264dd7a`; a matriz declarada usa Node.js `24.18.0`, Electron `42.8.1`, Windows x64 e Linux x64. Atualizações acompanham releases/patches verificáveis do upstream. | aprovado em 2026-08-22 | S-12 |
 | D-016 | O produto adota classificação aproximada por `intelligence index` e roteamento local limitado a modelos configurados/autorizados pelo OpenCode, com `Autopilot!` opt-in, `persistSelectedModel`, fallback seguro e os limites de custo, privacidade e UI descritos abaixo. | direção de produto confirmada; detalhes operacionais e validação pendentes | S-17 |
+| D-017 | OpenCode é o único harness/backend local oficial do produto; a distribuição oficial é `unigma+opencode`. | confirmado em 2026-08-26 | S-18 |
+| D-018 | O bundle oficial usa um perfil `service-only`: preserva o harness de execução do OpenCode e remove/redireciona TUI, onboarding, prompts interativos, navegação e UI redundante para o unigma. | direção confirmada; patch e validação pendentes | S-18 |
+| D-019 | O “decepador” é uma cadeia reproduzível `commit upstream → patch service-only → testes → artefato versionado`; não muta instalações do usuário. | direção confirmada; pipeline pendente | S-18 |
+| D-020 | Atualizações autorizadas trocam o bundle atomicamente com o processo parado, mantendo rollback e os dados do usuário fora do artefato. | direção confirmada; implementação e evidência pendentes | S-18 |
+| D-021 | A direção do agente inclui `@` para ferramentas, `/` para skills, mensagens entre sessões locais e chips de estado; o protocolo de controle remoto é construído dormente, sem ativação no MVP. | direção confirmada; contratos e implementação pendentes | S-18 |
+| D-022 | Codex/Claude Code podem ser extensões externas instaladas pelo usuário, mas não têm suporte oficial nem são harness do unigma; `unigma+pi` é experimental e plugins/MCP/rules/skills oficiais usam os mecanismos nativos do OpenCode. | confirmado em 2026-08-26 | S-18 |
+| D-023 | `opencode serve` já é o entrypoint headless; isso não equivale ao perfil de distribuição `service-only`. Não haverá poda ampla por inferência: primeiro auditar superfícies alcançáveis e aplicar somente o patch mínimo comprovado, mantendo `unigma+opencode` como alvo oficial. | confirmado em 2026-08-27 | resposta do responsável nesta rodada |
+| D-024 | O subsistema herdado `src/vs/platform/agentHost/**` e suas superfícies de UI, build, configuração e E2E são retirados do produto. O harness oficial continua sendo `unigma+opencode`; MCP, Terminal Profiles, Copilot geral, `unigmaAgent` e o runtime próprio não são substituídos por compatibilidade Agent Host. | confirmado em 2026-08-28 | resposta do responsável nesta rodada |
+| D-025 | `AC-012` exige esforço proporcional a um projeto FOSS não monetizado cujos assets foram criados pelo próprio responsável: autodeclaração assinada, proveniência dos assets e busca documentada de colisão de marca. `AC-001` permanece integralmente aplicável. | substituído por D-030 | resposta do responsável nesta rodada |
+| D-026 | O OpenCode é consumido em três camadas: binário do usuário validado por contrato, bundle de release upstream fixado e não modificado, e poda `service-only` opcional. `T-096` não é caminho crítico. | confirmado em 2026-08-28 | resposta do responsável nesta rodada |
+| D-030 | O responsável não exige prova formal de autoria/proveniência dos assets nem trademark clearance para liberar o produto FOSS. A frente de branding deve remover identidades upstream da experiência do usuário e manter somente copyright, licenças, notices e demais obrigações legais aplicáveis; segurança técnica e integridade da cadeia de dependências continuam gates. | confirmado em 2026-08-29 | resposta do responsável nesta rodada |
+| D-031 | A primeira entrega de `CLI-002` assume `unigma-server` pré-instalado no host remoto. O cliente não provisiona, copia ou atualiza o servidor nesta etapa; push/tarball ficam para uma fase posterior com contrato próprio. | confirmado em 2026-08-30 | resposta do responsável nesta rodada |
+| D-032 | Substitui D-031 para a entrega SSH: após gates OpenSSH/trust e confirmação explícita por host, o cliente envia pela própria sessão SSH o par versionado `unigma-server` + `unigma+opencode`, validado por manifesto/hashes e instalado atomicamente na área do usuário remoto. Não há download/CDN, elevação, instalação global, cópia de workspace ou automação de OAuth/plugins. | confirmado em 2026-09-01 | resposta do responsável nesta rodada |
+| D-032 | A distribuição unigma desativa somente a superfície `workbench.panel.chat`; serviços compartilhados necessários a MCP, inline chat, terminal/notebook e `unigmaAgent` permanecem. Comandos e smoke devem declarar essa capability indisponível sem fallback ou skip genérico. | confirmado em 2026-08-30 | resposta do responsável nesta rodada |
 
 ### D-016 — direção confirmada e limites
 
@@ -52,6 +66,104 @@ trabalho.
 
 Este registro confirma direção, não implementação ou suporte funcional.
 
+### D-017 a D-022 — harness, bundle e capacidades do agente
+
+- O OpenCode continua sendo a fonte de verdade do harness: sessões, tool loop,
+  permissões, compaction, limites, retries, plugins, MCP, skills, providers,
+  streaming e subagentes não devem ser reimplementados no workbench.
+- O unigma é dono da apresentação e da coordenação. O patch service-only retira
+  superfícies duplicadas, mas não apaga código upstream por varredura cega nem
+  transforma o runtime em um segundo harness.
+- O bundle contém somente o runtime versionado; configuração, credenciais,
+  sessões, histórico e demais dados do usuário permanecem fora dele. Não há
+  download automático, servidor central ou telemetria implícitos.
+- `@`, `/`, mensagens intersessão e chips pertencem à experiência nativa do
+  agente. O controle remoto dormente não reabre colaboração em tempo real,
+  cloud ou backend no MVP.
+- Extensão externa não é integração oficial. O unigma não cria catálogo,
+  carregador ou adaptador para transformar Codex/Claude Code em harness.
+- `opencode serve` headless resolve a ausência de TUI durante a execução, mas não
+  prova sozinho a fronteira de distribuição: o bundle ainda precisa de
+  proveniência, allowlist de superfícies, auditoria e separação de UI/CLI
+  redundante. A poda deve ser mínima e baseada em evidência.
+
+### D-024 — retirada do Agent Host herdado
+
+- A retirada inclui a implementação de plataforma, transportes, protocolo AHP,
+  providers/contribuições de Agent Sessions, comandos de Agents Window,
+  entrypoints de build, smoke/E2E, configuração `chat.agentHost.*` e artefatos
+  de SDK que existiam somente para esse caminho.
+- Tipos realmente compartilhados por Chat, MCP, sessões e feedback devem viver em
+  módulos neutros mínimos; não se mantém shim, reexport ou cópia integral do
+  protocolo sob outro nome.
+- A remoção não autoriza apagar o runtime `unigma-agent-runtime`, a extensão
+  `unigma-remote-ssh`, MCP geral, Terminal Profiles, Copilot CLI geral ou a
+  integração OpenCode.
+
+### D-025 — esforço proporcional de branding
+
+- A conclusão de AC-012 requer autodeclaração assinada de autoria, licença e
+  autorização de distribuição, referência à proveniência versionada dos assets e
+  busca documentada de `unigma`/`unigma-code` em USPTO, EUIPO, INPI, npm, PyPI,
+  GitHub e domínio.
+- A decisão não reduz a obrigação de AC-001: licenças, notices e copyrights do
+  código incorporado continuam exigindo inventário e revisão completos.
+
+### D-026 — camadas de consumo do OpenCode
+
+- O binário selecionado pelo usuário é resolvido por `PATH` ou override explícito
+  e validado por `/doc` antes de iniciar uma sessão.
+- O bundle de release upstream é fixado por versão/hash e permanece sem mutação;
+  `service-only` é uma poda explícita e auditada de superfícies redundantes.
+- Não há download silencioso, catálogo, provider oculto, credential injection ou
+  segundo harness no workbench.
+
+### D-027 — o Code Server do CLI é preservado; só o Agent Host sai
+
+> confirmada em 2026-08-29, a partir da auditoria em
+> [`status/2026-08-29-cli-audit.md`](status/2026-08-29-cli-audit.md).
+
+- `D-024` se aplica ao CLI Rust, mas **não** ao Code Server. `code_server.rs`,
+  `server_bridge.rs`, `server_multiplexer.rs`, `protocol.rs`, o RPC genérico de
+  `control_server.rs` e o entry point `command-shell` são infraestrutura do SSH
+  remoto e permanecem no produto.
+- Saem do CLI o subsistema `agent_host*`, o supervisor, o registry de endpoints,
+  os módulos órfãos `commands/agent*.rs`, as flags `--agent-host-bridge-*` e as
+  dependências AHP que existiam só para esse caminho.
+- `code tunnel` e `@microsoft/dev-tunnels-*` **não** são cortados nesta frente. O
+  destino deles é a frente separada `CLI-003`, uma auditoria própria cujo
+  resultado volta aqui como decisão; ela não bloqueia o desacoplamento do Agent
+  Host nem o SSH remoto.
+
+### D-028 — o servidor remoto é o `unigma-server` do próprio fork
+
+> confirmada em 2026-08-29.
+
+- O host remoto executa o servidor construído a partir deste fork
+  (`serverApplicationName: "unigma-server"`), não o servidor Code - OSS upstream:
+  o extension host remoto precisa das extensões internas do unigma.
+- Cliente e servidor são acoplados por commit; incompatibilidade falha fechado e
+  não tenta fallback local.
+- A forma de entrega do servidor — pré-instalado, enviado pelo cliente pela
+  própria sessão OpenSSH ou baixado de um endpoint próprio — permanece **aberta**
+  e está registrada como `Q-2` em
+  [`planos/2026-08-29-cli-ssh-remoto.md`](planos/2026-08-29-cli-ssh-remoto.md).
+  Publicar o servidor é distribuição e depende de `E00-A`/`E00-B`.
+
+### D-029 — o CLI volta a anunciar `PROTOCOL_VERSION=4`
+
+> confirmada em 2026-08-29, após a pesquisa do wire protocol e a revisão
+> independente do patch em `cli/`.
+
+- `PROTOCOL_VERSION` é o wire protocol MsgPack do `command-shell/control_server`,
+  não o protocolo do Code Server nem um pareamento genérico de clientes.
+- A versão `4` é a última versão sem as capacidades AHP; `5` e `6` eram
+  extensões do Agent Host removido. O CLI não deve anunciar capacidades que não
+  existem.
+- Clientes que exigem `5`/`6` devem falhar fechado; não há fallback silencioso
+  para outro protocolo ou outro servidor. A matriz de clientes suportados ainda
+  precisa ser colhida no runner.
+
 ### detalhes de D-016 ainda abertos
 
 - fórmula, escala e estimativa do `intelligence index`, com sua comparação ao
@@ -68,9 +180,15 @@ Este registro confirma direção, não implementação ou suporte funcional.
 
 ## decisões que exigem intervenção
 
-Não há nova decisão arquitetural a confirmar. A direção de produto D-016 está
-confirmada; suas definições operacionais e validações externas permanecem
-abertas e não autorizam implementação por si só.
+As direções D-016 a D-028 estão confirmadas; suas definições operacionais,
+patches, artefatos e validações permanecem abertas e não autorizam suporte por si
+só. Continuam pendentes de resposta do responsável, sem bloquear a etapa A do
+plano de 2026-08-29:
+
+- valor final de `constants::PROTOCOL_VERSION` no CLI após a remoção do Agent
+  Host (`Q-1`);
+- estratégia de entrega do `unigma-server` ao host remoto (`Q-2`, ver D-028);
+- destino do `code tunnel` e das dependências `@microsoft/dev-tunnels-*` (`Q-3`).
 
 ## validação de identificadores
 
@@ -84,9 +202,10 @@ abertas e não autorizam implementação por si só.
 ## questões técnicas adiadas
 
 As seguintes questões não alteram a arquitetura aprovada e serão determinadas
-ao detalhar o MVP: adaptação de build e release, contratos de comportamento da
-UI, provisionamento SSH, fontes/suportes concretos de MCP/plugin/provider,
-baselines numéricos de performance e os detalhes abertos de D-016. `Cinderblock`
+ao detalhar o MVP: patchset e pipeline do perfil service-only, manifesto e
+rollback do bundle, contratos de comportamento da UI, provisionamento SSH,
+fontes/suportes concretos de MCP/plugin/provider, baselines numéricos de
+performance e os detalhes abertos de D-016. `Cinderblock`
 permanece candidata não incorporada e exige verificação de disponibilidade,
 licença, pesos e direitos de uso antes de qualquer incorporação.
 

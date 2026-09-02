@@ -31,12 +31,10 @@ import { onUnexpectedError } from '../../../base/common/errors.js';
 import { localize } from '../../../nls.js';
 import { ChatInteractivity, getChatCapabilities, IChat, SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
-import { clearChatReferenceDragData, fillChatReferenceDragData, fillSessionChatDragData } from '../dnd.js';
+import { clearChatReferenceDragData, fillSessionChatDragData } from '../dnd.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { applySessionBarThemeColors } from './sessionBarStyles.js';
-import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
-import { isAgentHostProvider } from '../../common/agentHostSessionsProvider.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { CLOSE_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
 
@@ -137,7 +135,6 @@ export class ChatCompositeBar extends Disposable {
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super();
@@ -416,7 +413,7 @@ export class ChatCompositeBar extends Disposable {
 
 		// A tab drag carries two payloads: a group-move payload (to move/split the
 		// chat between grid groups) and a chat-reference payload (to drop into an
-		// agent-host chat input as an inline `#chat:` reference).
+		// chat input as an inline `#chat:` reference).
 		this._tabDisposables.add(addDisposableListener(tab, EventType.DRAG_START, (e: DragEvent) => {
 			if (!delegate || !e.dataTransfer) {
 				e.preventDefault();
@@ -441,15 +438,6 @@ export class ChatCompositeBar extends Disposable {
 			// use the singleton because the chat-reference payload below also uses it,
 			// and the singleton holds only one payload at a time.
 			fillSessionChatDragData(e, delegate.session.sessionId, chat.resource);
-
-			// Chat-reference payload: requires the opaque backend chat URI, which
-			// only the owning agent-host provider knows. When it is unavailable
-			// (not agent-host backed, or state not yet hydrated) the drag simply
-			// carries no reference.
-			const backendChatResource = this._backendChatResource(chat);
-			if (backendChatResource) {
-				fillChatReferenceDragData(e, backendChatResource, chat.resource, chat.title.get());
-			}
 
 			e.dataTransfer.effectAllowed = 'copyMove';
 			applyDragImage(e, tab, chat.title.get());
@@ -513,22 +501,6 @@ export class ChatCompositeBar extends Disposable {
 
 	private _isInTabInput(event: MouseEvent): boolean {
 		return isHTMLElement(event.target) && !!event.target.closest('.chat-composite-bar-tab-input-container');
-	}
-
-	/**
-	 * Resolves the opaque backend chat URI for a chat tab so a dragged `#chat:`
-	 * reference can carry it. Reaches the owning agent-host provider by id and
-	 * asks it to look up the host-supplied backend resource. Returns `undefined`
-	 * when the session is not agent-host backed or the provider has no hydrated
-	 * state for the chat — the caller then offers no chat-reference payload.
-	 */
-	private _backendChatResource(chat: IChat): URI | undefined {
-		const providerId = this._delegate?.session.providerId;
-		if (!providerId) {
-			return undefined;
-		}
-		const provider = this._sessionsProvidersService.getProvider(providerId);
-		return provider && isAgentHostProvider(provider) ? provider.getBackendChatResource(chat.resource) : undefined;
 	}
 
 	/**

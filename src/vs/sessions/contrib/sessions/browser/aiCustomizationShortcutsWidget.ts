@@ -76,7 +76,7 @@ export class AICustomizationShortcutsWidget extends Disposable {
 
 		// Stable wrapper appended once to the parent. Re-renders replace the
 		// wrapper's children only, so the widget keeps its position relative
-		// to sibling parts (e.g. the agent-host-toolbar below it). Without
+		// to sibling parts below it. Without
 		// this, removing+re-appending the rendered root would move it to the
 		// end of the parent on every re-render, stacking adjacent border-tops.
 		this._wrapper = DOM.append(container, $('.ai-customization-shortcuts-widget'));

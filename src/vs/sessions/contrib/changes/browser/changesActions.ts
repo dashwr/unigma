@@ -403,10 +403,8 @@ class ChangesetOperationsActionControllerContribution extends Disposable impleme
 		// will be reset to `undefined` so that the server state takes precedence.
 		const clientReviewedFilesObs = observableValue<string[] | undefined>(this, undefined);
 
-		// Authoritative source of reviewed files. This will be updated
-		// when the state is saved on the server and confirmed back to
-		// the client
-		const agentHostReviewedFilesObs = observableValue<string[]>(this, []);
+		// Authoritative source of reviewed files, updated from the session changes.
+		const serverReviewedFilesObs = observableValue<string[]>(this, []);
 
 		this._register(autorun(reader => {
 			const changes = changesViewService.activeSessionChangesObs.read(reader);
@@ -418,12 +416,12 @@ class ChangesetOperationsActionControllerContribution extends Disposable impleme
 
 			transaction(tx => {
 				clientReviewedFilesObs.set(undefined, tx);
-				agentHostReviewedFilesObs.set(reviewedFiles, tx);
+				serverReviewedFilesObs.set(reviewedFiles, tx);
 			});
 		}));
 
 		this._register(bindContextKey<string[]>(SessionChangesReviewedFilesContext, contextKeyService, reader => {
-			return clientReviewedFilesObs.read(reader) ?? agentHostReviewedFilesObs.read(reader);
+			return clientReviewedFilesObs.read(reader) ?? serverReviewedFilesObs.read(reader);
 		}));
 
 		this._register(autorun(reader => {

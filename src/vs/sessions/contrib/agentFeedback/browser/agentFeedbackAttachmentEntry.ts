@@ -8,7 +8,7 @@ import { basename, isEqualOrParent, relativePath } from '../../../../base/common
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { authorForFeedbackKind } from '../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
+import { authorForFeedbackKind } from '../../../../platform/sessions/common/feedback.js';
 import { IAgentFeedbackVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IAgentFeedback } from './agentFeedbackModel.js';
 
@@ -21,15 +21,9 @@ export const ATTACHMENT_ID_PREFIX = 'agentFeedback:';
 
 /**
  * Builds the chat attachment variable entry that carries the given feedback
- * items into a chat request. The shape is shared between the reactive
- * attachment contribution (non-agent-host sessions) and the agent-host submit
- * flow so both produce identical attachments.
- *
- * For agent-host sessions, pass {@link annotationsResource} (the session's
- * annotations channel URI) so the request emits
- * {@link MessageAnnotationsAttachment}s referencing the specific comments.
+ * items into a chat request.
  */
-export function createAgentFeedbackVariableEntry(sessionResource: URI, feedbackItems: readonly IAgentFeedback[], annotationsResource?: URI): IAgentFeedbackVariableEntry {
+export function createAgentFeedbackVariableEntry(sessionResource: URI, feedbackItems: readonly IAgentFeedback[]): IAgentFeedbackVariableEntry {
 	return {
 		kind: 'agentFeedback',
 		id: ATTACHMENT_ID_PREFIX + sessionResource.toString(),
@@ -38,7 +32,6 @@ export function createAgentFeedbackVariableEntry(sessionResource: URI, feedbackI
 			: localize('agentFeedback.many', "{0} comments", feedbackItems.length),
 		icon: Codicon.comment,
 		sessionResource,
-		annotationsResource,
 		feedbackItems: feedbackItems.map(f => ({
 			id: f.id,
 			text: f.text,

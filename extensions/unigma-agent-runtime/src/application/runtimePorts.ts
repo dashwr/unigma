@@ -11,10 +11,52 @@ import type {
 	WorkspaceReference,
 } from '../domain/runtime';
 
+export interface OpenCodeRequest {
+	readonly method: 'GET' | 'POST';
+	readonly path: string;
+	readonly body?: unknown;
+}
+
+export interface OpenCodeEvent {
+	readonly type: string;
+	readonly properties: Record<string, unknown>;
+}
+
+/** Sanitized refusal reasons produced by the local integration policy boundary. */
+export type LocalIntegrationPreflightCode =
+	| 'workspaceUntrusted'
+	| 'unknownOrigin'
+	| 'ambiguousPrecedence'
+	| 'pathOutsideApprovedScope'
+	| 'externalSymlink'
+	| 'pathUnavailable'
+	| 'configurationInvalid'
+	| 'installerCommand'
+	| 'npmPlugin'
+	| 'startupInstallation'
+	| 'insecureUrl'
+	| 'silentOAuth'
+	| 'permissionDenied';
+
+/** A decision crossing into the runtime contains no raw configuration or secrets. */
+export type LocalIntegrationPreflightResult =
+	| { readonly accepted: true }
+	| { readonly accepted: false; readonly code: LocalIntegrationPreflightCode };
+
+export type LocalIntegrationPreflight = (
+	workspace: WorkspaceReference,
+	requested?: LocalIntegrationPreflightResult,
+) => LocalIntegrationPreflightResult;
+
 /** Owns the single OpenCode process associated with this extension host. */
 export interface ProcessManager {
 	ensureStarted(workspace: WorkspaceReference): Promise<OwnedProcessHandle>;
 	stopOwned(): Promise<void>;
+}
+
+/** Confirms that a command targets an open, trusted workspace. */
+export interface WorkspaceTrust {
+	isTrusted(workspace: WorkspaceReference): boolean;
 }
 
 /** Lifecycle-only boundary used by the application composition. */
@@ -43,8 +85,11 @@ export interface DiagnosticSink {
 
 /** Composition boundary for the future T-021/T-022/T-023 adapters. */
 export interface RuntimePorts {
+	readonly workspaceTrust: WorkspaceTrust;
 	readonly processManager: ProcessManager;
-	readonly openCodeClient: OpenCodeConnection;
+	/** Runs after workspace trust and immediately before process startup. */
+	readonly localIntegrationPreflight: LocalIntegrationPreflight;
+	readonly openCodeClient: OpenCodeClient<OpenCodeRequest, OpenCodeEvent>;
 	readonly sessionReferenceStore: SessionReferenceStore;
 	readonly diagnostics: DiagnosticSink;
 }

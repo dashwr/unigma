@@ -212,7 +212,7 @@ const MODEL = 'gpt-4o-2024-08-06';
 // Shared types describing the CAPI `/models` response shape the mock returns.
 // Centralized here so all model fixtures stay in sync and can be tweaked in one
 // place when the backend billing/capabilities contract changes. Mirrors the
-// `CCAModel*` interfaces in `src/typings/copilot-api.d.ts`.
+// `CCAModel*` interfaces from `@vscode/copilot-api`.
 
 /**
  * Per-tier token pricing (prices are in 1/1,000,000ths of a USD per token, i.e.

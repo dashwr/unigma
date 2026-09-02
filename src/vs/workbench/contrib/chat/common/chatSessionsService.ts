@@ -11,10 +11,8 @@ import { IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IPosition } from '../../../../editor/common/core/position.js';
-import { isRemoteAgentHostSessionType } from '../../../../platform/agentHost/common/agentHostSessionType.js';
 import { createDecorator, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from './participants/chatAgents.js';
 import { IChatEditingSession } from './editing/chatEditingService.js';
 import { IChatRequestModeInstructions, IChatRequestVariableData, ISerializableChatModelInputState } from './model/chatModel.js';
@@ -183,29 +181,23 @@ export interface IChatSessionsExtensionPoint {
 	 * This is distinct from {@link requiresCustomModels}, which only controls
 	 * whether the picker is filtered to the session's own model pool — a
 	 * session can own a custom pool yet still support Auto (e.g. the Copilot
-	 * CLI agent host).
+	 * CLI provider).
 	 */
 	readonly supportsAutoModel?: boolean;
 	/**
-	 * Logical Agent Host provider ID for Agent Host-backed chat sessions.
-	 * For example, both local `agent-host-copilotcli` and remote
-	 * `remote-{authority}-copilotcli` sessions use `copilotcli`.
-	 */
-	readonly agentHostProviderId?: string;
-	/**
 	 * Whether this type needs a GitHub Copilot account and so is unusable until the user signs in. Set by
-	 * Copilot-backed types (Copilot CLI / agent host, cloud agent) where BYOK isn't supported. Defaults to false, so
+	 * Copilot-backed types (Copilot CLI, cloud agent) where BYOK isn't supported. Defaults to false, so
 	 * third-party types that don't depend on Copilot stay usable while signed out.
 	 *
-	 * May be a function for programmatically-registered types (e.g. agent host) that derive the requirement
-	 * dynamically — for instance from the agent's currently-advertised protected resources, re-evaluated whenever
+	 * May be a function for programmatically-registered types that derive the requirement
+	 * dynamically — for instance from the provider's currently-advertised protected resources, re-evaluated whenever
 	 * {@link IChatSessionAvailabilityNotifier.notifyChanged} fires. Declaratively-contributed extensions can only
 	 * supply a static boolean (parsed from JSON).
 	 */
 	readonly requiresCopilotSignIn?: boolean | (() => boolean);
 	/**
 	 * Fires when a functional {@link requiresCopilotSignIn} would return a
-	 * different value (e.g. an agent-host agent flipped between proxy and native).
+	 * different value (e.g. a provider flipped between proxy and native).
 	 * The sessions service re-fires {@link IChatSessionsService.onDidChangeAvailability}
 	 * in response. Only meaningful for programmatically-registered contributions —
 	 * declaratively-contributed extensions supply a static boolean and omit this.
@@ -345,8 +337,7 @@ export interface IChatSessionServerRequest {
 /**
  * Whether `text` runs as a terminal command for the given command `prefix`
  * (e.g. `!`) — it starts with the prefix and has a non-empty command after it.
- * Mirrors the agent host's bang parser, where a lone `!` (or `!` followed only
- * by whitespace) is forwarded to the agent rather than executed.
+ * A lone prefix (or a prefix followed only by whitespace) is not a command.
  */
 export function isTerminalCommandPrompt(text: string, prefix: string | undefined): boolean {
 	return !!prefix && text.startsWith(prefix) && text.slice(prefix.length).trim().length > 0;
@@ -361,37 +352,6 @@ export namespace SessionType {
 	export const Local = 'local';
 	export const Codex = 'openai-codex';
 	export const Growth = 'copilot-growth';
-	export const AgentHostCopilot = 'agent-host-copilotcli';
-	export const AgentHostClaude = 'agent-host-claude';
-	export const AgentHostCodex = 'agent-host-codex';
-}
-
-/**
- * Returns whether the given session type is a local agent host target.
- */
-export function isLocalAgentHostTarget(target: string): boolean {
-	return target === SessionType.AgentHostCopilot ||
-		target.startsWith(LOCAL_AGENT_HOST_SCHEME_PREFIX);
-}
-
-/**
- * Returns whether the given session type is a remote agent host target.
- *
- * Note: The `remote-` prefix convention is established by
- * `RemoteAgentHostContribution` which generates session types as
- * `remote-{sanitizedAddress}-{provider}`. If future remote providers that
- * are NOT agent hosts need a different prefix, this function must be updated.
- */
-export function isRemoteAgentHostTarget(target: string): boolean {
-	return isRemoteAgentHostSessionType(target);
-}
-
-/**
- * Returns whether the given session type is an agent host target.
- * Matches the local agent host (`agent-host-*`) and remote agent hosts (`remote-*`).
- */
-export function isAgentHostTarget(target: string): boolean {
-	return isLocalAgentHostTarget(target) || isRemoteAgentHostTarget(target);
 }
 
 /**
@@ -625,7 +585,7 @@ export interface IChatNewSessionRequest {
 	 * request was issued. Set when the chat infrastructure is rewriting an
 	 * untitled session URI to a real one on first send. Controllers can use
 	 * this to bridge any pre-creation state they tracked under the old URI
-	 * (e.g. provisional agent-host sessions) to the new resource that the
+ * (e.g. provisional sessions) to the new resource that the
 	 * controller returns.
 	 */
 	readonly untitledResource?: URI;
@@ -905,7 +865,7 @@ export interface IChatSessionsService {
 	/**
 	 * Whether the session type needs a Copilot account and so is unusable until the user signs in (BYOK isn't
 	 * supported). A type's {@link IChatSessionsExtensionPoint.requiresCopilotSignIn} may be a static boolean or a
-	 * function evaluated on demand (e.g. agent-host types derive it from the agent's currently-advertised protected
+	 * function evaluated on demand (e.g. provider types derive it from currently-advertised protected
 	 * resources); defaults to false so third-party types stay usable while signed out.
 	 */
 	requiresCopilotSignInForSessionType(chatSessionType: string): boolean;

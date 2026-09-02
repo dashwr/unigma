@@ -14,7 +14,7 @@ import { localize } from '../../../../nls.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 
 export interface ISessionType {
-	/** Unique identifier (e.g., 'copilot-cli', 'copilot-cloud', 'agent-host-claude'). */
+	/** Unique identifier (e.g., 'copilot-cli' or 'copilot-cloud'). */
 	readonly id: string;
 	/** Display label (e.g., 'Copilot CLI', 'Cloud'). */
 	readonly label: string;
@@ -26,7 +26,7 @@ export interface ISessionType {
 	 * The workbench chat session type (contribution id) this session type maps
 	 * to, when it differs from {@link id}. Agent-host providers use a bare agent
 	 * provider name as {@link id} (e.g. `claude`) but register their chat session
-	 * contribution and models under `agent-host-<provider>`, so they set this to
+	 * contribution and models under a provider-specific type, so they set this to
 	 * bridge the two (e.g. for entitlement/model availability lookups). Defaults
 	 * to {@link id} when omitted.
 	 */
@@ -100,8 +100,8 @@ export function getSessionStatusMessage(status: SessionStatus, description: IMar
 
 /**
  * Provider-agnostic interactivity of a chat within a session. Mirrors the agent
- * host protocol's notion of chat interactivity but is decoupled from it so that
- * non-agent-host providers can report it too.
+ * protocol's notion of chat interactivity but is decoupled from any provider so
+ * all session providers can report it.
  *
  * Supports the agent-team pattern where a lead chat is fully interactive while
  * worker chats are read-only (visible for observability) or hidden (internal
@@ -350,7 +350,7 @@ export const BRANCH_CHANGES_CHANGESET_ID = 'branchChanges';
  * want to reflect just the most recent turn — e.g. the chat input status pills —
  * can locate it in {@link ISession.changesets} by id.
  *
- * Must match the agent host provider's `ChangesetKind.Turn` value.
+	 * Must match the provider's `ChangesetKind.Turn` value.
  */
 export const TURN_CHANGES_CHANGESET_ID = 'turn';
 
@@ -527,7 +527,7 @@ export const DEFAULT_CHAT_CAPABILITIES: IChatCapabilities = { canRename: true, c
  * question model selection asks of it: `chat.defaultModel` seeds a chat that has no model of its
  * own, and the model id alone cannot say which case this is.
  *
- * Client-local: not persisted, and it does not cross the agent-host wire.
+ * Client-local: not persisted, and it does not cross a provider boundary.
  */
 export const enum ChatModelSource {
 	/** The chat's own: the user picked it, or it was restored from where the chat left off. */
@@ -697,7 +697,7 @@ export interface ISession {
 	/**
 	 * Capabilities of this session. Observable so consumers (context keys, chat
 	 * catalog) react when a provider's advertised capabilities hydrate or change
-	 * after the session is first surfaced (e.g. an agent host whose root state
+	 * after the session is first surfaced (e.g. a provider whose root state
 	 * arrives after the session's first state update).
 	 */
 	readonly capabilities: IObservable<ISessionCapabilities>;
@@ -720,7 +720,7 @@ export function sessionHasChanges(session: ISession, reader: IReader | undefined
  * session resource URI.
  *
  * This is the single source of truth for the `providerId:resourceUri`
- * string format used by every sessions provider (agent-host and
+ * string format used by every sessions provider (local and
  * Copilot chat sessions). Consumers that only have a provider id and a
  * resource URI (e.g. a filesystem provider reconstructing a sessionId
  * from a synthetic URI) should call this rather than rebuilding the
@@ -767,12 +767,12 @@ export interface ISessionCapabilities {
 	 */
 	readonly supportsDelete?: boolean;
 	/**
-	 * Whether the session's underlying runtime (e.g. a cloud agent host)
+	 * Whether the session's underlying runtime (e.g. a cloud provider)
 	 * already runs `runOptions.runOn === 'worktreeCreated'` tasks during
 	 * environment provisioning. When `true`, the agents-window
 	 * client-side dispatcher must NOT run those tasks itself to avoid
 	 * double-execution. Defaults to `false` for sessions backed by local
-	 * or remote agent hosts, where the client is the only thing that
+	 * or remote providers, where the client is the only thing that
 	 * could trigger them.
 	 */
 	readonly runsWorktreeCreatedTasks?: boolean;

@@ -11,8 +11,8 @@
  *
  * Two variants are provided to cover the different tool names advertised by
  * each surface:
- *   - {@link shellEchoScenario} matches SDK-based sessions (Copilot CLI,
- *     Claude, AgentHost), which expose `bash` / `pwsh` / `powershell` tools.
+ *   - {@link shellEchoScenario} matches Copilot CLI sessions, which expose
+ *     `bash` / `pwsh` / `powershell` tools.
  *   - {@link runInTerminalScenario} matches the VS Code built-in chat agent
  *     (used by the "Local" session), which exposes the `run_in_terminal`
  *     tool.
@@ -75,15 +75,11 @@ export function runInTerminalScenario(reply: string): unknown {
  * as a ```json block; the exact format varies by surface:
  *   - Copilot CLI (responses-API):     `{ "output": "<reply>" }`
  *   - Local `run_in_terminal`:         `{ "output": "<reply>..." }`
- *   - Claude SDK Bash (messages-API):  `{ "content": "<reply>" }`
- *   - AgentHost custom terminal tool:  `{ "output": "ShellID: ...\nExitcode: 0\n<reply>" }`
  *
  * Anchoring on a JSON double-quote OR newline immediately preceding the reply
  * matches:
- *   - the value side of any `"<key>": "<reply>..."` pair (Copilot CLI, Claude,
- *     Local `run_in_terminal`), AND
- *   - the AgentHost custom-terminal format where the reply is preceded by
- *     `\n` inside a larger `"output"` string.
+ *   - the value side of any `"<key>": "<reply>..."` pair (Copilot CLI,
+ *     Local `run_in_terminal`), including a multiline `"output"` string.
  *
  * This excludes the `echo <reply>` command preview (a bareword surrounded by
  * whitespace, not `"` or `\n`). `<reply>` must not contain regex

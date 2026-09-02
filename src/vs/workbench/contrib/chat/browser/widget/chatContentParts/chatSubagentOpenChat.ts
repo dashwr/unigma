@@ -20,7 +20,6 @@ import { localize, localize2 } from '../../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { IActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuId, MenuItemAction, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
-import { parseChatUri } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -29,7 +28,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { ACTIVE_GROUP } from '../../../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { formatElapsedTime } from '../../../common/chatProgressFormatting.js';
-import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../../common/constants.js';
+import { CHAT_OPEN_SUBAGENT_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../../common/constants.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { IChatWidgetService } from '../../chat.js';
 import { getChatMarkdownRenderOptions } from '../chatContentMarkdownRenderer.js';
@@ -93,15 +92,19 @@ function asOpenSubagentChatContext(context: unknown): IOpenSubagentChatContext |
 }
 
 export function getSubagentEditorResource(context: IOpenSubagentChatContext): URI | undefined {
-	const parsed = parseChatUri(context.chatResource);
-	if (!parsed || !context.parentSessionResource) {
+	if (!context.parentSessionResource) {
 		return undefined;
 	}
 	try {
+		const chatResource = URI.parse(context.chatResource);
+		const chatId = chatResource.fragment || chatResource.path.replace(/^\//, '');
+		if (!chatId) {
+			return undefined;
+		}
 		const parentSessionResource = URI.parse(context.parentSessionResource);
 		const query = new URLSearchParams(parentSessionResource.query);
 		query.set(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, context.chatResource);
-		return parentSessionResource.with({ fragment: parsed.chatId, query: query.toString() });
+		return parentSessionResource.with({ fragment: chatId, query: query.toString() });
 	} catch {
 		return undefined;
 	}
@@ -156,7 +159,7 @@ function createEditorOpenSubagentAction(action: IAction, chatWidgetService: ICha
 class OpenSubagentChatAction extends Action2 {
 	constructor() {
 		super({
-			id: CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID,
+			id: CHAT_OPEN_SUBAGENT_CHAT_COMMAND_ID,
 			title: localize2('chat.subagent.openChat', "Open Subagent"),
 			icon: Codicon.commentDiscussion,
 			f1: false,
@@ -674,7 +677,7 @@ class EditorOpenSubagentChatActionViewItemContribution extends Disposable implem
 			return;
 		}
 		const onDidRegister = this._register(new Emitter<void>());
-		this._register(actionViewItemService.register(MenuId.ChatSubagentContent, CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, (action, options, instantiationService) => {
+		this._register(actionViewItemService.register(MenuId.ChatSubagentContent, CHAT_OPEN_SUBAGENT_CHAT_COMMAND_ID, (action, options, instantiationService) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}

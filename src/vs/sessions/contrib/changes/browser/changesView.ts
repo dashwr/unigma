@@ -70,7 +70,6 @@ import { CIStatusWidget } from './checksWidget.js';
 import { SessionFilesWidget } from './sessionFilesWidget.js';
 import { SessionFilesViewModel } from './sessionFilesViewModel.js';
 import { GITHUB_REMOTE_FILE_SCHEME, ISessionChangesetOperation, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus } from '../../../services/sessions/common/session.js';
-import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
 import { IView, LayoutPriority, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';
 import { Color } from '../../../../base/common/color.js';
@@ -79,8 +78,6 @@ import { EditorResourceAccessor, SideBySideEditor } from '../../../../workbench/
 import { logChangesViewFileSelect, logChangesViewVersionModeChange, logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
 import { ChecksViewModel } from './checksViewModel.js';
 import { REVEAL_CI_CHECKS_COMMAND_ID } from './checksActions.js';
-// eslint-disable-next-line local/code-import-patterns -- TODO: move skill button constants out of providers
-import { AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID, isAgentHostSkillButtonId } from '../../providers/agentHost/browser/agentHostSkillButtons.js';
 import { ActiveSessionContextKeys, CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, IsolationMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
 import { buildTreeChildren, ChangesTreeElement, ChangesTreeRenderer, IChangesFileItem, IChangesTreeRootInfo, isChangesFileItem, isChangesFileResource, toIChangesFileItem } from './changesViewRenderer.js';
 import { ResourceTree } from '../../../../base/common/resourceTree.js';
@@ -228,12 +225,6 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
 			}
 			return { showIcon: false, showLabel: true, isSecondary: false, customLabel: `$(loading) ${labelWithCount}` };
 		}
-		if (action.id === AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID) {
-			const customLabel = outgoingChanges > 0
-				? `${action.label} ${outgoingChanges}↑`
-				: action.label;
-			return { customLabel, showIcon: true, showLabel: true, isSecondary: false };
-		}
 		if (
 			action.id === RUN_SESSION_CODE_REVIEW_ACTION_ID ||
 			action.id === 'chatEditing.viewAllSessionChanges' ||
@@ -251,8 +242,7 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
 			action.id === 'pr.checkoutFromChat' ||
 			action.id === 'github.copilot.sessions.initializeRepository' ||
 			action.id === 'agentSession.restore' ||
-			action.id === 'sessions.action.fixCIChecks' ||
-			isAgentHostSkillButtonId(action.id)
+			action.id === 'sessions.action.fixCIChecks'
 		) {
 			return { showIcon: true, showLabel: true, isSecondary: false };
 		}
@@ -271,7 +261,7 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
 	}
 }
 
-// --- ButtonBar widget (Agent Host)
+// --- ButtonBar widget
 
 class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButtonBarWidget {
 
@@ -406,7 +396,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 
 /**
  * Renders the session changes action button-bar (e.g. "Create Pull Request") into
- * a container, choosing the agent-host or git variant based on the active session.
+ * a container, choosing the provider or git variant based on the active session.
  * Used to host the actions in the single-pane Changes editor header.
  */
 export class ChangesActionsBar extends Disposable {
@@ -430,11 +420,6 @@ export class ChangesActionsBar extends Disposable {
 			return changesViewService.activeSessionStateObs.read(reader)?.hasGitOperationInProgress === true;
 		});
 
-		const isAgentHostSessionObs = derived(reader => {
-			const activeSession = sessionsService.activeSession.read(reader);
-			return activeSession ? isAgentHostProviderId(activeSession.providerId) : false;
-		});
-
 		let currentWidget: IChangesButtonBarWidget | undefined;
 		const updateVisibility = () => {
 			const visible = currentWidget?.hasActions ?? false;
@@ -444,9 +429,7 @@ export class ChangesActionsBar extends Disposable {
 		this._register(autorun(reader => {
 			dom.clearNode(container);
 
-			const widget = isAgentHostSessionObs.read(reader)
-				? instantiationService.createInstance(ChangesWorkbenchButtonBarWidget, container)
-				: instantiationService.createInstance(ChangesMenuWorkbenchButtonBarWidget, container, hasGitOperationInProgressObs);
+			const widget = instantiationService.createInstance(ChangesMenuWorkbenchButtonBarWidget, container, hasGitOperationInProgressObs);
 			reader.store.add(widget);
 			currentWidget = widget;
 			reader.store.add(widget.onDidChangeActions(() => updateVisibility()));
@@ -561,7 +544,6 @@ export class ChangesViewPane extends ViewPane {
 	private readonly hasOpenPullRequestContextKey: IContextKey<boolean>;
 	private readonly hasGitOperationInProgressContextKey: IContextKey<boolean>;
 
-	private readonly hasGitOperationInProgressObs: IObservable<boolean>;
 	private readonly scopedInstantiationService: IInstantiationService;
 
 	private readonly renderDisposables = this._register(new DisposableStore());
@@ -623,34 +605,6 @@ export class ChangesViewPane extends ViewPane {
 		this._register(bindContextKey(ChatContextKeys.agentSessionType, this.scopedContextKeyService, reader => {
 			return this.changesViewService.activeSessionTypeObs.read(reader) ?? '';
 		}));
-
-		// Git operation in progress set in the global context key service by the extension
-		const hasGitOperationInProgressGlobalContextObs = observableFromEvent(this.contextKeyService.onDidChangeContext, () => {
-			return this.contextKeyService.getContextKeyValue('sessions.hasGitOperationInProgress') === true;
-		});
-
-		// Git operation in progress set in the session state
-		const hasGitOperationInProgressStateObs = derived(reader => {
-			const activeSessionState = this.changesViewService.activeSessionStateObs.read(reader);
-			return activeSessionState?.hasGitOperationInProgress === true;
-		});
-
-		this.hasGitOperationInProgressObs = derived(reader => {
-			const hasGitOperationInProgressGlobalContext = hasGitOperationInProgressGlobalContextObs.read(reader);
-			const hasGitOperationInProgressState = hasGitOperationInProgressStateObs.read(reader);
-
-			// The global context key service is being set as soon as the command starts
-			// so we need to prefer it first before falling back to the session state.
-			const contextKeyValue = hasGitOperationInProgressGlobalContext === true
-				? hasGitOperationInProgressGlobalContext
-				: hasGitOperationInProgressState;
-
-			// Propagate global context service value to the scoped context key service
-			// as the scoped context key service is what it is being used in the view
-			this.hasGitOperationInProgressContextKey.set(contextKeyValue);
-
-			return contextKeyValue;
-		});
 
 		const scopedServiceCollection = new ServiceCollection([IContextKeyService, this.scopedContextKeyService]);
 		this.scopedInstantiationService = this.instantiationService.createChild(scopedServiceCollection);
@@ -1541,19 +1495,10 @@ export class ChangesViewPane extends ViewPane {
 			return;
 		}
 
-		const isAgentHostSessionObs = derived(reader => {
-			const activeSession = this.sessionsService.activeSession.read(reader);
-			return activeSession ? isAgentHostProviderId(activeSession.providerId) : false;
-		});
-
 		this.renderDisposables.add(autorun(reader => {
 			dom.clearNode(this.actionsContainer!);
 
-			const isAgentHostSession = isAgentHostSessionObs.read(reader);
-
-			const widget = isAgentHostSession
-				? this.scopedInstantiationService.createInstance(ChangesWorkbenchButtonBarWidget, this.actionsContainer!)
-				: this.scopedInstantiationService.createInstance(ChangesMenuWorkbenchButtonBarWidget, this.actionsContainer!, this.hasGitOperationInProgressObs);
+			const widget = this.scopedInstantiationService.createInstance(ChangesWorkbenchButtonBarWidget, this.actionsContainer!);
 			reader.store.add(widget);
 		}));
 	}

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isLanguageModelVendorAbsenceConclusive } from './languageModels.js';
-import { isAgentHostTarget } from './chatSessionsService.js';
 
 export type ModelIdentifierResolution =
 	| { readonly kind: 'notRequested' }
@@ -50,20 +49,11 @@ export function resolveModelIdentifierFromCatalog(
 	const separator = identifier.search(/[/:]/);
 	const vendor = separator === -1 ? undefined : identifier.substring(0, separator);
 	const hasLive = vendor ? vendorResolution.hasLiveModels(vendor) : false;
-	// Agent-host vendors publish their models asynchronously after the agent host connects, so an
-	// empty (not-yet-populated) list is transient: keep the remembered/restored model `pending`
-	// (wait) rather than `unavailable` (give up). The same holds while the host has only mirrored
-	// the workbench's BYOK models into its pool and its own catalog is still in flight, which is
-	// why `hasLiveModels` reports whether the vendor published models of its OWN (see
-	// `hasOwnLiveModels`). Once it has, an absent model is genuinely gone, so stay conclusive.
-	// This grace is scoped to restore *resolution* only — cache-retention (`mergeModelsWithCache`)
-	// and send-availability keep treating a resolved-empty list as authoritative. The vendor id
-	// equals the session type for agent-host models, so `isAgentHostTarget` classifies it directly.
-	const isAbsenceConclusive = !vendor || (isLanguageModelVendorAbsenceConclusive(
+	const isAbsenceConclusive = !vendor || isLanguageModelVendorAbsenceConclusive(
 		vendor,
 		hasLive,
 		vendorResolution.hasResolved(vendor),
-	) && (hasLive || !isAgentHostTarget(vendor)));
+	);
 	return resolveModelIdentifier(models, identifier, isAbsenceConclusive);
 }
 
@@ -77,11 +67,8 @@ export function getRegisteredLanguageModels(languageModelsService: Pick<ILanguag
 }
 
 /**
- * Whether a vendor has published models of its own, ignoring copies bridged in from another
- * provider. An agent host mirrors the workbench's BYOK models into its pool as soon as the bridge
- * is up, but its own catalog only arrives once the host has connected and authenticated — so a pool
- * that is nothing but bridged copies is a half-published catalog. Counting it as live makes a
- * restored session's model look permanently gone and swaps it for an arbitrary bridged model.
+ * Whether a vendor has published models of its own, ignoring BYOK model aliases.
+ * A pool containing only aliases is not a live vendor catalog.
  */
 function hasOwnLiveModels(models: readonly ILanguageModelChatMetadataAndIdentifier[], vendor: string): boolean {
 	return models.some(model => model.metadata.vendor === vendor && model.metadata.byokModelIdentifier === undefined);
@@ -176,7 +163,7 @@ export function isRestoredModelReason(reason: ModelSelectionReason | undefined):
  * what the catalog can offer right now. Owned by the conversation rather than by any input widget,
  * so a choice made in one chat can never be applied to another.
  *
- * Deliberately local: it is never serialized and never crosses the agent-host wire, unlike the
+ * Deliberately local: it is never serialized or sent across a provider boundary, unlike the
  * selected model in the conversation's draft state.
  */
 export interface IIntendedModelSelection {

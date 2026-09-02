@@ -10,7 +10,7 @@ import { constObservable, observableValue } from '../../../../../base/common/obs
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ConfirmationOptionKind } from '../../../../../platform/agentHost/common/state/protocol/channels-chat/state.js';
+import { ConfirmationOptionKind } from '../../../../../platform/sessions/common/confirmation.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';

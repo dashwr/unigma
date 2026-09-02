@@ -1155,7 +1155,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 				}
 			};
 
-			// Providers (e.g. the agent host) load their session cache
+			// Providers may load their session cache
 			// asynchronously, so the session may appear via either a provider
 			// change or a session list change.
 			disposables.add(this.sessionsProvidersService.onDidChangeProviders(() => tryFind()));

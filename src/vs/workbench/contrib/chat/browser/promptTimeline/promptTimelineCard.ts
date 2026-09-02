@@ -52,7 +52,7 @@ export class PromptTimelineCard extends Disposable {
 
 		const head = append(this._element, $('.prompt-timeline-card-head'));
 		append(head, $('.prompt-timeline-card-text')).textContent = tick.text;
-		// Grouped ticks show how many prompts they cover. No absolute time: agent-host
+		// Grouped ticks show how many prompts they cover. No absolute time: remote
 		// sessions don't record per-turn timestamps, so it would be misleading.
 		if (tick.count > 1) {
 			append(head, $('.prompt-timeline-card-meta')).textContent = localize('promptTimeline.groupedCount', "{0} prompts", tick.count);

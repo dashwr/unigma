@@ -16,7 +16,6 @@ import { BranchChatSessionAction } from './branchChatSessionAction.js';
 import { RunScriptContribution } from './runScriptAction.js';
 import './nullInlineChatSessionService.js';
 import './modelPicker.js';
-import './agentHostDelegation.js';
 import './newSessionFolderQuickPickAction.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -35,8 +34,7 @@ import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/action
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { SessionsChatAccessibilityHelp } from './sessionsChatAccessibilityHelp.js';
 import { SessionsOpenerParticipantContribution } from './sessionsOpenerParticipant.js';
-import { OpenSessionLinkOpenerContribution } from './openSessionLinkOpener.contribution.js';
-import { WorktreeCreatedTaskDispatcher, AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING } from './worktreeCreatedTaskDispatcher.js';
+import { WorktreeCreatedTaskDispatcher } from './worktreeCreatedTaskDispatcher.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import '../../sessions/browser/mobile/mobileOverlayContribution.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -117,7 +115,6 @@ registerAction2(BranchChatSessionAction);
 // register workbench contributions
 registerWorkbenchContribution2(RunScriptContribution.ID, RunScriptContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(SessionsOpenerParticipantContribution.ID, SessionsOpenerParticipantContribution, WorkbenchPhase.BlockStartup);
-registerWorkbenchContribution2(OpenSessionLinkOpenerContribution.ID, OpenSessionLinkOpenerContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(RegisterDefaultSessionTaskRunnersContribution.ID, RegisterDefaultSessionTaskRunnersContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(WorktreeCreatedTaskDispatcher.ID, WorktreeCreatedTaskDispatcher, WorkbenchPhase.AfterRestored);
 
@@ -137,12 +134,6 @@ AccessibleViewRegistry.register(new SessionsChatAccessibilityHelp());
 // register configuration
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	properties: {
-		[AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING]: {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.APPLICATION,
-			description: localize('chat.agentHost.runWorktreeCreatedTasks', "Whether to automatically run tasks tagged with `\"runOptions\": { \"runOn\": \"worktreeCreated\" }` when a new agent host session worktree is created. Manual `Run Task` invocations are unaffected."),
-		},
 		[AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING]: {
 			type: 'boolean',
 			default: true,

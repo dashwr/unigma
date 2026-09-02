@@ -14,7 +14,6 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IChatResponseFileChangesService } from '../../../../workbench/contrib/chat/browser/chatResponseFileChangesService.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatTurnPillsWidget, diffStatsEqual, EMPTY_DIFF_STATS, IChatTurnPillsModel, IDiffStats, IPreviewFile, observeTurnStatusPillsEnabled, openChatTurnFile, previewFilesEqual, previewKind } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
-import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IChat, isActiveSessionStatus } from '../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
@@ -109,11 +108,11 @@ export class SessionChatInputToolbar extends Disposable {
 	private readonly _diffStats: IObservable<IDiffStats>;
 	private readonly _previewFiles: IObservable<readonly IPreviewFile[]>;
 
-	/** Whether pills may show at all: an agent host session with an active turn. */
+	/** Whether pills may show at all for an active turn. */
 	private readonly _active = derived(reader => {
 		const session = this._session.read(reader);
 		const chat = this._chat.read(reader);
-		if (!session || !chat || !isAgentHostProviderId(session.providerId)) {
+		if (!session || !chat) {
 			return false;
 		}
 		return isActiveSessionStatus(chat.status.read(reader));

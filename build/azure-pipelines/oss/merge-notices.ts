@@ -18,7 +18,7 @@
 
 import fs from 'fs';
 import { applyOverrides, readCglicenses } from './apply-overrides.js';
-import { isPackageHeader } from './parse-notices.js';
+import { parseNoticeFile as parseNoticeFileCanonical } from './parse-notices.js';
 import { parseArgs } from './utils.js';
 
 interface NoticeEntry {
@@ -30,90 +30,33 @@ interface NoticeEntry {
 }
 
 const SEPARATOR = '---------------------------------------------------------';
-const SEPARATOR_REGEX = /^-{50,}$/m;
 
+/**
+ * Read a ThirdPartyNotices file into merge-shaped entries.
+ *
+ * Header parsing is NOT reimplemented here: it delegates to the canonical
+ * parser in parse-notices.ts. That module is the single source of truth for
+ * which blocks count as packages (`isPackageHeader`) and how a header splits
+ * into name/version/license (`parseHeaderLine`, four header shapes including
+ * the "name version" shape with no trailing " - <license>").
+ *
+ * A private copy used to live here and only understood two of the four shapes,
+ * so headers like `fish-shell 3.7.1` or `amazon-q-developer-cli <git-sha>` fell
+ * through to name-only and glued the version into the package name. That
+ * corrupted the `<name>@<version>` merge key, which in turn broke CG-vs-scanner
+ * collision detection and the cglicenses.json override matching.
+ */
 function parseNoticeFile(filePath: string): NoticeEntry[] {
 	if (!fs.existsSync(filePath)) {
 		return [];
 	}
-	const content = fs.readFileSync(filePath, 'utf8');
-	const entries: NoticeEntry[] = [];
-	const blocks = content.split(SEPARATOR_REGEX);
-
-	for (let i = 1; i < blocks.length; i++) {
-		const block = blocks[i].trim();
-		if (!block) {
-			continue;
-		}
-
-		const lines = block.split('\n');
-		let headerLine = '';
-		let headerIdx = 0;
-		for (let j = 0; j < lines.length; j++) {
-			if (lines[j].trim()) {
-				headerLine = lines[j].trim();
-				headerIdx = j;
-				break;
-			}
-		}
-
-		if (!headerLine || SEPARATOR_REGEX.test(headerLine)) {
-			continue;
-		}
-
-		// Skip file header lines
-		if (headerLine.startsWith('NOTICES AND INFORMATION') || headerLine.startsWith('Do Not Translate')) {
-			continue;
-		}
-
-		// Validate this looks like a real package header, not license prose
-		// following a decorative dash line inside a LICENSE body.
-		if (!isPackageHeader(headerLine)) {
-			continue;
-		}
-
-		const match = headerLine.match(/^(.+?)\s+([\d][^\s]*)\s+-\s+(.+)$/);
-		let name: string, version: string, license: string;
-		let url = '';
-
-		if (match) {
-			name = match[1];
-			version = match[2];
-			license = match[3];
-		} else {
-			const match2 = headerLine.match(/^(.+?)\s+-\s+(.+)$/);
-			if (match2) {
-				name = match2[1];
-				version = '';
-				license = match2[2];
-			} else {
-				name = headerLine;
-				version = '';
-				license = '';
-			}
-		}
-
-		const remainingLines = lines.slice(headerIdx + 1);
-		let licenseStartIdx = 0;
-		for (let j = 0; j < remainingLines.length; j++) {
-			const line = remainingLines[j].trim();
-			if (!line) {
-				continue;
-			}
-			if (line.startsWith('http://') || line.startsWith('https://')) {
-				url = line;
-				licenseStartIdx = j + 1;
-			} else {
-				licenseStartIdx = j;
-			}
-			break;
-		}
-
-		const licenseText = remainingLines.slice(licenseStartIdx).join('\n').trim();
-		entries.push({ name, version, license, url, licenseText });
-	}
-
-	return entries;
+	return parseNoticeFileCanonical(filePath).map(e => ({
+		name: e.name,
+		version: e.version,
+		license: e.license,
+		url: e.url ?? '',
+		licenseText: e.licenseText ?? '',
+	}));
 }
 
 /**

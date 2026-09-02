@@ -28,11 +28,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 /**
  * Registers the {@link CopilotChatSessionsProvider} as a sessions provider.
  *
- * Coexists with the local agent host provider when that runtime is available. The two providers list disjoint sets of sessions:
- * - The local agent host filters via the per-session Agent Host SQLite DB
+	 * Coexists with other session providers when available. The providers list disjoint sets of sessions:
+	 * - Each provider filters its own session store
  *   (database-existence ownership gate in `CopilotAgent.listSessions`).
  * - This provider's underlying extension service filters via the per-session
- *   metadata file's `origin` field, which the local agent host never writes.
+	 *   metadata file's `origin` field.
  */
 class DefaultSessionsProviderContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'sessions.defaultSessionsProvider';

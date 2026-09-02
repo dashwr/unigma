@@ -17,7 +17,6 @@ import { IWorkbenchAssignmentService } from '../../../../../workbench/services/a
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ISessionGroup, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsListModelService, SessionSortMode } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
@@ -186,10 +185,6 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		override resolveOrder(ids: readonly string[]) { return [...ids]; }
 		override isPromoted() { return false; }
 		override retain(): void { }
-	});
-	instantiationService.stub(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
-		override readonly onDidChange = Event.None;
-		override readonly selectedProviderId = undefined;
 	});
 	instantiationService.stub(IWorkbenchAssignmentService, new class extends mock<IWorkbenchAssignmentService>() {
 		override readonly onDidRefetchAssignments = Event.None;

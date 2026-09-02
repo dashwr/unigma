@@ -28,9 +28,10 @@ em aberto quando a arquitetura já a definiu.
 | S-15 | validação no checkout local `E:\unigma` em 2026-08-23 | instalação e checks reproduzidos fora do Google Drive; dependências nested e compile-client ainda bloqueados; sem artefato ou smoke |
 | S-16 | direção visual e imagem de referência fornecidas pelo responsável em 2026-08-23 | lettering geométrico/block-like como princípio, paleta, sheen metálico controlado e limites de incorporação |
 | S-17 | direção do responsável registrada em 2026-08-23 | roteamento local de modelos por `intelligence index`, `Autopilot!` opt-in e comportamento visual do toggle |
+| S-18 | direção do responsável registrada em 2026-08-26, recuperada da sessão de desenho do runtime | OpenCode como único harness oficial, perfil `service-only`, decepador, bundle atômico e capacidades intersessão do agente |
 
-`docs/fontes/` não existe na cópia atual do repositório. Nenhuma fonte local
-foi modificada.
+`docs/fontes/` contém a fonte local `MODELO-DE-TAREFAS.pdf`, preservada durante a
+reorganização documental de 2026-08-27. Nenhuma fonte externa foi modificada.
 
 ## visão
 
@@ -107,14 +108,47 @@ não autoriza publicação.
 | terminal e SSH obrigatório | OpenSSH e extension host remoto definidos; compatibilidade detalhada pendente | S-01, S-11 |
 | providers abertos, modelos locais e APIs | integração delegada ao OpenCode; direção de classificação e roteamento confirmada, suporte concreto pendente | S-01, S-11, S-17 |
 | roteamento por `intelligence index` e `Autopilot!` | direção confirmada; contrato operacional e validação pendentes | S-17 |
+| perfil `service-only` e bundle `unigma+opencode` | direção confirmada; decepador, artefato e atualização atômica pendentes | S-18 |
+| atalhos `@` para ferramentas e `/` para skills | direção confirmada; contrato da UI nativa pendente | S-18 |
+| mensagens intersessão e chips de estado de agentes | direção confirmada; ciclo de vida e renderização pendentes | S-18 |
+| protocolo de controle remoto dormente | direção confirmada; protocolo e testes pendentes, sem ativação no MVP | S-18 |
+| extensões externas Codex/Claude Code | fora do suporte oficial; não são harness do produto | S-18 |
 | browser agent, cloud/agendador e colaboração em tempo real | posterior | S-01 |
 
-**Confirmado (S-06):** o primeiro MVP inclui todas as capacidades do escopo
-declarado acima, exceto as capacidades explicitamente posteriores.
+**Confirmado (S-06, S-18):** o primeiro MVP inclui as capacidades do escopo
+declarado acima, exceto as capacidades explicitamente posteriores e as linhas
+marcadas como fora do suporte ou dormentes. Direção confirmada não equivale a
+implementação aceita.
 
 **Confirmado (S-09):** OpenCode é o runtime primário de agente do unigma,
 integrado à experiência do IDE; não é uma ferramenta externa periférica. O
 produto deve priorizar uso eficiente de memória e responsividade do desktop.
+
+## harness oficial e distribuição
+
+**Confirmado (S-18):** OpenCode é o único harness/backend local oficial do
+produto. A distribuição oficial é `unigma+opencode`, com um perfil
+`service-only` que mantém o harness de execução e redireciona TUI, onboarding,
+prompts interativos, navegação e UI redundante para a contribuição nativa do
+unigma. O detalhe do pipeline está em
+[`OPENCODE-SERVICE-ONLY.md`](OPENCODE-SERVICE-ONLY.md).
+
+**Confirmado (S-18):** o decepador é uma cadeia de build, não um mutador da
+instalação do usuário: `commit upstream → patch service-only → testes → artefato
+versionado`. Atualizações autorizadas substituem o bundle atomicamente quando o
+processo está parado e preservam os dados do usuário fora do artefato.
+
+**Confirmado (S-18):** extensões externas de Codex ou Claude Code podem existir
+por decisão do usuário, inclusive baixadas de um marketplace, mas não têm
+suporte oficial, adaptação no core ou status de harness. `unigma+pi` permanece
+experimental. Plugins, MCP, rules e skills oficiais seguem os mecanismos nativos
+e as políticas do OpenCode.
+
+**Confirmado (S-18):** a direção de interação do agente inclui `@` para
+ferramentas, `/` para skills, mensagens entre sessões locais e chips de agentes
+ou subagentes com estados `thinking`, `typing` e `idle`. Um protocolo de controle
+remoto pode ser construído de forma dormente, sem listener ativo, cloud,
+colaboração em tempo real ou backend no MVP.
 
 ## roteamento de modelos e Autopilot!
 
@@ -198,8 +232,9 @@ nested e a caça incremental foi encerrada. Nenhum artefato ou smoke
 multiplataforma foi produzido.
 
 **Registro de contratos (S-15):** T-010 tem contrato implementado e validado.
-T-011, T-012 e T-013 permanecem especificações documentais condicionais, sem
-suporte funcional.
+T-012 tem preflight sanitizado e bridge serializável parciais, sem suporte
+funcional anunciado; T-011 e T-013 permanecem especificações/matrizes
+condicionais.
 
 **Restrição confirmada (S-01):** não usar nem extrair tokens, caches OAuth,
 tráfego interceptado ou meios de contornar entitlement. Integrações devem usar

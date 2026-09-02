@@ -143,7 +143,7 @@ export class OtlpHttpForwarder extends Disposable implements IOutboundForwarder 
 				timeoutMs: this._options.timeoutMs ?? 10_000,
 			}, body);
 		} catch (err) {
-			this._logService.warn(`[agentHost-otel] forward to ${this._resolvedEndpoint} failed: ${err instanceof Error ? err.message : String(err)}`);
+			this._logService.warn(`[otel] forward to ${this._resolvedEndpoint} failed: ${err instanceof Error ? err.message : String(err)}`);
 		}
 	}
 }
@@ -198,7 +198,7 @@ export interface IFileForwarderOptions {
 /**
  * Appends decoded spans (one JSON object per line) to a user-configured file.
  * Mirrors the `github.copilot.chat.otel.outfile` behavior so users can collect
- * Agent Host traces with the same offline-friendly format.
+ * traces with the same offline-friendly format.
  */
 export class FileForwarder extends Disposable implements IOutboundForwarder {
 	private readonly _queue = new Queue<void>();
@@ -230,7 +230,7 @@ export class FileForwarder extends Disposable implements IOutboundForwarder {
 		try {
 			await fs.appendFile(this._options.filePath, lines, { encoding: 'utf8' });
 		} catch (err) {
-			this._logService.warn(`[agentHost-otel] file forward to ${this._options.filePath} failed: ${err instanceof Error ? err.message : String(err)}`);
+			this._logService.warn(`[otel] file forward to ${this._options.filePath} failed: ${err instanceof Error ? err.message : String(err)}`);
 		}
 	}
 }
@@ -256,7 +256,7 @@ export class ConsoleForwarder extends Disposable implements IOutboundForwarder {
 			return;
 		}
 		for (const span of result.spans) {
-			this._logService.info(`[agentHost-otel] span ${formatSpan(span)}`);
+			this._logService.info(`[otel] span ${formatSpan(span)}`);
 		}
 	}
 

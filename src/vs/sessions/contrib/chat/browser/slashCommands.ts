@@ -21,9 +21,8 @@ import { localize } from '../../../../nls.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { IChatSubmitRequestHandlerService, type IChatSubmitRequest, type IChatSubmitRequestHandler } from '../../../../workbench/contrib/chat/browser/chatSubmitRequestHandlerService.js';
 import { IChatPromptSlashCommand } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
-import { INewChatModelPickerService } from './newChatModelPicker.js';
-import { isAgentHostTarget } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
+import { INewChatModelPickerService } from './newChatModelPicker.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { IChatPetService } from '../../../../workbench/contrib/chat/browser/chatPetService.js';
@@ -216,10 +215,7 @@ export class SlashCommandHandler extends Disposable implements IChatSubmitReques
 		const model = this._editor.getModel();
 		const value = model?.getValue() ?? '';
 		const match = value.match(/^\/([\w\p{L}\d_\-\.:]+)\s?/u);
-		const activeSession = this.sessionContext.session.get();
-
-		// Agent-host sessions should not get decorations as this class is only for use with Local Agent Harness and Copilot Chat Extension.
-		if (!match || (activeSession && isAgentHostTarget(getChatSessionType(activeSession.resource)))) {
+		if (!match) {
 			this._commandDecorations.clear();
 			this._placeholderDecorations.clear();
 			return;
@@ -309,12 +305,6 @@ export class SlashCommandHandler extends Disposable implements IChatSubmitReques
 				if (!activeSession) {
 					return null;
 				}
-				if (isAgentHostTarget(getChatSessionType(activeSession.resource))) {
-					// Agent-host sessions delegate completions to the host
-					// process via `AgentHostInputCompletions`.
-					return null;
-				}
-
 
 				const range = this._computeCompletionRanges(model, position, /\/[\p{L}0-9_.:-]*/gu);
 				if (!range) {
@@ -326,7 +316,7 @@ export class SlashCommandHandler extends Disposable implements IChatSubmitReques
 					return null;
 				}
 
-				const promptCommands = await this.harnessService.getSlashCommands(activeSession?.resource, token);
+				const promptCommands = await this.harnessService.getSlashCommands(activeSession.resource, token);
 				const userInvocable = promptCommands.filter(c => c.userInvocable);
 				if (userInvocable.length === 0) {
 					return null;

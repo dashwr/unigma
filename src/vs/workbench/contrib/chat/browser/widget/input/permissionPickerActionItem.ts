@@ -18,7 +18,7 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../common/constants.js';
-import { IChatSessionProviderOptionItem, SessionType } from '../../../common/chatSessionsService.js';
+import { IChatSessionProviderOptionItem } from '../../../common/chatSessionsService.js';
 import { MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
@@ -50,7 +50,7 @@ export interface IPermissionPickerDelegate {
 	readonly availableLevels?: readonly ChatPermissionLevel[];
 	/**
 	 * The setting id the elevated-level warning dialog links to as "make this
-	 * the default". Defaults to `chat.permissions.default`; agent-host sessions
+	 * the default". Defaults to `chat.permissions.default`; CLI sessions
 	 * pass `chat.defaultConfiguration`.
 	 */
 	readonly defaultSettingKey?: string;
@@ -281,10 +281,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 				class: undefined,
 				enabled: true,
 				run: async () => {
-					const ext = delegate.getExtensionPermissions?.();
-					const url = ext?.sessionType === SessionType.AgentHostClaude
-						? 'https://code.claude.com/docs/en/permission-modes#available-modes'
-						: 'https://aka.ms/vscode/docs/permissions';
+					const url = 'https://aka.ms/vscode/docs/permissions';
 					await openerService.open(URI.parse(url));
 				}
 			}],

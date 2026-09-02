@@ -420,7 +420,7 @@ export class MobileDiffView extends Disposable {
 			return 'plaintext';
 		}
 		// `guessLanguageIdByFilepathOrFirstLine` already handles unknown
-		// URI schemes (like `vscode-agent-host://`) — its association
+		// Provider URI schemes — their association
 		// resolver falls through to `resource.path` and basenames that
 		// for extension matching. We don't need to massage the URI.
 		const guessed = this.languageService.guessLanguageIdByFilepathOrFirstLine(uri);

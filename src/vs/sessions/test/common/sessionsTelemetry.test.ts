@@ -37,7 +37,7 @@ suite('sessionsTelemetry helpers', () => {
 			getSessionsTelemetryProviderId('extension-provider'),
 		], [
 			'default-copilot',
-			'local-agent-host',
+			'other',
 			'remote-agent-host',
 			'remote-agent-host',
 			'other',

@@ -23,7 +23,6 @@ import { IChatSessionsService, localChatSessionType } from '../../common/chatSes
 import { getChatSessionType, LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { IChatWidgetService } from '../chat.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
-import { isAgentHostSession } from './agentHostLogSources.js';
 import { isChatDebugLoggingEnabledForSession, renderChatDebugLoggingDisabledMessage } from './chatDebugEnablement.js';
 import { setupBreadcrumbKeyboardNavigation, TextBreadcrumbItem } from './chatDebugTypes.js';
 
@@ -37,7 +36,6 @@ export const enum OverviewNavigation {
 	Logs = 'logs',
 	FlowChart = 'flowchart',
 	CacheExplorer = 'cache',
-	WireLog = 'wirelog',
 }
 
 export class ChatDebugOverviewView extends Disposable {
@@ -234,10 +232,10 @@ export class ChatDebugOverviewView extends Disposable {
 		// When agent debug logging is disabled for this session, no metrics are
 		// captured. Surface a hint to enable the setting instead of an empty
 		// summary, while still keeping the navigation buttons below.
-		if (!isChatDebugLoggingEnabledForSession(this.configurationService, this.currentSessionResource)) {
+		if (!isChatDebugLoggingEnabledForSession(this.configurationService)) {
 			this.metricsContainer = undefined;
 			const disabledSection = DOM.append(this.content, $('.chat-debug-overview-section'));
-			renderChatDebugLoggingDisabledMessage(disabledSection, this.currentSessionResource, this.preferencesService, this.loadDisposables);
+			renderChatDebugLoggingDisabledMessage(disabledSection, this.preferencesService, this.loadDisposables);
 		} else {
 			const metricsSection = DOM.append(this.content, $('.chat-debug-overview-section'));
 			DOM.append(metricsSection, $('h3.chat-debug-overview-section-label', undefined, localize('chatDebug.summary', "Summary")));
@@ -277,16 +275,6 @@ export class ChatDebugOverviewView extends Disposable {
 		this.loadDisposables.add(cacheBtn.onDidClick(() => {
 			this._onNavigate.fire(OverviewNavigation.CacheExplorer);
 		}));
-
-		// The AHP log is only meaningful for Agent Host sessions.
-		if (isAgentHostSession(this.currentSessionResource)) {
-			const wireLogBtn = this.loadDisposables.add(new Button(row, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: localize('chatDebug.ahpLog', "AHP Log") }));
-			wireLogBtn.element.classList.add('chat-debug-overview-action-button');
-			wireLogBtn.label = `$(arrow-swap) ${localize('chatDebug.ahpLog', "AHP Log")}`;
-			this.loadDisposables.add(wireLogBtn.onDidClick(() => {
-				this._onNavigate.fire(OverviewNavigation.WireLog);
-			}));
-		}
 
 	}
 

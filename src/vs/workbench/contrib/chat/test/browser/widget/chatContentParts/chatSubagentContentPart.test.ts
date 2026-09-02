@@ -44,7 +44,7 @@ import { IActionViewItemFactory, IActionViewItemService } from '../../../../../.
 import { IMenuActionOptions, IMenuService, MenuId, MenuItemAction } from '../../../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
-import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatConfiguration } from '../../../../common/constants.js';
+import { CHAT_OPEN_SUBAGENT_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatConfiguration } from '../../../../common/constants.js';
 import { formatCompactSubagentDuration, getSubagentEditorResource, OpenSubagentChatActionViewItem, shouldAnimateSubagentToolTransition } from '../../../../browser/widget/chatContentParts/chatSubagentOpenChat.js';
 
 class TestOpenChatActionViewItem extends ActionViewItem {
@@ -79,7 +79,7 @@ class TestActionViewItemService implements IActionViewItemService {
 	}
 
 	lookUp(menu: MenuId, commandId: string | MenuId): IActionViewItemFactory | undefined {
-		if (!this._providerAvailable || menu !== MenuId.ChatSubagentContent || commandId !== CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID) {
+		if (!this._providerAvailable || menu !== MenuId.ChatSubagentContent || commandId !== CHAT_OPEN_SUBAGENT_CHAT_COMMAND_ID) {
 			return undefined;
 		}
 		return (action, options) => new TestOpenChatActionViewItem(action, options);
@@ -331,7 +331,7 @@ suite('ChatSubagentContentPart', () => {
 		actionViewItemService = new TestActionViewItemService();
 		instantiationService.stub(IActionViewItemService, actionViewItemService);
 		menuService = new TestSubagentMenuService(new MenuItemAction(
-			{ id: CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, title: 'Open Subagent' },
+			{ id: CHAT_OPEN_SUBAGENT_CHAT_COMMAND_ID, title: 'Open Subagent' },
 			undefined,
 			{ shouldForwardArgs: true },
 			undefined,

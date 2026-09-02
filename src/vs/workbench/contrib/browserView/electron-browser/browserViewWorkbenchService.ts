@@ -12,7 +12,6 @@ import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/w
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { process } from '../../../../base/parts/sandbox/electron-browser/globals.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService, PreferredGroup, SIDE_GROUP, USE_MODAL_EDITOR_SETTING, UseModalEditorMode } from '../../../services/editor/common/editorService.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -36,7 +35,6 @@ import { IAccessibilityService } from '../../../../platform/accessibility/common
 import { URI } from '../../../../base/common/uri.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { getCopilotRootPaths } from '../../../../platform/agentHost/common/copilotHome.js';
 import { localChatSessionType } from '../../chat/common/chatSessionsService.js';
 import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
 import { ITunnelProxyInfo } from '../../../../platform/tunnel/common/tunnelProxy.js';
@@ -91,13 +89,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		ContextKeyExpr.has(`config.${ChatConfiguration.AgentEnabled}`),
 		ContextKeyExpr.has(`config.workbench.browser.enableChatTools`),
 		// If we're in Sessions Window, we require some additional conditions.
-		ContextKeyExpr.or(
-			IsSessionsWindowContext.negate(),
-			ContextKeyExpr.or(
-				ContextKeyExpr.equals('sessionType', localChatSessionType),
-				ContextKeyExpr.equals('sessions.isAgentHostSession', true),
-			),
-		),
+		ContextKeyExpr.or(IsSessionsWindowContext.negate(), ContextKeyExpr.equals('sessionType', localChatSessionType)),
 	)!;
 
 	private _isSharingAvailable: boolean = false;
@@ -538,8 +530,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	}
 
 	private _getTrustedFileRoots(): string[] {
-		// Trust Copilot roots so agents can create HTML files and open them in the browser.
-		const roots = new Set(getCopilotRootPaths(this.environmentService.userHome.fsPath, process.env));
+		const roots = new Set<string>();
 		if (this.workspaceTrustManagementService.isWorkspaceTrusted()) {
 			for (const folder of this.workspaceContextService.getWorkspace().folders) {
 				if (folder.uri.scheme === Schemas.file) {

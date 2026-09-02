@@ -15,8 +15,6 @@ import { IListService, ListService } from '../../../../../platform/list/browser/
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 // eslint-disable-next-line local/code-import-patterns
-import { IAgentHostFilterService } from '../../../../../sessions/services/agentHostFilter/common/agentHostFilter.js';
-// eslint-disable-next-line local/code-import-patterns
 import { ISessionGroup, ISessionGroupsService } from '../../../../../sessions/services/sessions/browser/sessionGroupsService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionSectionOrderService } from '../../../../../sessions/services/sessions/browser/sessionSectionOrderService.js';
@@ -169,10 +167,6 @@ function renderSessionsList(ctx: ComponentFixtureContext, options: IRenderOption
 				override resolveOrder(ids: readonly string[]) { return [...ids]; }
 				override isPromoted() { return false; }
 				override retain(): void { }
-			}());
-			reg.defineInstance(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
-				override readonly onDidChange = Event.None;
-				override readonly selectedProviderId = undefined;
 			}());
 			reg.defineInstance(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 				override readonly onDidChangeProviders = Event.None;

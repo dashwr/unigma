@@ -17,10 +17,6 @@ import { LocalAgentsSessionsController } from './localAgentSessionsController.js
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { OpenAgentSessionInEditorGroupAction, OpenAgentSessionInNewEditorGroupAction, OpenAgentSessionInNewWindowAction, ShowAgentSessionsSidebar, HideAgentSessionsSidebar, ToggleAgentSessionsSidebar, RefreshAgentSessionsViewerAction, FindAgentSessionInViewerAction, MarkAgentSessionUnreadAction, MarkAgentSessionReadAction, FocusAgentSessionsAction, SetAgentSessionsOrientationStackedAction, SetAgentSessionsOrientationSideBySideAction, MarkAllAgentSessionsReadAction, RenameAgentSessionAction, DeleteAgentSessionAction, DeleteAllLocalSessionsAction, MarkAgentSessionSectionReadAction, ToggleShowAgentSessionsAction, PinAgentSessionAction, UnpinAgentSessionAction, CollapseAllAgentSessionSectionsAction, getAgentSessionArchiveActionConstructors } from './agentSessionsActions.js';
-import { AgentHostPermissionUiContribution } from './agentHost/agentHostPermissionUiContribution.js';
-import { registerExternalSessionsFilterMenu } from './externalSessionsFilterMenu.js';
-import './agentHost/agentHostChatInputPicker.contribution.js';
-import './agentHost/agentHostModeSynchronizer.js';
 import { ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 
 //#region Actions and Menus
@@ -41,7 +37,6 @@ registerAction2(OpenAgentSessionInEditorGroupAction);
 registerAction2(OpenAgentSessionInNewEditorGroupAction);
 registerAction2(RefreshAgentSessionsViewerAction);
 registerAction2(FindAgentSessionInViewerAction);
-registerExternalSessionsFilterMenu(MenuId.AgentSessionsViewerFilterSubMenu, MenuId.AgentSessionsExternalFilterSubMenu, '2_external');
 registerAction2(ShowAgentSessionsSidebar);
 registerAction2(HideAgentSessionsSidebar);
 
@@ -185,7 +180,6 @@ MenuRegistry.appendMenuItem(MenuId.ChatViewSessionTitleToolbar, {
 //#region Workbench Contributions
 
 registerWorkbenchContribution2(LocalAgentsSessionsController.ID, LocalAgentsSessionsController, WorkbenchPhase.AfterRestored);
-registerWorkbenchContribution2(AgentHostPermissionUiContribution.ID, AgentHostPermissionUiContribution, WorkbenchPhase.BlockRestore);
 
 registerSingleton(IAgentSessionsService, AgentSessionsService, InstantiationType.Delayed);
 

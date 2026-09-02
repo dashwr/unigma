@@ -36,7 +36,7 @@ export class ChatOtherClientToolProgressPart extends BaseChatToolInvocationSubPa
 			? toolInvocation.invocationMessage
 			: renderAsPlaintext(toolInvocation.invocationMessage);
 		const content = localize(
-			'agentHost.otherClientTool.runningWithSkip',
+			'chat.otherClientTool.runningWithSkip',
 			'{0} [Skip?](#skip)',
 			escapeMarkdownSyntaxTokens(invocationMessage),
 		);
@@ -61,7 +61,7 @@ export class ChatOtherClientToolProgressPart extends BaseChatToolInvocationSubPa
 			&& configurationService.getValue(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates)
 			&& !announcedToolProgressKeys.has(announcementKey)) {
 			announcedToolProgressKeys.add(announcementKey);
-			status(localize('agentHost.otherClientTool.runningWithSkip.a11y', '{0} Skip?', invocationMessage));
+			status(localize('chat.otherClientTool.runningWithSkip.a11y', '{0} Skip?', invocationMessage));
 		}
 
 		this.domNode = this._register(instantiationService.createInstance(

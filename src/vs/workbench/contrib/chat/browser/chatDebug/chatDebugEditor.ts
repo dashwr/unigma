@@ -10,7 +10,6 @@ import { Dimension } from '../../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { DisposableMap, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { AgentHostAhpJsonlLoggingSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -25,18 +24,16 @@ import { IEditorGroup } from '../../../../services/editor/common/editorGroupsSer
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import { IChatDebugService } from '../../common/chatDebugService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
-import { AgentHostAgentDebugLogEnabledSettingId, AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING } from '../../common/promptSyntax/promptTypes.js';
+import { AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING } from '../../common/promptSyntax/promptTypes.js';
 import { IChatWidgetService } from '../chat.js';
 import { ViewState, IChatDebugEditorOptions } from './chatDebugTypes.js';
 import { ChatDebugFilterState, registerFilterMenuItems } from './chatDebugFilters.js';
-import { isAgentHostSession } from './agentHostLogSources.js';
-import { isChatDebugLoggingEnabledForSession, isWireLogLoggingEnabled, renderChatDebugLoggingDisabledMessage, renderWireLogLoggingDisabledMessage } from './chatDebugEnablement.js';
+import { isChatDebugLoggingEnabledForSession, renderChatDebugLoggingDisabledMessage } from './chatDebugEnablement.js';
 import { ChatDebugHomeView } from './chatDebugHomeView.js';
 import { ChatDebugOverviewView, OverviewNavigation } from './chatDebugOverviewView.js';
 import { ChatDebugLogsView, LogsNavigation } from './chatDebugLogsView.js';
 import { ChatDebugFlowChartView, FlowChartNavigation } from './chatDebugFlowChartView.js';
 import { ChatDebugCacheExplorerView, CacheExplorerNavigation } from './chatDebugCacheExplorerView.js';
-import { ChatDebugWireLogView, WireLogNavigation } from './chatDebugWireLogView.js';
 
 const $ = DOM.$;
 
@@ -69,7 +66,6 @@ export class ChatDebugEditor extends EditorPane {
 	private logsView: ChatDebugLogsView | undefined;
 	private flowChartView: ChatDebugFlowChartView | undefined;
 	private cacheExplorerView: ChatDebugCacheExplorerView | undefined;
-	private wireLogView: ChatDebugWireLogView | undefined;
 	private filterState: ChatDebugFilterState | undefined;
 
 	private _scopedContextKeyService: IContextKeyService | undefined;
@@ -148,9 +144,6 @@ export class ChatDebugEditor extends EditorPane {
 				case OverviewNavigation.CacheExplorer:
 					this.showView(ViewState.CacheExplorer);
 					break;
-				case OverviewNavigation.WireLog:
-					this.showView(ViewState.WireLog);
-					break;
 			}
 		}));
 
@@ -193,18 +186,6 @@ export class ChatDebugEditor extends EditorPane {
 			}
 		}));
 
-		this.wireLogView = this._register(this.instantiationService.createInstance(ChatDebugWireLogView, this.container));
-		this._register(this.wireLogView.onNavigate(nav => {
-			switch (nav) {
-				case WireLogNavigation.Home:
-					this.endActiveSession();
-					this.showView(ViewState.Home);
-					break;
-				case WireLogNavigation.Overview:
-					this.showView(ViewState.Overview);
-					break;
-			}
-		}));
 
 		// When new debug events arrive, refresh the active session view
 		this._register(this.chatDebugService.onDidAddEvent(event => {
@@ -217,8 +198,6 @@ export class ChatDebugEditor extends EditorPane {
 					this.flowChartView?.refresh();
 				} else if (this.viewState === ViewState.CacheExplorer) {
 					this.cacheExplorerView?.refresh();
-				} else if (this.viewState === ViewState.WireLog) {
-					this.wireLogView?.refresh();
 				}
 				// Note: Logs view is intentionally omitted here — it handles
 				// onDidAddEvent internally via loadEvents() → addEvent() →
@@ -241,12 +220,11 @@ export class ChatDebugEditor extends EditorPane {
 				if (e.kind === 'setCustomTitle') {
 					if (this.viewState === ViewState.Home) {
 						this.homeView?.render();
-					} else if (this.viewState === ViewState.Overview || this.viewState === ViewState.Logs || this.viewState === ViewState.FlowChart || this.viewState === ViewState.CacheExplorer || this.viewState === ViewState.WireLog) {
+					} else if (this.viewState === ViewState.Overview || this.viewState === ViewState.Logs || this.viewState === ViewState.FlowChart || this.viewState === ViewState.CacheExplorer) {
 						this.overviewView?.updateBreadcrumb();
 						this.logsView?.updateBreadcrumb();
 						this.flowChartView?.updateBreadcrumb();
 						this.cacheExplorerView?.updateBreadcrumb();
-						this.wireLogView?.updateBreadcrumb();
 					}
 				}
 			}));
@@ -263,12 +241,9 @@ export class ChatDebugEditor extends EditorPane {
 		this.disabledOverlay = DOM.append(this.container, $('.chat-debug-disabled-overlay'));
 		DOM.hide(this.disabledOverlay);
 
-		// Re-evaluate the active view when an enablement setting changes so the
-		// disabled message appears/disappears without needing to re-navigate.
+		// Re-evaluate the active view when the enablement setting changes.
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(AgentHostAgentDebugLogEnabledSettingId)
-				|| e.affectsConfiguration(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING)
-				|| e.affectsConfiguration(AgentHostAhpJsonlLoggingSettingId)) {
+			if (e.affectsConfiguration(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING)) {
 				this.displayView(this.viewState);
 			}
 		}));
@@ -291,19 +266,13 @@ export class ChatDebugEditor extends EditorPane {
 	}
 
 	private displayView(state: ViewState): void {
-		const session = this.chatDebugService.activeSessionResource;
-
 		// The data sub-views (Logs, Flow Chart, Cache Explorer) are gated on the
-		// agent debug logging setting; the AHP (wire) log is gated on its own
-		// AHP logging setting. When the governing setting is off there is
+		// debug logging setting. When the setting is off there is
 		// nothing to show, so we render a shared "enable the setting" overlay
 		// instead of the (empty) view content. The Overview keeps its buttons
 		// and renders the hint inline.
 		const dataViewDisabled = (state === ViewState.Logs || state === ViewState.FlowChart || state === ViewState.CacheExplorer)
-			&& !isChatDebugLoggingEnabledForSession(this.configurationService, session);
-		const wireLogDisabled = state === ViewState.WireLog
-			&& isAgentHostSession(session)
-			&& !isWireLogLoggingEnabled(this.configurationService);
+			&& !isChatDebugLoggingEnabledForSession(this.configurationService);
 
 		if (state === ViewState.Home) {
 			this.homeView?.show();
@@ -337,34 +306,24 @@ export class ChatDebugEditor extends EditorPane {
 			this.cacheExplorerView?.hide();
 		}
 
-		if (state === ViewState.WireLog && !wireLogDisabled) {
-			this.wireLogView?.show();
-			this.doLayout();
-		} else {
-			this.wireLogView?.hide();
-		}
-
-		this.updateDisabledOverlay(wireLogDisabled ? 'wirelog' : dataViewDisabled ? 'data' : undefined);
+		this.updateDisabledOverlay(dataViewDisabled ? 'data' : undefined);
 	}
 
-	private updateDisabledOverlay(kind: 'data' | 'wirelog' | undefined): void {
+	private updateDisabledOverlay(kind: 'data' | undefined): void {
 		if (!this.disabledOverlay) {
 			return;
 		}
 		this.disabledOverlayDisposables.clear();
 		DOM.clearNode(this.disabledOverlay);
-		if (kind === 'wirelog') {
-			renderWireLogLoggingDisabledMessage(this.disabledOverlay, this.preferencesService, this.disabledOverlayDisposables);
-			DOM.show(this.disabledOverlay);
-		} else if (kind === 'data') {
-			renderChatDebugLoggingDisabledMessage(this.disabledOverlay, this.chatDebugService.activeSessionResource, this.preferencesService, this.disabledOverlayDisposables);
+		if (kind === 'data') {
+			renderChatDebugLoggingDisabledMessage(this.disabledOverlay, this.preferencesService, this.disabledOverlayDisposables);
 			DOM.show(this.disabledOverlay);
 		} else {
 			DOM.hide(this.disabledOverlay);
 		}
 	}
 
-	navigateToSession(sessionResource: URI, view?: 'logs' | 'overview' | 'flowchart' | 'cache' | 'wirelog'): void {
+	navigateToSession(sessionResource: URI, view?: 'logs' | 'overview' | 'flowchart' | 'cache'): void {
 		// End the previous session's streaming pipeline before switching
 		const previousSessionResource = this.chatDebugService.activeSessionResource;
 		if (previousSessionResource && previousSessionResource.toString() !== sessionResource.toString()) {
@@ -381,13 +340,10 @@ export class ChatDebugEditor extends EditorPane {
 		this.logsView?.setSession(sessionResource);
 		this.flowChartView?.setSession(sessionResource);
 		this.cacheExplorerView?.setSession(sessionResource);
-		this.wireLogView?.setSession(sessionResource);
-
 		const targetState = view === 'logs' ? ViewState.Logs
 			: view === 'flowchart' ? ViewState.FlowChart
 				: view === 'cache' ? ViewState.CacheExplorer
-					: view === 'wirelog' ? ViewState.WireLog
-						: ViewState.Overview;
+					: ViewState.Overview;
 		this.showView(targetState);
 	}
 
@@ -444,13 +400,10 @@ export class ChatDebugEditor extends EditorPane {
 	}
 
 	/**
-	 * The panel is enabled when either local file logging or agent-host (Copilot
-	 * CLI) debug logging is on. Each provider self-gates on its own setting, so
-	 * this only decides whether to fall back to the home view.
+	 * The panel is enabled when local file logging is on.
 	 */
 	private _isDebugEnabled(): boolean {
-		return this.configurationService.getValue<boolean>(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING)
-			|| this.configurationService.getValue<boolean>(AgentHostAgentDebugLogEnabledSettingId);
+		return this.configurationService.getValue<boolean>(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING);
 	}
 
 	protected override setEditorVisible(visible: boolean): void {
@@ -488,8 +441,6 @@ export class ChatDebugEditor extends EditorPane {
 			this.navigateToSession(sessionResource, 'cache');
 		} else if (viewHint === 'overview' && sessionResource) {
 			this.navigateToSession(sessionResource, 'overview');
-		} else if (viewHint === 'wirelog' && sessionResource) {
-			this.navigateToSession(sessionResource, 'wirelog');
 		} else if (viewHint === 'home') {
 			this.endActiveSession();
 			this.showView(ViewState.Home);
@@ -521,8 +472,6 @@ export class ChatDebugEditor extends EditorPane {
 		}
 		if (this.viewState === ViewState.Logs) {
 			this.logsView?.layout(this.currentDimension);
-		} else if (this.viewState === ViewState.WireLog) {
-			this.wireLogView?.layout();
 		}
 	}
 }

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 use crate::async_pipe::get_socket_rw_stream;
-use crate::commands::agent_host::ActiveAgentHost;
 use crate::constants::PRODUCT_NAME_LONG;
 use crate::log;
 use crate::msgpack_rpc::{new_msgpack_rpc, start_msgpack_rpc, MsgPackCodec, MsgPackSerializer};
@@ -26,7 +25,6 @@ use crate::util::machine::kill_pid;
 use crate::util::os::os_release;
 use crate::util::sync::{new_barrier, Barrier, BarrierOpener};
 
-use futures::future::{BoxFuture, Shared};
 use futures::stream::FuturesUnordered;
 use futures::FutureExt;
 use std::collections::HashMap;
@@ -50,12 +48,12 @@ use super::code_server::{
 use super::paths::prune_stopped_servers;
 use super::protocol::{
 	AcquireCliParams, CallServerHttpParams, CallServerHttpResult, ChallengeIssueParams,
-	ChallengeIssueResponse, ChallengeVerifyParams, ClientRequestMethod, EmptyObject, FsReadDirEntry,
-	FsReadDirResponse, FsRenameRequest, FsSinglePathRequest,
-	FsStatResponse, GetEnvResponse, GetHostnameResponse, HttpBodyParams, HttpHeadersParams,
-	NetConnectRequest, ServeParams, ServerLog, ServerMessageParams, SpawnParams, SpawnResult,
-	SysKillRequest, SysKillResponse, ToClientRequest, UpdateParams, UpdateResult,
-	VersionResponse, METHOD_CHALLENGE_VERIFY,
+	ChallengeIssueResponse, ChallengeVerifyParams, ClientRequestMethod, EmptyObject,
+	FsReadDirEntry, FsReadDirResponse, FsRenameRequest, FsSinglePathRequest, FsStatResponse,
+	GetEnvResponse, GetHostnameResponse, HttpBodyParams, HttpHeadersParams, NetConnectRequest,
+	ServeParams, ServerLog, ServerMessageParams, SpawnParams, SpawnResult, SysKillRequest,
+	SysKillResponse, ToClientRequest, UpdateParams, UpdateResult, VersionResponse,
+	METHOD_CHALLENGE_VERIFY,
 };
 use super::server_bridge::ServerBridge;
 use super::server_multiplexer::ServerMultiplexer;
@@ -66,26 +64,6 @@ use super::socket_signal::{
 
 type HttpRequestsMap = Arc<std::sync::Mutex<HashMap<u32, DelegatedHttpRequest>>>;
 type CodeServerCell = Arc<Mutex<Option<SocketCodeServer>>>;
-
-/// Shared, cloneable future that resolves once the agent host supervisor is up.
-/// It is only driven when a connected local client requests a server session.
-pub type SharedActiveAgentHost =
-	Shared<BoxFuture<'static, Result<Arc<ActiveAgentHost>, Arc<AnyError>>>>;
-
-/// Wraps an already-known [`ActiveAgentHost`] into a [`SharedActiveAgentHost`]
-/// that resolves immediately, for callers that already *are* (or already
-/// know) the running supervisor and must not drive
-/// `ensure_supervisor_running`'s registry lookup/spawn path -- e.g. `code
-/// agent host --tunnel` routing its own tunneled `/agent-host` port back to
-/// itself (see [`super::agent_host::AgentHostSidecar::active_agent_host`]).
-/// Unlike the lazy future built in [`serve`] (which only resolves once a
-/// consumer actually awaits it), this is eagerly ready, since the caller
-/// already has every field it needs.
-pub fn ready_active_agent_host(active: ActiveAgentHost) -> SharedActiveAgentHost {
-	futures::future::ready(Ok(Arc::new(active)))
-		.boxed()
-		.shared()
-}
 
 struct HandlerContext {
 	/// Log handle for the server
@@ -110,11 +88,6 @@ struct HandlerContext {
 	http: Arc<FallbackSimpleHttp>,
 	/// requests being served by the client
 	http_requests: HttpRequestsMap,
-	/// Shared handle to the background `ensure_supervisor_running` task,
-	/// awaited in `handle_serve` to mix the bridge info into the spawned
-	/// server's args. `None` for callers (e.g. `command-shell`) that
-	/// already applied the bridge eagerly.
-	active_agent_host: Option<SharedActiveAgentHost>,
 }
 
 /// Handler auth state.
@@ -156,7 +129,6 @@ pub struct ServeStreamParams {
 	pub platform: Platform,
 	pub requires_auth: AuthRequired,
 	pub exit_barrier: Barrier<ShutdownSignal>,
-	pub active_agent_host: Option<SharedActiveAgentHost>,
 }
 
 pub async fn serve_stream(
@@ -182,7 +154,6 @@ fn make_socket_rpc(
 	requires_auth: AuthRequired,
 	platform: Platform,
 	http_requests: HttpRequestsMap,
-	active_agent_host: Option<SharedActiveAgentHost>,
 ) -> RpcDispatcher<MsgPackSerializer, HandlerContext> {
 	let server_bridges = ServerMultiplexer::new();
 	let mut rpc = RpcBuilder::new(MsgPackSerializer {}).methods(HandlerContext {
@@ -204,7 +175,6 @@ fn make_socket_rpc(
 			http_delegated,
 		)),
 		http_requests,
-		active_agent_host,
 	});
 
 	rpc.register_sync("ping", |_: EmptyObject, _| Ok(EmptyObject {}));
@@ -374,7 +344,6 @@ async fn process_socket(
 		code_server_args,
 		platform,
 		requires_auth,
-		active_agent_host,
 	} = params;
 
 	let (http_delegated, mut http_rx) = DelegatedSimpleHttp::new(log.clone());
@@ -392,7 +361,6 @@ async fn process_socket(
 		requires_auth,
 		platform,
 		http_requests.clone(),
-		active_agent_host,
 	);
 
 	{
@@ -571,22 +539,6 @@ async fn handle_serve(
 	let mut csa = c.code_server_args.clone();
 	csa.connection_token = params.connection_token.or(csa.connection_token);
 	csa.install_extensions.extend(params.extensions);
-
-	// Mix in the agent-host bridge info now that we actually need to spawn
-	// the VS Code server. `active_agent_host` is genuinely lazy (see the
-	// comment in `serve()`), so awaiting it here is what first drives the
-	// supervisor to start. If it failed we still serve — the renderer
-	// just won't see `agentHostProxy`.
-	if let Some(ah_fut) = c.active_agent_host.clone() {
-		match ah_fut.await {
-			Ok(a) => a.apply_to_bridge(&mut csa),
-			Err(e) => warning!(
-				c.log,
-				"Agent host supervisor unavailable; renderer will not see agentHostProxy: {}",
-				e
-			),
-		}
-	}
 
 	let params_raw = ServerParamsRaw {
 		commit_id: params.commit_id,

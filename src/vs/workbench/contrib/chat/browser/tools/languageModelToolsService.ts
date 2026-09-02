@@ -956,7 +956,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	 * - the session is a local panel session at the Autopilot level with Advanced Autopilot on.
 	 *
 	 * This is independent of `chat.tools.riskAssessment.enabled`, which only controls the
-	 * confirmation risk badge. CLI and agent-host sessions handle their own confirmations and are
+	 * confirmation risk badge. CLI sessions handle their own confirmations and are
 	 * excluded.
 	 *
 	 * Fails open: a cancelled, unavailable, or failed assessment keeps the original
@@ -1002,7 +1002,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			return { autoConfirmed };
 		}
 
-		// Scope to local panel sessions at the Autopilot level. CLI and agent-host sessions handle
+		// Scope to local panel sessions at the Autopilot level. CLI sessions handle
 		// their own confirmations.
 		const sessionResource = dto.context?.sessionResource;
 		if (!sessionResource || getChatSessionType(sessionResource) !== localChatSessionType) {

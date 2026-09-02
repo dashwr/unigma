@@ -264,7 +264,7 @@ export class AICustomizationItemNormalizer {
  * name) are preserved.
  *
  * `enabled` is derived from `getDisabledPromptFiles` alone, so a built-in that
- * the wire dropped from the agent-host bundle stays listed as disabled and can
+ * the wire dropped from a provider bundle stays listed as disabled and can
  * be re-enabled. This is the restore path that `isUserToggleableCustomization`
  * guards, and it is why that predicate must stay in sync with what this merges
  * back. See "Enabling and Disabling Built-in Skills" in

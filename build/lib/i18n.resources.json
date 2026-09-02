@@ -371,10 +371,6 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/services/agentHost",
-			"project": "vscode-workbench"
-		},
-		{
 			"name": "vs/workbench/services/authToken",
 			"project": "vscode-workbench"
 		},
@@ -639,6 +635,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/unigmaAgent",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/accounts",
 			"project": "vscode-workbench"
 		},
@@ -670,10 +670,6 @@
 		},
 		{
 			"name": "vs/sessions/contrib/providers",
-			"project": "vscode-sessions"
-		},
-		{
-			"name": "vs/sessions/contrib/providers/agentHost",
 			"project": "vscode-sessions"
 		},
 		{
@@ -742,10 +738,6 @@
 		},
 		{
 			"name": "vs/sessions/contrib/logs",
-			"project": "vscode-sessions"
-		},
-		{
-			"name": "vs/sessions/contrib/providers/remoteAgentHost",
 			"project": "vscode-sessions"
 		},
 		{

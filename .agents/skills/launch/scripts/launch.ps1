@@ -69,7 +69,7 @@ function Get-FreePort {
 
 function Get-FreePorts {
 	$ports = [System.Collections.Generic.List[int]]::new()
-	while ($ports.Count -lt 4) {
+	while ($ports.Count -lt 3) {
 		$port = Get-FreePort
 		if (-not $ports.Contains($port)) {
 			$ports.Add($port)
@@ -442,7 +442,6 @@ try {
 	$cdpPort = $ports[0]
 	$extHostPort = $ports[1]
 	$mainPort = $ports[2]
-	$agentHostPort = $ports[3]
 
 	$stamp = '{0:yyyyMMdd-HHmmss}-{1}' -f (Get-Date), $PID
 	$runDir = Join-Path (Join-Path $env:TEMP 'code-oss-dev') $stamp
@@ -490,7 +489,6 @@ try {
 	$launchArgs.Add("--remote-debugging-port=$cdpPort")
 	$launchArgs.Add("--inspect-extensions=$extHostPort")
 	$launchArgs.Add("--inspect=$mainPort")
-	$launchArgs.Add("--inspect-agenthost=$agentHostPort")
 	foreach ($argument in $extraArgs) {
 		$launchArgs.Add($argument)
 	}
@@ -544,7 +542,6 @@ try {
 		cdpPort = $cdpPort
 		extHostPort = $extHostPort
 		mainPort = $mainPort
-		agentHostPort = $agentHostPort
 		userDataDir = $destinationUdd
 		extensionsDir = $extensionsDir
 		sharedDataDir = $sharedDataDir

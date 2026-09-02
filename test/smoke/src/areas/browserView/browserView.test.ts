@@ -14,7 +14,11 @@ import { getCopilotSmokeTestEnv, getMockLlmServerPath, getMockLlmServerUrl, inst
 
 const browserCommandPrefix = 'workbench.action.browser';
 
-export function setup(logger: Logger): void {
+export interface BrowserViewSmokeOptions {
+	readonly chatPanelSupported: boolean;
+}
+
+export function setup(logger: Logger, options: BrowserViewSmokeOptions): void {
 	describe('Integrated Browser', () => {
 
 		let sharedBrowserPageId: string | undefined;
@@ -213,7 +217,22 @@ export function setup(logger: Logger): void {
 			assert.strictEqual(await workbenchPage.locator('.monaco-dialog-box:visible').count(), 0);
 		});
 
-		it('adds browser context to chat', async function () {
+		if (!options.chatPanelSupported) {
+			it('unsupported-capability: chat panel is not registered', async function () {
+				const app = this.app as Application;
+
+				// `Chat: Open Chat` is registered behind `isChatPanelEnabled`, so on this
+				// product the command palette must not offer it. Reading the palette
+				// entries directly keeps the assertion observable: `runCommand` would
+				// only surface a helper timeout, which proves nothing about the command.
+				const commandNames = await app.workbench.quickaccess.getVisibleCommandNames('Chat: Open Chat');
+				assert.deepStrictEqual(commandNames.filter(name => name === 'Chat: Open Chat'), []);
+				assert.strictEqual(await app.code.driver.currentPage.locator('div[id="workbench.panel.chat"]').count(), 0);
+			});
+		}
+
+		const registerChatTest = options.chatPanelSupported ? it : () => undefined;
+		registerChatTest('adds browser context to chat', async function () {
 			const app = this.app as Application;
 			const browserPage = await openBrowserPage(app, `${baseUrl}/comment`, openPages);
 			const workbenchPage = app.code.driver.currentPage;
@@ -258,7 +277,7 @@ export function setup(logger: Logger): void {
 			}), true);
 		});
 
-		it('allows agents to use shared pages and blocks unshared pages', async function () {
+		registerChatTest('allows agents to use shared pages and blocks unshared pages', async function () {
 			this.timeout(5 * 60 * 1000);
 
 			const app = this.app as Application;
@@ -318,7 +337,6 @@ export function setup(logger: Logger): void {
 			assert.doesNotMatch(resharedToolResult, /not found/i);
 			await browserPage.locator('#share-click-count', { hasText: '2' }).waitFor();
 		});
-
 		// Keep this last because restarting can change restored UI and extension activation state.
 		it('preserves native page lifecycle across editors, popups, and restart', async function () {
 			const app = this.app as Application;

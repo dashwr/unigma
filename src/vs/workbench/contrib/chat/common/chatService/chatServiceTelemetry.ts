@@ -14,7 +14,6 @@ import { isImageVariableEntry } from '../attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../constants.js';
 import { ILanguageModelsService } from '../languageModels.js';
 import { chatSessionResourceToId, getChatSessionType } from '../model/chatUri.js';
-import { isRemoteAgentHostSessionType, parseRemoteAgentHostHarness } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 
 type ChatVoteEvent = {
 	direction: 'up' | 'down';
@@ -372,10 +371,7 @@ export class ChatRequestTelemetry {
 }
 
 function getChatSessionTypeForTelemetry(sessionResource: URI): string {
-	const sessionType = getChatSessionType(sessionResource);
-	// Collapse the high-cardinality, host-specific authority into a single
-	// value (the authority is PII); the harness is reported separately.
-	return isRemoteAgentHostSessionType(sessionType) ? 'remote-agent-host' : sessionType;
+	return getChatSessionType(sessionResource);
 }
 
 /**
@@ -383,6 +379,6 @@ function getChatSessionTypeForTelemetry(sessionResource: URI): string {
  * activity can be split by harness (the collapsed sessionType cannot). See
  * telemetry gap #2 in #8209. Undefined for non-remote sessions.
  */
-function getHarnessForTelemetry(sessionResource: URI): string | undefined {
-	return parseRemoteAgentHostHarness(getChatSessionType(sessionResource));
+function getHarnessForTelemetry(_sessionResource: URI): string | undefined {
+	return undefined;
 }

@@ -13,8 +13,8 @@ suite('ChatModifiedFilesConfirmationSubPart', () => {
 
 	test('creates editor inputs for pending file changes', () => {
 		const resource = URI.file('/workspace/package.json');
-		const originalUri = URI.parse('vscode-agent-host://local/package.json?original');
-		const modifiedContentUri = URI.parse('vscode-agent-host://local/package.json?proposed');
+		const originalUri = URI.parse('test-remote://local/package.json?original');
+		const modifiedContentUri = URI.parse('test-remote://local/package.json?proposed');
 		const options = { pinned: true };
 
 		assert.deepStrictEqual({
@@ -54,8 +54,8 @@ suite('ChatModifiedFilesConfirmationSubPart', () => {
 
 	test('finds the proposed edit referenced by the confirmation message pill', () => {
 		const resource = URI.file('/workspace/package.json');
-		const originalContentUri = URI.parse('vscode-agent-host://local/package.json?original');
-		const modifiedContentUri = URI.parse('vscode-agent-host://local/package.json?proposed');
+		const originalContentUri = URI.parse('test-remote://local/package.json?original');
+		const modifiedContentUri = URI.parse('test-remote://local/package.json?proposed');
 		const file = {
 			uri: resource,
 			editKind: 'edit' as const,

@@ -18,7 +18,6 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { localize } from '../../../../nls.js';
-import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
 
 /**
  * Agent Sessions override of IAICustomizationWorkspaceService.
@@ -61,9 +60,6 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 			const session = this.sessionsService.activeSession.read(reader);
 			const folder = session?.workspace.read(reader)?.folders[0];
 			const root = folder?.workingDirectory;
-			if (root?.scheme === AGENT_HOST_SCHEME) {
-				return undefined;
-			}
 			return root;
 		});
 
@@ -80,9 +76,6 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 		const session = this.sessionsService.activeSession.get();
 		const folder = session?.workspace.get()?.folders[0];
 		const root = folder?.workingDirectory;
-		if (root?.scheme === AGENT_HOST_SCHEME) {
-			return undefined;
-		}
 		return root;
 	}
 

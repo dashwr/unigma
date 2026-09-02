@@ -1896,13 +1896,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: none;
 }
 
-.interactive-session .chat-secondary-toolbar .chat-secondary-generic-chips {
-	display: flex;
-	align-items: center;
-	flex-shrink: 0;
-	gap: 2px;
-}
-
 .interactive-session .chat-secondary-toolbar .chat-secondary-input-toolbar {
 	overflow: hidden;
 	min-width: 0px;

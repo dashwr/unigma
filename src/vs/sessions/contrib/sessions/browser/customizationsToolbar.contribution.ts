@@ -19,7 +19,7 @@ import { AICustomizationManagementEditorInput } from '../../../../workbench/cont
 import { IAICustomizationItemsModel, ItemsModelSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, countEnabledCustomizationTools, IAgentHostToolSetEnablementService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
+import { countEnabledCustomizationTools, IToolSetEnablementService } from '../../../../workbench/contrib/chat/browser/aiCustomization/toolSetEnablementService.js';
 import { Menus } from '../../../browser/menus.js';
 import { agentIcon, instructionsIcon, mcpServerIcon, pluginIcon, skillIcon, hookIcon, toolsIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
 import { ActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -34,7 +34,6 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 
 export interface ICustomizationItemConfig {
 	readonly id: string;
@@ -116,12 +115,6 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		section: AICustomizationManagementSection.Tools,
 		isTools: true,
 	},
-	{
-		id: 'sessions.customization.harnessSettings',
-		label: localize('harnessSettings', "Codex"),
-		icon: Codicon.openai,
-		section: AICustomizationManagementSection.HarnessSettings,
-	},
 ];
 
 export async function openCustomizationOverviewPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, sessionsService: ISessionsService): Promise<void> {
@@ -169,7 +162,7 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 		@IAICustomizationItemsModel private readonly _itemsModel: IAICustomizationItemsModel,
 		@IMcpService private readonly _mcpService: IMcpService,
 		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
-		@IAgentHostToolSetEnablementService private readonly _toolEnablementService: IAgentHostToolSetEnablementService,
+		@IToolSetEnablementService private readonly _toolEnablementService: IToolSetEnablementService,
 	) {
 		super(undefined, action, { ...options, icon: false, label: false });
 		this._viewItemDisposables = this._register(new DisposableStore());
@@ -224,7 +217,7 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 			return this._itemsModel.getPluginCount().read(reader);
 		}
 		if (this._config.isTools) {
-			const state = this._toolEnablementService.observe(AGENT_HOST_COPILOT_CLI_SESSION_TYPE).read(reader);
+			const state = this._toolEnablementService.observe('local').read(reader);
 			const toolSets = this._toolsService.toolSets.read(reader);
 			return countEnabledCustomizationTools(toolSets, state, reader);
 		}
@@ -258,7 +251,7 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 
 		// Per-section visibility context keys, kept in sync with the active
 		// harness's `hiddenSections`. Each customization action's menu entry
-		// is gated on its key so that harnesses (e.g. Claude, AHP) which
+		// is gated on its key so that harnesses which
 		// don't support a customization type don't surface its row.
 		const visibilityKeys = new Map<string, IContextKey<boolean>>();
 		for (const config of CUSTOMIZATION_ITEMS) {
@@ -269,16 +262,14 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 			visibilityKeys.set(config.section, key);
 		}
 		this._register(autorun(reader => {
-			const activeHarness = harnessService.activeHarness.read(reader);
-			harnessService.availableHarnesses.read(reader);
+			harnessService.activeHarness.read(reader);
 			const descriptor = harnessService.getActiveDescriptor();
 			const hidden = new Set(descriptor.hiddenSections ?? []);
 			for (const config of CUSTOMIZATION_ITEMS) {
 				if (!config.section) {
 					continue;
 				}
-				const supported = config.section !== AICustomizationManagementSection.HarnessSettings || activeHarness === SessionType.AgentHostCodex;
-				visibilityKeys.get(config.section)!.set(!hidden.has(config.section) && supported);
+				visibilityKeys.get(config.section)!.set(!hidden.has(config.section));
 			}
 		}));
 
@@ -354,13 +345,8 @@ registerWorkbenchContribution2(CustomizationsToolbarContribution.ID, Customizati
  * Returns the harness id that matches a given session, or `undefined` if no
  * harness is registered for it.
  *
- * The session's `resource.scheme` is the per-host harness id (e.g. local AHP
- * uses `agent-host-${provider}` and remote AHP uses `remote-${authority}-${provider}`),
- * while {@link ISession.sessionType} is the agent provider name shared across
- * hosts (e.g. `copilotcli`). Lookup therefore prefers the resource scheme so
- * that an AHP remote session selects its remote harness rather than the local
- * harness with the same `sessionType`. The `sessionType` is kept as a fallback
- * for harnesses whose id matches it directly.
+ * Lookup prefers the session resource scheme and falls back to the provider
+ * session type for harnesses whose id matches it directly.
  */
 export function findHarnessIdForSession(session: ISession | undefined, harnessService: ICustomizationHarnessService): string | undefined {
 	if (!session) {
@@ -403,7 +389,7 @@ export class ActiveSessionHarnessSyncContribution extends Disposable implements 
 				return;
 			}
 			// Re-read available harnesses so we re-run when an external harness
-			// (e.g. agent host, CLI) registers asynchronously after the session
+			// (e.g. a provider or CLI) registers asynchronously after the session
 			// has already been selected.
 			harnessService.availableHarnesses.read(reader);
 			harnessService.setActiveSession(session.resource);

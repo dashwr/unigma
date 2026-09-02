@@ -17,14 +17,9 @@ use crate::options::Quality;
 ///  2 - Addition of `serve.compressed` property to control whether servermsg's
 ///      are compressed bidirectionally.
 ///  3 - The server's connection token is set to a SHA256 hash of the tunnel ID
-///  4 - The server's msgpack messages are no longer length-prefixed
-///  5 - The server now exposes an agent host connection
-///  6 - The forwarded agent host port additionally serves a registry-based
-///      endpoint selection WebSocket route (see
-///      `tunnels::agent_host::AGENT_HOST_GATEWAY_SELECT_PATH`); the root
-///      route keeps serving the unchanged v5 direct-reuse behavior, so
-///      older clients that only know the root route are unaffected.
-pub const PROTOCOL_VERSION: u32 = 6;
+///  4 - The server's msgpack messages are no longer length-prefixed; versions
+///      5 and 6 described the removed Agent Host capability.
+pub const PROTOCOL_VERSION: u32 = 4;
 
 pub const VSCODE_CLI_VERSION: Option<&'static str> = option_env!("VSCODE_CLI_VERSION");
 pub const VSCODE_CLI_AI_KEY: Option<&'static str> = option_env!("VSCODE_CLI_AI_KEY");
@@ -82,12 +77,8 @@ pub const DEFAULT_DATA_PARENT_DIR: &str = match option_env!("VSCODE_CLI_DATA_FOL
 	None => ".vscode-oss",
 };
 
-/// Canonical, machine-wide parent directory used to coordinate the agent
-/// host across CLI invocations. Mirrors the `serverDataFolderName` in
-/// `product.json` so the supervisor log written by `code agent host`
-/// lines up with the directory the SSH `command-shell` entry point
-/// already uses (otherwise local + remote would race on different
-/// directories).
+/// Canonical, machine-wide parent directory matching `serverDataFolderName`
+/// in `product.json`, used by server data storage.
 pub const SERVER_DATA_PARENT_DIR: &str = match option_env!("VSCODE_CLI_SERVER_DATA_FOLDER_NAME") {
 	Some(n) => n,
 	None => ".vscode-server-oss",
@@ -130,4 +121,3 @@ pub static IS_INTERACTIVE_CLI: LazyLock<bool> =
 pub static WIN32_APP_IDS: LazyLock<Option<Vec<String>>> = LazyLock::new(|| {
 	option_env!("VSCODE_CLI_WIN32_APP_IDS").map(|s| s.split(',').map(|s| s.to_string()).collect())
 });
-

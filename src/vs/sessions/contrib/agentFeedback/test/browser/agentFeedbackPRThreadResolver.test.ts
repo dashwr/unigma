@@ -18,7 +18,7 @@ import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackCh
 suite('AgentFeedbackPRThreadResolverContribution', () => {
 
 	const store = new DisposableStore();
-	const session = URI.parse('agent-host-copilot:/session-1');
+	const session = URI.parse('test-session:/session-1');
 	const file = URI.file('/workspace/a.ts');
 
 	let onDidChangeFeedback: Emitter<IAgentFeedbackChangeEvent>;

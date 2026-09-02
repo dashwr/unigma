@@ -44,17 +44,16 @@ import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, 
 import { ChatRequestParser } from '../requestParser/chatRequestParser.js';
 import { ChatMcpServersStarting, ChatPendingRequestChangeClassification, ChatPendingRequestChangeEvent, ChatPendingRequestChangeEventName, ChatRequestQueueKind, ChatSendResult, ChatSendResultQueued, ChatSendResultSent, ChatStopCancellationNoopClassification, ChatStopCancellationNoopEvent, ChatStopCancellationNoopEventName, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatModelReference, IChatProgress, IChatQuestionAnswers, IChatRequestSubmittedEvent, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatSessionStartOptions, IChatUserActionEvent, IRemotePendingRequest, ResponseModelState } from './chatService.js';
 import { ChatRequestTelemetry, ChatServiceTelemetry } from './chatServiceTelemetry.js';
-import { IChatSessionsService, isAgentHostTarget, isTerminalCommandPrompt, localChatSessionType } from '../chatSessionsService.js';
+import { IChatSessionsService, isTerminalCommandPrompt, localChatSessionType } from '../chatSessionsService.js';
 import { ChatSessionStore, IChatSessionEntryMetadata } from '../model/chatSessionStore.js';
 import { IChatSlashCommandService } from '../participants/chatSlashCommands.js';
 import { IChatTransferService } from '../model/chatTransferService.js';
 import { chatSessionResourceToId, getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../model/chatUri.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, isPromptTextVariableEntry } from '../attachments/chatVariableEntries.js';
-import { IDynamicVariable } from '../attachments/chatVariables.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../constants.js';
 import { ChatMessageRole, IChatMessage, ILanguageModelsService } from '../languageModels.js';
 import { ModelSelectionReason } from '../modelSelection.js';
-import { ILanguageModelToolsService, ToolAndToolSetEnablementMap } from '../tools/languageModelToolsService.js';
+import { ILanguageModelToolsService } from '../tools/languageModelToolsService.js';
 import { ChatSessionOperationLog } from '../model/chatSessionOperationLog.js';
 import { IPromptsService } from '../promptSyntax/service/promptsService.js';
 import { AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, TROUBLESHOOT_COMMAND_NAME, TROUBLESHOOT_SKILL_PATH, COPILOT_SKILL_URI_SCHEME } from '../promptSyntax/promptTypes.js';
@@ -121,15 +120,12 @@ class CancellableRequest implements IDisposable {
 	}
 }
 
-const EMPTY_REFERENCES: ReadonlyArray<IDynamicVariable> = Object.freeze([]);
-const EMPTY_TOOL_ENABLEMENT_MAP: ToolAndToolSetEnablementMap = ToolAndToolSetEnablementMap.fromEntries([]);
-
 /**
  * Preserve the picker state from `stateToApply`, only recovering a custom agent mode from
  * `savedState` when the applied state fell back to the default Agent.
  *
  * `stateToApply` is the input state about to be applied to the session being restored (an
- * agent-host transferred draft, or the saved draft as a fallback). Its `selectedModel` is the
+ * transferred draft, or the saved draft as a fallback). Its `selectedModel` is the
  * authoritative model selection.
  * `savedState` is only used for `mode`: prefer its custom agent over the plain default Agent, but
  * never override a different explicit mode already present in `stateToApply`.
@@ -155,7 +151,7 @@ export function backfillRestoredPickerState(
  * Recover the selected model on a transferred input state when it was dropped during a cold
  * handoff.
  *
- * At cold restore an agent-host transferred draft can arrive without its `selectedModel` (the live
+ * At cold restore a transferred draft can arrive without its `selectedModel` (the live
  * model list is not loaded yet, so the model resolved to `undefined`). Fall back to the model
  * derived from the session's request history so the picker restores the last-used model instead of
  * Auto. The history-derived model carries full metadata (including `targetChatSessionType`), so the
@@ -763,7 +759,7 @@ export class ChatService extends Disposable implements IChatService {
 		const restoredDraft: ISerializableChatModelInputState | undefined = storedInputState
 			? { ...storedInputState, selectedModel: historyDerivedModel }
 			: undefined;
-		// At cold restore the agent-host transferred draft can drop the user's per-session picker
+		// At cold restore a transferred draft can drop the user's per-session picker
 		// selections (model/mode); restore them from the session's own saved `storedInputState`
 		// (mode, via {@link backfillRestoredPickerState}) and from the history-derived model
 		// (via {@link backfillTransferredModel}). The persisted draft already contains
@@ -808,36 +804,6 @@ export class ChatService extends Disposable implements IChatService {
 			providedSession.dispose();
 		}));
 
-		const isAgentHostSession = isAgentHostTarget(chatSessionType);
-		const requestParser = isAgentHostSession ? this.instantiationService.createInstance(ChatRequestParser) : undefined;
-		const parseAgentHostHistoryPrompt = (text: string, agent: IChatAgentData | undefined): IParsedChatRequest => {
-			if (requestParser) {
-				try {
-					const attachmentCapabilities = this.getAttachmentCapabilitiesForParser(chatSessionType, agent);
-					const parsed = requestParser.parseChatRequestWithReferences(
-						EMPTY_REFERENCES,
-						EMPTY_TOOL_ENABLEMENT_MAP,
-						text,
-						location,
-						{ sessionType: chatSessionType, forcedAgent: agent, attachmentCapabilities },
-					);
-					if (parsed.parts.length > 0) {
-						return parsed;
-					}
-				} catch (e) {
-					this.logService.warn(`ChatService#loadRemoteSession: failed to re-parse historical prompt for ${chatSessionType}`, e);
-				}
-			}
-			return {
-				text,
-				parts: [new ChatRequestTextPart(
-					new OffsetRange(0, text.length),
-					{ startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: text.length + 1 },
-					text
-				)]
-			};
-		};
-
 		let lastRequest: ChatRequestModel | undefined;
 		let lastResponseCompletedAt: number | undefined;
 		const completeLastResponse = () => {
@@ -859,7 +825,14 @@ export class ChatService extends Disposable implements IChatService {
 					message.participant
 						? this.chatAgentService.getAgent(message.participant) // TODO(jospicer): Remove and always hardcode?
 						: this.chatAgentService.getAgent(chatSessionType);
-				const parsedRequest = parseAgentHostHistoryPrompt(requestText, agent);
+				const parsedRequest: IParsedChatRequest = {
+					text: requestText,
+					parts: [new ChatRequestTextPart(
+						new OffsetRange(0, requestText.length),
+						{ startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: requestText.length + 1 },
+						requestText
+					)]
+				};
 				const modeInfo = message.modeInstructions ? {
 					kind: ChatModeKind.Agent,
 					isBuiltin: message.modeInstructions.isBuiltin ?? false,
@@ -954,7 +927,7 @@ export class ChatService extends Disposable implements IChatService {
 
 					// Create a new request in the model
 					const agent = this.chatAgentService.getAgent(chatSessionType);
-					const parsedRequest = parseAgentHostHistoryPrompt(prompt, agent);
+					const parsedRequest = this.parseChatRequest(model.sessionResource, prompt, ChatAgentLocation.Chat, undefined);
 					lastRequest = model.addRequest(parsedRequest,
 						variableData ?? { variables: [] },
 						0, // attempt
@@ -988,8 +961,8 @@ export class ChatService extends Disposable implements IChatService {
 			// Mid-turn steering for streamed sessions: dispatch a queued Steering message immediately
 			// (the provider POSTs it server-side) rather than waiting for the turn to complete, but only
 			// when the in-flight request is the synthetic streamed-turn tracker (or none), never a real
-			// request. Server-managed (agent-host) queues are drained by the server, so they're excluded.
-			if (!this._isServerManagedQueue(model.sessionResource)) {
+			// request.
+			{
 				let dispatchingImmediateSteer = false;
 				const canImmediatelyDispatch = () => {
 					if (!model.getPendingRequests().some(r => r.kind === ChatRequestQueueKind.Steering)) {
@@ -1619,7 +1592,6 @@ export class ChatService extends Disposable implements IChatService {
 							locationData: thisRequest.locationData,
 							acceptedConfirmationData: options?.acceptedConfirmationData,
 							rejectedConfirmationData: options?.rejectedConfirmationData,
-							agentHostSessionConfig: options?.agentHostSessionConfig,
 							userSelectedModelId: options?.userSelectedModelId,
 							modelConfiguration: options?.userSelectedModelConfiguration ?? (options?.userSelectedModelId ? this.languageModelsService.getModelConfiguration(options.userSelectedModelId) : undefined),
 							userSelectedTools: options?.userSelectedTools?.get(),
@@ -1854,26 +1826,11 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	/**
-	 * Returns true if the session is backed by an agent host server, which
-	 * controls queued-message dequeuing on the server side.
-	 */
-	private _isServerManagedQueue(sessionResource: URI): boolean {
-		return getChatSessionType(sessionResource).startsWith('agent-host-');
-	}
-
-	/**
 	 * Process the next pending request from the model's queue, if any.
 	 * Called after a request completes to continue processing queued requests.
 	 * Multiple consecutive steering requests are combined into a single request.
 	 */
 	private processNextPendingRequest(model: ChatModel): void {
-		// Agent host sessions delegate queue management to the server.
-		// The server dispatches ChatTurnStarted with queuedMessageId when
-		// it consumes a queued message, so the client should not dequeue eagerly.
-		if (this._isServerManagedQueue(model.sessionResource)) {
-			return;
-		}
-
 		// Dequeue all consecutive steering requests and combine them into one
 		const steeringRequests = model.dequeueAllSteeringRequests();
 
@@ -2269,36 +2226,7 @@ export class ChatService extends Disposable implements IChatService {
 			return;
 		}
 
-		if (this._isServerManagedQueue(sessionResource)) {
-			// Agent host queues are drained by the server, which intentionally
-			// skips pending messages on cancellation. So remove the message
-			// (clearing it server-side) and re-send it as a normal turn after
-			// cancelling. Remove before sending to avoid the server also
-			// auto-draining it (double send); restore it on failure so a
-			// rejected re-send doesn't silently drop the message.
-			const message = target.request.message.text;
-			const attachedContext = target.request.variableData.variables.slice();
-			const sendOptions: IChatSendRequestOptions = {
-				...target.sendOptions,
-				queue: undefined,
-				attachedContext,
-			};
-			this.removePendingRequest(sessionResource, requestId);
-			await this.cancelCurrentRequestForSession(sessionResource, 'queueRunNext');
-			let result: ChatSendResult | undefined;
-			try {
-				result = await this.sendRequest(sessionResource, message, sendOptions);
-			} catch (err) {
-				this.logService.error('sendPendingRequestImmediately: re-send failed', err);
-			}
-			if (!result || result.kind === 'rejected') {
-				this.info('sendPendingRequestImmediately', `Re-send was not accepted (${result?.kind ?? 'error'}); restoring pending message to the queue`);
-				await this.sendRequest(sessionResource, message, { ...sendOptions, attachedContext, queue: target.kind });
-			}
-			return;
-		}
-
-		// Local sessions: move the target to the front (keeping its kind),
+		// Move the target to the front (keeping its kind),
 		// cancel the in-flight request, and let the queue processor send it.
 		const reordered = [
 			{ requestId: target.request.id, kind: target.kind },

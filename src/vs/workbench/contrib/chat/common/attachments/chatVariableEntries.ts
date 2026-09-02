@@ -76,7 +76,7 @@ interface IBaseChatRequestVariableEntry {
 
 	/**
 	 * Implementation-defined metadata that providers attach to a variable
-	 * entry. Used to round-trip provider-specific data (e.g. agent-host
+ * entry. Used to round-trip provider-specific data (e.g. remote
 	 * `_meta`) when an entry is sent back to the provider as part of a
 	 * request attachment.
 	 */
@@ -112,78 +112,6 @@ export interface IRestorablePasteAttachment {
 	readonly modelRepresentation?: string;
 	readonly _meta?: Record<string, unknown>;
 }
-
-export const enum AgentHostCompletionReferenceKind {
-	Skill = 'skill',
-	Command = 'command',
-}
-
-export interface IAgentHostCompletionVariableValue {
-	readonly $mid: 'agentHostCompletion';
-	readonly kind: AgentHostCompletionReferenceKind;
-}
-
-function agentHostCompletionVariableValue(kind: AgentHostCompletionReferenceKind): IAgentHostCompletionVariableValue {
-	return { $mid: 'agentHostCompletion', kind };
-}
-
-function agentHostCompletionVariableId(kind: AgentHostCompletionReferenceKind, reference: URI | string): string {
-	switch (kind) {
-		case AgentHostCompletionReferenceKind.Skill:
-			return reference.toString();
-		case AgentHostCompletionReferenceKind.Command:
-			return 'agent-host-command:' + reference.toString();
-	}
-}
-
-export function toAgentHostCompletionVariableEntry(kind: AgentHostCompletionReferenceKind, name: string, reference: URI | string | undefined, _meta: Record<string, unknown> | undefined): IGenericChatRequestVariableEntry & { value: IAgentHostCompletionVariableValue } {
-	return {
-		kind: 'generic',
-		id: reference !== undefined ? agentHostCompletionVariableId(kind, reference) : generateUuid(),
-		name,
-		value: agentHostCompletionVariableValue(kind),
-		_meta,
-	};
-}
-
-export function toAgentHostCompletionVariableEntryFromMetadata(kind: AgentHostCompletionReferenceKind, name: string, _meta: Record<string, unknown> | undefined): IGenericChatRequestVariableEntry & { value: IAgentHostCompletionVariableValue } {
-	switch (kind) {
-		case AgentHostCompletionReferenceKind.Skill:
-			return toAgentHostCompletionVariableEntry(kind, name, typeof _meta?.uri === 'string' ? _meta.uri : undefined, _meta);
-		case AgentHostCompletionReferenceKind.Command:
-			return toAgentHostCompletionVariableEntry(kind, name, typeof _meta?.command === 'string' ? _meta.command : undefined, _meta);
-	}
-}
-
-export function getAgentHostCompletionReferenceKind(entry: IChatRequestVariableEntry): AgentHostCompletionReferenceKind | undefined {
-	if (entry.kind !== 'generic') {
-		return undefined;
-	}
-	return getAgentHostCompletionReferenceKindFromValue(entry.value);
-}
-
-export function getAgentHostCompletionReferenceKindFromValue(value: IChatRequestVariableValue): AgentHostCompletionReferenceKind | undefined {
-	if (typeof value !== 'object' || value === null) {
-		return undefined;
-	}
-
-	const record = value as Record<string, unknown>;
-	if (record.$mid !== 'agentHostCompletion') {
-		return undefined;
-	}
-
-	switch (record.kind) {
-		case AgentHostCompletionReferenceKind.Skill:
-		case AgentHostCompletionReferenceKind.Command:
-			return record.kind;
-	}
-	return undefined;
-}
-
-export function isAgentHostCompletionVariableEntry(entry: IChatRequestVariableEntry): entry is IGenericChatRequestVariableEntry & { value: IAgentHostCompletionVariableValue } {
-	return getAgentHostCompletionReferenceKind(entry) !== undefined;
-}
-
 
 export interface IChatRequestDirectoryEntry extends IBaseChatRequestVariableEntry {
 	kind: 'directory';
@@ -534,9 +462,9 @@ export interface IAgentFeedbackVariableEntry extends IBaseChatRequestVariableEnt
 	readonly kind: 'agentFeedback';
 	readonly sessionResource: URI;
 	/**
-	 * The agent-host annotations channel URI that backs these feedback items
+	 * The annotations channel URI that backs these feedback items
 	 * (each item id is an annotation id on this channel). Set only for
-	 * agent-host sessions; used to emit {@link MessageAnnotationsAttachment}s
+	 * provider sessions; used to emit {@link MessageAnnotationsAttachment}s
 	 * referencing the specific comments on the wire.
 	 */
 	readonly annotationsResource?: URI;
@@ -578,10 +506,9 @@ export function isBrowserViewVariableEntry(entry: IChatRequestVariableEntry): en
 }
 
 /**
- * A first-class reference to another agent-host chat, produced when the user
- * types `#chat:<title>` in an agent-host chat input or drops a chat tab onto the
- * input. Carries everything needed to render the reference chip and to send an
- * agent-host chat attachment: the referenced chat's opaque backend chat URI
+ * A first-class reference to another chat, produced when the user types
+ * `#chat:<title>` or drops a chat tab onto the input. Carries everything needed
+ * to render the reference chip and send the referenced chat's opaque resource
  * ({@link value}) and, when pinned, the {@link endTurn last completed turn}
  * included in the transcript. The display title lives on
  * {@link IBaseChatRequestVariableEntry.name name}.
@@ -592,11 +519,9 @@ export interface IChatRequestChatReferenceVariableEntry extends IBaseChatRequest
 	 * The referenced chat's **opaque backend chat URI** — the exact value carried
 	 * on `MessageChatAttachment.resource` on the wire. It is provider-defined and
 	 * opaque: generic code MUST only store it, compare it by equality, and pass it
-	 * to agent-host-owned helpers (e.g. the chat-reference widget's link builder);
-	 * it MUST NOT parse or construct it. Send and restore are therefore pure
-	 * identity, and the client-side chat is resolved lazily (only when the user
-	 * clicks the reference chip). Because a reference can never cross agent hosts,
-	 * the URI always names a chat on a connected host.
+ * to chat-reference helpers; it MUST NOT parse or construct it. Send and restore
+ * are therefore pure identity, and the referenced chat is resolved lazily (only
+ * when the user clicks the reference chip).
 	 */
 	readonly value: URI;
 	/**
@@ -628,8 +553,8 @@ export function isChatReferenceVariableEntry(entry: IChatRequestVariableEntry): 
  */
 export function chatReferenceVariableEntryId(chatResource: URI, endTurn?: string): string {
 	return endTurn === undefined
-		? `agent-host-chat:${chatResource.toString()}`
-		: `agent-host-chat:${chatResource.toString()}\u0000${endTurn}`;
+		? `chat-reference:${chatResource.toString()}`
+		: `chat-reference:${chatResource.toString()}\u0000${endTurn}`;
 }
 
 /**
@@ -663,7 +588,7 @@ export function createChatReferenceVariableEntry(chatResource: URI, endTurn: str
  * {@link chatReferenceVariableEntryFromDynamicValue}.
  */
 export interface IChatReferenceDynamicVariableValue {
-	readonly $mid: 'agentHostChatReference';
+	readonly $mid: 'chatReference';
 	/**
 	 * The referenced chat's **opaque backend chat URI** as a string — the exact
 	 * value carried on `MessageChatAttachment.resource`. Becomes the rebuilt
@@ -681,15 +606,15 @@ export interface IChatReferenceDynamicVariableValue {
  */
 export function toChatReferenceDynamicVariableValue(chatResource: URI, endTurn?: string): IChatReferenceDynamicVariableValue {
 	return endTurn === undefined
-		? { $mid: 'agentHostChatReference', chatResource: chatResource.toString() }
-		: { $mid: 'agentHostChatReference', chatResource: chatResource.toString(), endTurn };
+		? { $mid: 'chatReference', chatResource: chatResource.toString() }
+		: { $mid: 'chatReference', chatResource: chatResource.toString(), endTurn };
 }
 
 /**
  * Type guard for a {@link IChatReferenceDynamicVariableValue}.
  */
 export function isChatReferenceDynamicVariableValue(value: IChatRequestVariableValue): value is IChatReferenceDynamicVariableValue {
-	return typeof value === 'object' && value !== null && (value as { $mid?: unknown }).$mid === 'agentHostChatReference';
+	return typeof value === 'object' && value !== null && (value as { $mid?: unknown }).$mid === 'chatReference';
 }
 
 /**

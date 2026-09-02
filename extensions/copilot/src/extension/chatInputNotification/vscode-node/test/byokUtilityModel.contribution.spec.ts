@@ -112,7 +112,7 @@ describe('ByokUtilityModelNotificationContribution', () => {
 
 	test('shows notification when signed out + BYOK + both utility settings unset', async () => {
 		const { authService } = createAuthService({ anyGitHubSession: undefined });
-		const { configService } = createConfigService({ 'chat.agentHost.allowSignedOutWhenUsable': true });
+		const { configService } = createConfigService();
 		contribution = new ByokUtilityModelNotificationContribution(authService, configService, noopLog);
 
 		await flushAsync();
@@ -125,7 +125,7 @@ describe('ByokUtilityModelNotificationContribution', () => {
 		expect(mockNotification.sessionTypes).toEqual(['local']);
 	});
 
-	test('keeps the notification global when signed-out operation is disabled', async () => {
+	test('limits the notification to local chat', async () => {
 		const { authService } = createAuthService({ anyGitHubSession: undefined });
 		const { configService } = createConfigService();
 		contribution = new ByokUtilityModelNotificationContribution(authService, configService, noopLog);
@@ -133,7 +133,7 @@ describe('ByokUtilityModelNotificationContribution', () => {
 		await flushAsync();
 
 		expect(mockNotification.show).toHaveBeenCalled();
-		expect(mockNotification.sessionTypes).toBeUndefined();
+		expect(mockNotification.sessionTypes).toEqual(['local']);
 	});
 
 	test('does not show notification in the Agents window', async () => {

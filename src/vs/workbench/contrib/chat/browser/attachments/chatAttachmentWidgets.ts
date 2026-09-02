@@ -70,7 +70,6 @@ import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { BrowserEditorInput } from '../../../browserView/common/browserEditorInput.js';
 import { BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../../browserView/common/browserView.js';
 import { IChatContentReference } from '../../common/chatService/chatService.js';
-import { buildOpenSessionLinkForChatResource } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { coerceImageBuffer } from '../../common/chatImageExtraction.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { getImageAttachmentLimit, isPastedTextArtifact, IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IBrowserViewVariableEntry, IChatRequestChatReferenceVariableEntry, IChatRequestTranscriptContextVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry, isStringVariableEntry, resolveChatContextIcon, ChatContextIconPath } from '../../common/attachments/chatVariableEntries.js';
@@ -1143,12 +1142,8 @@ export class ToolSetOrToolItemAttachmentWidget extends AbstractChatAttachmentWid
 }
 
 /**
- * Renders an agent-host {@link IChatRequestChatReferenceVariableEntry chat-reference}
- * attachment (`#chat:<title>`) as a clickable chip. Clicking (or pressing
- * Enter/Space) opens the referenced chat in the Agents window by handing an
- * `agent-host-session://` link to the {@link IOpenerService}. When the link
- * cannot be built or the opener declines it (e.g. the chat was deleted or lives
- * in another window) the chip degrades gracefully and still renders its label.
+ * Renders a {@link IChatRequestChatReferenceVariableEntry chat-reference}
+ * attachment (`#chat:<title>`) as a clickable chip.
  */
 export class ChatReferenceAttachmentWidget extends AbstractChatAttachmentWidget {
 	constructor(
@@ -1193,14 +1188,7 @@ export class ChatReferenceAttachmentWidget extends AbstractChatAttachmentWidget 
 	}
 
 	private async _openReferencedChat(chatResource: URI): Promise<void> {
-		const link = buildOpenSessionLinkForChatResource(chatResource);
-		if (!link) {
-			return;
-		}
-		// The opener returns false when the link cannot be resolved (e.g. the
-		// referenced chat was deleted or belongs to a different window). Degrade
-		// gracefully in that case — the chip stays but no error dialog is shown.
-		await this.openerService.open(link);
+		await this.openerService.open(chatResource);
 	}
 }
 

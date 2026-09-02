@@ -40,8 +40,6 @@ to the change:
 | AI customizations | `src/vs/sessions/AI_CUSTOMIZATIONS.md` |
 | Copilot customizations | `src/vs/sessions/copilot-customizations-spec.md` |
 | Copilot Chat provider | `src/vs/sessions/contrib/providers/copilotChatSessions/COPILOT_CHAT_SESSIONS_PROVIDER.md` |
-| Agent Host provider | `src/vs/sessions/contrib/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md` |
-| Remote Agent Host provider | `src/vs/sessions/contrib/providers/remoteAgentHost/REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md` |
 
 Do not load the learning inbox by default. Search its headings and scopes, then
 read only matching entries after the authoritative specification.

@@ -496,23 +496,6 @@ export default defineThemedFixtureGroup({
 		},
 	}),
 
-	ClaudeProvider: defineComponentFixture({
-		render: (ctx) => {
-			const now = Date.now();
-			renderSessionItem(ctx, createMockSession({
-				label: 'Analyze code complexity',
-				status: AgentSessionStatus.Completed,
-				providerType: AgentSessionProviders.AgentHostClaude,
-				icon: Codicon.claude,
-				timing: {
-					created: now - 150 * 60 * 1000,
-					lastRequestStarted: now - 150 * 60 * 1000,
-					lastRequestEnded: now - 140 * 60 * 1000,
-				},
-			}));
-		},
-	}),
-
 	CloudProviderInProgress: defineComponentFixture({
 		render: (ctx) => {
 			const now = Date.now();

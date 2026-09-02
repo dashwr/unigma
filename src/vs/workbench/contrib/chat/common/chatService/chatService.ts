@@ -34,7 +34,7 @@ import { HookTypeValue } from '../promptSyntax/hookTypes.js';
 import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { IChatParserContext } from '../requestParser/chatRequestParser.js';
 import { IPreparedToolInvocation, IToolConfirmationMessages, IToolResult, IToolResultInputOutputDetails, ToolDataSource } from '../tools/languageModelToolsService.js';
-import { ConfirmationOptionKind, type McpOAuthClient } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ConfirmationOptionKind, type McpOAuthClient } from '../chatConfirmation.js';
 
 export interface IChatRequest {
 	message: string;
@@ -641,7 +641,7 @@ export interface IChatTerminalToolInvocationData {
 	};
 	/**
 	 * LM-generated intention describing why the command is being run, shown
-	 * above the command in the terminal tool card. Set by the Agent Host; the
+	 * above the command in the terminal tool card. Set by the provider; the
 	 * built-in terminal tool leaves this unset.
 	 */
 	intention?: string;
@@ -743,9 +743,6 @@ export function isLegacyChatTerminalToolInvocationData(data: unknown): data is I
  * - `local`: resolves the MCP server via {@link IMcpService} from a
  *   `serverDefinitionId` + `collectionId`. Used for locally-configured
  *   MCP servers whose state lives in the workbench.
- * - `agentHost`: routes through {@link IAgentHostService.handleMcpRequest}
- *   on an AHP `mcp://` side channel. Used for MCP servers owned by an
- *   agent host (e.g. Copilot CLI).
  */
 export type ChatMcpAppData =
 	| {
@@ -756,22 +753,6 @@ export type ChatMcpAppData =
 		serverDefinitionId: string;
 		/** Reference to the collection containing the server */
 		collectionId: string;
-	}
-	| {
-		kind: 'agentHost';
-		/** URI of the UI resource for rendering (e.g., "ui://weather-server/dashboard") */
-		resourceUri: string;
-		/** AHP `mcp://` channel URI for the originating server. */
-		channel: string;
-		/**
-		 * Stable identifier for the originating server, used as the
-		 * additional key when computing the webview origin. Typically the
-		 * AHP customization id. For top-level (bare) MCP servers this id
-		 * is currently session-scoped, so see {@link ChatMcpAppModel} for
-		 * how it avoids growing persistent application storage on every
-		 * new session.
-		 */
-		serverId: string;
 	};
 
 export interface IChatToolInputInvocationData {
@@ -1200,13 +1181,13 @@ export interface IChatToolResourcesInvocationData {
 
 /**
  * Tool-specific data for a completed `create_session` / `create_chat`
- * agent-host tool call. Carries a clickable link so the renderer can show a
+ * session tool call. Carries a clickable link so the renderer can show a
  * deterministic confirmation + "open" button instead of relying on the model
  * to echo a markdown link.
  */
 export interface IChatSessionCreatedData {
 	readonly kind: 'sessionCreated';
-	/** The `agent-host-session://` link that opens the created/owning session. */
+	/** The link that opens the created/owning session. */
 	readonly openLink: string;
 	/** Label for the button (e.g. the session title / prompt). */
 	readonly label: string;
@@ -1353,7 +1334,7 @@ export interface IChatMcpAuthenticationRequiredServer {
 }
 
 /**
- * Surfaced by agent-host sessions when one or more MCP servers are still in the
+ * Surfaced by sessions when one or more MCP servers are still in the
  * {@link McpServerStatus.Starting starting} state a noticeable time after a
  * turn began without any content arriving from the host. The part lists the
  * servers still starting and updates dynamically via {@link servers}: it hides
@@ -1869,7 +1850,6 @@ export interface IChatSendRequestOptions {
 	rejectedConfirmationData?: any[];
 	attachedContext?: IChatRequestVariableEntry[];
 	resolvedVariables?: IChatRequestVariableEntry[];
-	agentHostSessionConfig?: Record<string, unknown>;
 
 	/** The target agent ID can be specified with this property instead of using @ in 'message' */
 	agentId?: string;

@@ -11,14 +11,13 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
-import { IsPhoneLayoutContext, SessionHasChangesContext, SessionIsCreatedContext, SessionWorkspaceIsVirtualContext, SessionProviderIdContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionHasChangesContext, SessionIsCreatedContext, SessionWorkspaceIsVirtualContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { CodeReviewService, ICodeReviewService } from './codeReviewService.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
@@ -37,7 +36,7 @@ const codeReviewChangesToolbarWhen = ContextKeyExpr.and(
 	SessionWorkspaceIsVirtualContext.toNegated(),
 	IsPhoneLayoutContext.negate(),
 	SessionIsCreatedContext,
-	ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
+	SessionHasChangesContext,
 	singlePaneDetailPanel.negate(),
 );
 

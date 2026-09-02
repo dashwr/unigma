@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { DisposableLike, RuntimeDemand, RuntimeState, WorkspaceReference } from '../domain/runtime';
+import type { DisposableLike, RuntimeDemand, RuntimeDemandSource, RuntimeState, WorkspaceReference } from '../domain/runtime';
 import type { RuntimePorts } from './runtimePorts';
+import type { AgentRuntimeRpc, RuntimePromptCommand, RuntimeRpcEvent } from './rpc';
 
 export const RUNTIME_DEMAND_COMMAND = 'unigma.agent.runtime.activate';
 
@@ -18,9 +19,18 @@ export class AgentRuntimeApplication implements DisposableLike {
 	private _disposePromise: Promise<void> | undefined;
 	private _runtimeTeardownPromise: Promise<void> | undefined;
 	private _runtimeTeardownCompleted = false;
+	private readonly rpc: AgentRuntimeRpc<RuntimePromptCommand, RuntimeRpcEvent> | undefined;
+	private readonly rpcSubscription: DisposableLike | undefined;
+	private readonly clientEventSubscription: DisposableLike | undefined;
+	private readonly sessionOperations = new Map<string, Promise<void>>();
+	private readonly requestIds = new Set<string>();
+	private readonly sessionIds = new Set<string>();
 
-	public constructor(ports?: RuntimePorts) {
+	public constructor(ports?: RuntimePorts, rpc?: AgentRuntimeRpc<RuntimePromptCommand, RuntimeRpcEvent>) {
 		this._ports = ports;
+		this.rpc = rpc;
+		this.rpcSubscription = rpc?.onCommand(command => this.handleRpcCommand(command));
+		this.clientEventSubscription = ports?.openCodeClient.onEvent(event => this.rpc?.emitEvent({ version: 1, type: 'session.event', event }));
 	}
 
 	public get state(): RuntimeState {
@@ -41,10 +51,9 @@ export class AgentRuntimeApplication implements DisposableLike {
 	}
 
 	/**
-	 * Connects the runtime to one trusted workspace without creating a session or
-	 * copying input. Session operations are deliberately left to the next slice.
+	 * Connects the runtime to one trusted workspace before a command uses it.
 	 */
-	public async connectWorkspace(workspace: WorkspaceReference, requestId?: string): Promise<void> {
+	public async connectWorkspace(workspace: WorkspaceReference, requestId?: string, demandSource: RuntimeDemandSource = 'command'): Promise<void> {
 		if (this._state === 'disposed') {
 			return;
 		}
@@ -52,6 +61,8 @@ export class AgentRuntimeApplication implements DisposableLike {
 		if (!this._ports) {
 			throw new Error('Unigma agent runtime ports are not configured.');
 		}
+
+		this.requireTrustedWorkspace(workspace, requestId);
 
 		if (this._connectionPromise) {
 			if (this._connectionWorkspaceUri !== workspace.uri) {
@@ -61,7 +72,7 @@ export class AgentRuntimeApplication implements DisposableLike {
 		}
 
 		this._runtimeTeardownCompleted = false;
-		this.acceptDemand({ source: 'command', requestId });
+		this.acceptDemand({ source: demandSource, requestId });
 		this._connectionWorkspaceUri = workspace.uri;
 		this._connectionPromise = this.startConnection(workspace, requestId);
 		try {
@@ -73,6 +84,17 @@ export class AgentRuntimeApplication implements DisposableLike {
 	}
 
 	private async startConnection(workspace: WorkspaceReference, requestId?: string): Promise<void> {
+		const preflight = this._ports!.localIntegrationPreflight?.(workspace);
+		if (!preflight || !preflight.accepted) {
+			const refusalCode = preflight && !preflight.accepted ? preflight.code : 'unknownOrigin';
+			this._ports!.diagnostics.record({
+				level: 'warn',
+				code: `runtime.integration.refused.${refusalCode}`,
+				requestId,
+			});
+			throw new Error('Local integration preflight refused.');
+		}
+
 		try {
 			const process = await this._ports!.processManager.ensureStarted(workspace);
 			if (this.isDisposed()) {
@@ -101,6 +123,118 @@ export class AgentRuntimeApplication implements DisposableLike {
 		return this._state === 'disposed';
 	}
 
+	private async handleRpcCommand(command: RuntimePromptCommand): Promise<void> {
+		if (command.version !== 1 || command.type !== 'session.prompt' || this.isDisposed()) {
+			return;
+		}
+		if (!this._ports) {
+			this.emitRpcError(command.requestId, 'internal');
+			return;
+		}
+
+		if (this.requestIds.has(command.requestId)) {
+			this.emitRpcError(command.requestId, 'duplicateRequestId');
+			return;
+		}
+		this.requestIds.add(command.requestId);
+
+		if (!this._ports!.workspaceTrust.isTrusted(command.workspace)) {
+			this._ports!.diagnostics.record({ level: 'warn', code: 'runtime.workspace.untrusted', requestId: command.requestId });
+			this.emitRpcError(command.requestId, 'workspaceUntrusted');
+			return;
+		}
+
+		const previous = this.sessionOperations.get(command.workspace.uri) ?? Promise.resolve();
+		const operation = previous.catch(() => undefined).then(() => this.runPrompt(command));
+		this.sessionOperations.set(command.workspace.uri, operation);
+		return operation.finally(() => {
+			if (this.sessionOperations.get(command.workspace.uri) === operation) {
+				this.sessionOperations.delete(command.workspace.uri);
+			}
+		});
+	}
+
+	private async runPrompt(command: RuntimePromptCommand): Promise<void> {
+		if (this.isDisposed()) {
+			return;
+		}
+
+		let createdSession = false;
+		let sessionId: string | undefined;
+		try {
+			const reference = await this._ports!.sessionReferenceStore.read(command.workspace);
+			const registeredSessionId = reference?.workspaceUri === command.workspace.uri ? reference.sessionId : undefined;
+			if (registeredSessionId) {
+				this.sessionIds.add(registeredSessionId);
+			}
+			if (command.sessionId !== undefined && (registeredSessionId !== command.sessionId || !this.sessionIds.has(command.sessionId))) {
+				this.emitRpcError(command.requestId, 'sessionNotFound');
+				return;
+			}
+
+			await this.connectWorkspace(command.workspace, command.requestId, 'rpc');
+			if (this.isDisposed()) {
+				return;
+			}
+			sessionId = registeredSessionId ?? await this.createSession();
+			if (!registeredSessionId) {
+				createdSession = true;
+				await this._ports!.sessionReferenceStore.write({ sessionId, workspaceUri: command.workspace.uri });
+			}
+			this.sessionIds.add(sessionId);
+			await this._ports!.openCodeClient.send({
+				method: 'POST',
+				path: `/session/${encodeURIComponent(sessionId)}/prompt_async`,
+				body: command.prompt,
+			});
+			this.rpc?.emitEvent({ version: 1, type: 'session.ready', sessionId, requestId: command.requestId });
+		} catch {
+			if (createdSession) {
+				this.sessionIds.delete(sessionId!);
+				try {
+					await this._ports!.sessionReferenceStore.remove(command.workspace);
+				} catch {
+					this._ports!.diagnostics.record({ level: 'error', code: 'runtime.session.rollback.failed', requestId: command.requestId });
+				}
+			}
+			this._ports?.diagnostics.record({ level: 'error', code: 'runtime.session.failed', requestId: command.requestId });
+			this.emitRpcError(command.requestId, 'internal');
+		}
+	}
+
+	private emitRpcError(requestId: string, code: 'duplicateRequestId' | 'sessionNotFound' | 'workspaceUntrusted' | 'internal'): void {
+		switch (code) {
+			case 'duplicateRequestId':
+				this.rpc?.emitEvent({ version: 1, type: 'session.error', requestId, error: { code, message: 'This request was already handled.', retryable: false } });
+				return;
+			case 'sessionNotFound':
+				this.rpc?.emitEvent({ version: 1, type: 'session.error', requestId, error: { code, message: 'The requested session is not available.', retryable: false } });
+				return;
+			case 'workspaceUntrusted':
+				this.rpc?.emitEvent({ version: 1, type: 'session.error', requestId, error: { code, message: 'The workspace is not trusted.', retryable: false } });
+				return;
+			case 'internal':
+				this.rpc?.emitEvent({ version: 1, type: 'session.error', requestId, error: { code, message: 'The agent runtime could not complete the request.', retryable: false } });
+				return;
+		}
+	}
+
+	private requireTrustedWorkspace(workspace: WorkspaceReference, requestId?: string): void {
+		if (!this._ports!.workspaceTrust.isTrusted(workspace)) {
+			this._ports!.diagnostics.record({ level: 'warn', code: 'runtime.workspace.untrusted', requestId });
+			throw new Error('The workspace is not trusted.');
+		}
+	}
+
+	private async createSession(): Promise<string> {
+		const created = await this._ports!.openCodeClient.send({ method: 'POST', path: '/session', body: {} });
+		if (!created || typeof created !== 'object' || Array.isArray(created) || typeof (created as { id?: unknown }).id !== 'string') {
+			throw new Error('OpenCode did not return a session reference.');
+		}
+
+		return (created as { id: string }).id;
+	}
+
 	public dispose(): void {
 		if (this._state === 'disposed') {
 			return;
@@ -108,6 +242,10 @@ export class AgentRuntimeApplication implements DisposableLike {
 
 		this._state = 'disposed';
 		this._lastDemand = undefined;
+		this.requestIds.clear();
+		this.sessionIds.clear();
+		this.rpcSubscription?.dispose();
+		this.clientEventSubscription?.dispose();
 		this._disposePromise ??= this.disposeRuntime().catch(() => {
 			this._ports?.diagnostics.record({ level: 'error', code: 'runtime.teardown.failed' });
 		});

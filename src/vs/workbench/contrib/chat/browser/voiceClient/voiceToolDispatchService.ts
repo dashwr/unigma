@@ -516,7 +516,7 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 		if (!(carousel instanceof ChatQuestionCarouselData) && !carousel.resolveId) {
 			return { ok: false, reason: 'unsupported' };
 		}
-		// `dismiss` also completes the deferred promise an agent-hosted carousel
+		// `dismiss` also completes the deferred promise for a remote carousel
 		// is blocked on; marking it used without that leaves the agent waiting.
 		if (carousel instanceof ChatQuestionCarouselData) {
 			carousel.dismiss(answers);

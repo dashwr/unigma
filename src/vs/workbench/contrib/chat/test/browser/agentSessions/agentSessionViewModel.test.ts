@@ -25,7 +25,7 @@ import { MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { AgentSessionProviders, getAgentCanContinueIn, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../../browser/agentSessions/agentSessions.js';
+import { AgentSessionProviders, getAgentCanContinueIn, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../../browser/agentSessions/agentSessions.js';
 
 class StaticChatSessionItemController implements IChatSessionItemController {
 	readonly onDidChangeChatSessionItems = Event.None;
@@ -1271,13 +1271,13 @@ suite('AgentSessions', () => {
 
 			const backgroundSession = createSession({ providerType: AgentSessionProviders.Background });
 			const cloudSession = createSession({ providerType: AgentSessionProviders.Cloud });
-			const claudeSession = createSession({ providerType: AgentSessionProviders.AgentHostClaude });
+			const otherSession = createSession({ providerType: 'some-other-type' });
 			const codexSession = createSession({ providerType: AgentSessionProviders.Codex });
 			const localSession = createSession({ providerType: AgentSessionProviders.Local });
 
 			assert.strictEqual(filter.exclude(backgroundSession), false, 'Background should be allowed');
 			assert.strictEqual(filter.exclude(cloudSession), false, 'Cloud should be allowed');
-			assert.strictEqual(filter.exclude(claudeSession), true, 'Claude should be excluded');
+			assert.strictEqual(filter.exclude(otherSession), true, 'Other providers should be excluded');
 			assert.strictEqual(filter.exclude(codexSession), true, 'Codex should be excluded');
 			assert.strictEqual(filter.exclude(localSession), true, 'Local should be excluded');
 		});
@@ -1288,11 +1288,11 @@ suite('AgentSessions', () => {
 				{ filterMenuId: MenuId.ViewTitle }
 			));
 
-			const claudeSession = createSession({ providerType: AgentSessionProviders.AgentHostClaude });
+			const otherSession = createSession({ providerType: 'some-other-type' });
 			const codexSession = createSession({ providerType: AgentSessionProviders.Codex });
 			const unknownSession = createSession({ providerType: 'some-unknown-type' });
 
-			assert.strictEqual(filter.exclude(claudeSession), false);
+			assert.strictEqual(filter.exclude(otherSession), false);
 			assert.strictEqual(filter.exclude(codexSession), false);
 			assert.strictEqual(filter.exclude(unknownSession), false);
 		});
@@ -1318,11 +1318,11 @@ suite('AgentSessions', () => {
 
 			const backgroundSession = createSession({ providerType: AgentSessionProviders.Background });
 			const cloudSession = createSession({ providerType: AgentSessionProviders.Cloud });
-			const claudeSession = createSession({ providerType: AgentSessionProviders.AgentHostClaude });
+			const otherSession = createSession({ providerType: 'some-other-type' });
 
 			assert.strictEqual(filter.exclude(backgroundSession), false, 'Background is allowed and not user-excluded');
 			assert.strictEqual(filter.exclude(cloudSession), true, 'Cloud is allowed but user-excluded');
-			assert.strictEqual(filter.exclude(claudeSession), true, 'Claude is not in allowedProviders');
+			assert.strictEqual(filter.exclude(otherSession), true, 'Other providers are not in allowedProviders');
 		});
 	});
 
@@ -2596,16 +2596,6 @@ suite('AgentSessions', () => {
 			assert.strictEqual(icon.id, Codicon.cloud.id);
 		});
 
-		test('should return correct icon for AgentHostCopilot provider', () => {
-			const icon = getAgentSessionProviderIcon(AgentSessionProviders.AgentHostCopilot);
-			assert.strictEqual(icon.id, Codicon.vm.id);
-		});
-
-		test('should return simplified AgentHostCopilot name', () => {
-			const name = getAgentSessionProviderName(AgentSessionProviders.AgentHostCopilot);
-			assert.strictEqual(name, 'Copilot');
-		});
-
 		test('should return correct name for Growth provider', () => {
 			const name = getAgentSessionProviderName(AgentSessionProviders.Growth);
 			assert.strictEqual(name, 'Growth');
@@ -2614,36 +2604,6 @@ suite('AgentSessions', () => {
 		test('should return correct icon for Growth provider', () => {
 			const icon = getAgentSessionProviderIcon(AgentSessionProviders.Growth);
 			assert.strictEqual(icon.id, Codicon.lightbulb.id);
-		});
-
-		test('should return correct name for AgentHostClaude provider', () => {
-			const name = getAgentSessionProviderName(AgentSessionProviders.AgentHostClaude);
-			assert.strictEqual(name, 'Claude');
-		});
-
-		test('should return correct icon for AgentHostClaude provider', () => {
-			const icon = getAgentSessionProviderIcon(AgentSessionProviders.AgentHostClaude);
-			assert.strictEqual(icon.id, Codicon.claude.id);
-		});
-
-		test('should return correct name for AgentHostCodex provider', () => {
-			const name = getAgentSessionProviderName(AgentSessionProviders.AgentHostCodex);
-			assert.strictEqual(name, 'Codex');
-		});
-
-		test('should return correct icon for AgentHostCodex provider', () => {
-			const icon = getAgentSessionProviderIcon(AgentSessionProviders.AgentHostCodex);
-			assert.strictEqual(icon.id, Codicon.openai.id);
-		});
-
-		test('should resolve AgentHostClaude provider from session type', () => {
-			const provider = getAgentSessionProvider(AgentSessionProviders.AgentHostClaude);
-			assert.strictEqual(provider, AgentSessionProviders.AgentHostClaude);
-		});
-
-		test('should resolve AgentHostCodex provider from session type', () => {
-			const provider = getAgentSessionProvider(AgentSessionProviders.AgentHostCodex);
-			assert.strictEqual(provider, AgentSessionProviders.AgentHostCodex);
 		});
 
 		test('should handle Local provider type in model', async () => {
@@ -2770,17 +2730,6 @@ suite('AgentSessions', () => {
 		test('should return false for Growth provider', () => {
 			const result = getAgentCanContinueIn(AgentSessionProviders.Growth);
 			assert.strictEqual(result, false);
-		});
-
-		test('should return true for the Copilot agent host provider', () => {
-			const result = getAgentCanContinueIn(AgentSessionProviders.AgentHostCopilot);
-			assert.strictEqual(result, true);
-		});
-
-		test('should return true for dynamically registered agent host session types', () => {
-			assert.strictEqual(getAgentCanContinueIn('agent-host-codex'), true);
-			assert.strictEqual(getAgentCanContinueIn('agent-host-claude'), true);
-			assert.strictEqual(getAgentCanContinueIn('remote-myauthority-copilot'), true);
 		});
 
 		test('should return false for unknown extension-host session types', () => {

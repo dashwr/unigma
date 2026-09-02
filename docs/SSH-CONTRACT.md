@@ -53,6 +53,27 @@ Esta matriz não promete uma distribuição Linux específica, libc, shell,
 topologia de proxy, arquitetura diferente de x64 ou extensão de configuração
 não validada. Tais combinações exigem contrato e evidência novos.
 
+### 2.1 Política de pré-conexão T-013
+
+`evaluateRemoteSshConnection` é uma política pura para fixture/teste, não uma
+implementação de transporte. A combinação só é aceita quando todos os gates
+abaixo são válidos; qualquer estado ausente ou recusado termina na categoria
+indicada e não inicia OpenSSH, autenticação, provisionamento ou replay.
+
+| gate | estado aceito | recusa fail-closed |
+| --- | --- | --- |
+| confiança do workspace | confiável | `ssh.workspace-blocked` |
+| plataforma | cliente Windows x64 ou Linux x64 e host Linux x64 | `ssh.remote-platform-unsupported` |
+| cliente | OpenSSH disponível | `ssh.client-unavailable` |
+| destino | alias ou identificador SSH válido | `ssh.target-unresolved` |
+| host key | confiável pelo OpenSSH | `ssh.host-key-untrusted` |
+| canal | conexão não interrompida | `ssh.connection-lost` |
+| servidor remoto | build/protocolo compatível | `ssh.remote-server-incompatible` |
+
+Os estados `unknown`, `mismatched` e `revoked` de host key são todos recusados
+como `ssh.host-key-untrusted`. A política não resolve aliases, executa OpenSSH,
+acessa `known_hosts`, solicita credenciais, tenta fallback local nem reconecta.
+
 ## 3. Local de execução
 
 | contexto | workbench e autoridade | extension host | runtime e processo OpenCode |
@@ -136,6 +157,30 @@ OpenSSH do host.
    remoto necessário à mesma build do cliente. O método de bootstrap ainda não
    é especificado por T-013.
 
+### Identidade do componente remoto
+
+O servidor remoto é o `unigma-server` construído deste fork (`D-028`), não o
+servidor Code - OSS upstream: o extension host remoto precisa das extensões
+internas do unigma. `product.json` já fixa
+`serverApplicationName: "unigma-server"` e `serverDataFolderName: ".unigma-server"`.
+
+O mecanismo aprovado por `D-032` é enviar pela sessão OpenSSH já validada o par
+`unigma-server` + `unigma+opencode` correspondente ao commit do cliente. Antes
+de qualquer escrita, a UI mostra host, versão, tamanho total e hash do manifesto
+e exige confirmação explícita para aquele host. O payload entra em diretório
+versionado pertencente ao usuário remoto; somente após validar o manifesto ocorre
+a ativação atômica. A versão anterior não é apagada por este fluxo.
+
+No payload local v1, `unigma-server` é o arquivo `server/unigma-server.tar.gz`:
+um tar.gz da distribuição Linux x64 completa do servidor deste fork. O wrapper
+`bin/unigma-server` não pode ser transportado isoladamente, porque depende da
+árvore de runtime e extensões do servidor. A extração no staging remoto pertence
+ao transporte/ativação de T-050 e ainda não está implementada.
+
+Não há CDN, `updateUrl`, download automático, elevação ou instalação global. A
+entrega ainda precisa de artefato local aceito, manifesto/hashes e testes de
+interrupção/rollback; sem esses insumos o provisionamento falha fechado.
+
 ### Recusado pelo contrato
 
 - instalar, atualizar ou configurar `sshd`, OpenSSH, firewall, serviço,
@@ -144,9 +189,10 @@ OpenSSH do host.
 - usar root, elevação, credencial administrativa ou instalação global;
 - provisionar silenciosamente em segundo plano ou por simples abertura de
   workspace não confiável;
-- instalar ou baixar automaticamente `opencode`, provider, MCP, plugin, regra
-  ou qualquer credencial. A disponibilidade e a versão de OpenCode pertencem ao
-  contrato de integração OpenCode, não a T-013;
+- instalar ou baixar separadamente `opencode`, provider, MCP, plugin, regra ou
+  qualquer credencial. Somente o `unigma+opencode` já empacotado e compatível com
+  o `unigma-server` pode integrar o payload aprovado; providers/plugins/OAuth
+  continuam configurados pelo usuário no host remoto;
 - copiar workspace, `.git`, worktrees, arquivos de configuração sensíveis,
   diretórios `.ssh`, chaves, tokens, prompts, diffs ou resultados para bootstrap;
 - tentar um host Windows remoto, uma arquitetura fora de x64 ou uma versão
@@ -268,10 +314,11 @@ executa:
 - host Windows remoto e arquiteturas fora da matriz recusados antes do
   provisionamento.
 
-Não fazem parte de T-013: código em `extensions/unigma-remote-ssh/`, manifesto,
-transporte, bootstrap executável, alteração de `known_hosts`, solicitação de
-credenciais, instalação de OpenCode, atualização de documentos compartilhados,
-build, teste de integração ou deploy.
+T-013 implementa somente a política pura e seus testes em
+`extensions/unigma-remote-ssh/`. Não fazem parte dela: manifesto, transporte,
+bootstrap executável, alteração de `known_hosts`, solicitação de credenciais,
+instalação de OpenCode, atualização de documentos compartilhados, build, teste
+de integração ou deploy.
 
 ## Referências
 

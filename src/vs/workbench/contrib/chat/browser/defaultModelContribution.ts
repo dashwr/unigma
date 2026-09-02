@@ -118,7 +118,7 @@ export abstract class DefaultModelContribution extends Disposable {
 				if (model.metadata?.isUserSelectable === false) {
 					return false;
 				}
-				// Models scoped to a specific chat session type (e.g. agent-host
+				// Models scoped to a specific chat session type
 				// providers) are intentionally hidden from general model pickers.
 				if (model.metadata?.targetChatSessionType !== undefined) {
 					return false;

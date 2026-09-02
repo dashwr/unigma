@@ -11,16 +11,94 @@
  *  showing coverage gaps, extras, duplicates, and license breakdown.
  *
  *  Usage:
- *    npx tsx build/azure-pipelines/oss/audit-notices.ts --notice <path> --repo .
+ *    node build/azure-pipelines/oss/audit-notices.ts --notice <path> --repo .
  *
  *  --notice   Path to ThirdPartyNotices.txt (or .new.txt)
  *  --repo     Path to the repo root (defaults to cwd)
+ *  --scope    Manifest scope: all (default), root (excluding cli/**), or cli
  *--------------------------------------------------------------------------------------------*/
 
 import fs from 'fs';
 import path from 'path';
-import { parseNoticeFile, type NoticeEntry } from './parse-notices.js';
-import { parseArgs } from './utils.js';
+import { fileURLToPath } from 'url';
+import { parseNoticeFile, type NoticeEntry } from './parse-notices.ts';
+import { parseArgs } from './utils.ts';
+
+export type AuditScope = 'all' | 'root' | 'cli';
+
+/** Validate the optional manifest scope while preserving the historical default. */
+export function resolveScope(value: string | undefined): AuditScope {
+	if (value === undefined || value === 'all') {
+		return 'all';
+	}
+	if (value === 'root' || value === 'cli') {
+		return value;
+	}
+	throw new Error(`Invalid --scope '${value}'. Expected all, root, or cli.`);
+}
+
+/**
+ * Manifests that exist in the repo but never reach the distributed product:
+ * build tooling, tests and editor config. `build/win32/Cargo.lock` is the one
+ * exception — it builds `inno_updater.exe`, which ships inside the Windows
+ * installer, so its crates do need a notice.
+ */
+const NON_DISTRIBUTED_ROOT_PREFIXES = ['build/', 'test/', '.vscode/'];
+const DISTRIBUTED_BUILD_PATHS = new Set(['build/win32/Cargo.lock']);
+
+/**
+ * Read the packaging exclusion list from `build/lib/extensions.ts`.
+ *
+ * The list is the single source of truth for extensions that are never bundled
+ * (Copilot plus the test extensions), so it is parsed from that file rather
+ * than duplicated here. Returns an empty list when the file cannot be read or
+ * the declaration shape changed — the audit then stays at its historical,
+ * broader scope instead of silently dropping manifests.
+ */
+export function readExcludedExtensions(repoRoot: string): string[] {
+	try {
+		const source = fs.readFileSync(path.join(repoRoot, 'build', 'lib', 'extensions.ts'), 'utf8');
+		const declaration = source.match(/const\s+excludedExtensions\s*=\s*\[([^\]]*)\]/);
+		if (!declaration) {
+			return [];
+		}
+		return [...declaration[1].matchAll(/['"]([^'"]+)['"]/g)].map(m => m[1]);
+	} catch {
+		return [];
+	}
+}
+
+/** Is this repo-relative path a manifest that never ships in the product? */
+function isNonDistributedRootPath(normalized: string, excludedExtensions: readonly string[]): boolean {
+	if (DISTRIBUTED_BUILD_PATHS.has(normalized)) {
+		return false;
+	}
+	if (NON_DISTRIBUTED_ROOT_PREFIXES.some(prefix => normalized.startsWith(prefix))) {
+		return true;
+	}
+	if (normalized.startsWith('src/') && /(^|\/)test\//.test(normalized)) {
+		return true;
+	}
+	return excludedExtensions.some(name => normalized.startsWith(`extensions/${name}/`));
+}
+
+/**
+ * Return whether a repo-relative path belongs to the requested manifest scope.
+ *
+ * `root` additionally drops manifests that are not part of the distributed
+ * product; `all` stays deliberately exhaustive.
+ */
+export function isPathInScope(relativePath: string, scope: AuditScope, excludedExtensions: readonly string[] = []): boolean {
+	const normalized = relativePath.replace(/\\/g, '/').replace(/^\.\//, '');
+	const isCliPath = normalized === 'cli' || normalized.startsWith('cli/');
+	if (scope === 'all') {
+		return true;
+	}
+	if (scope === 'cli') {
+		return isCliPath;
+	}
+	return !isCliPath && !isNonDistributedRootPath(normalized, excludedExtensions);
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -29,7 +107,7 @@ import { parseArgs } from './utils.js';
 /** Recursively walk a directory, yielding file paths that match a predicate. */
 function walkFiles(dir: string, match: (name: string) => boolean): string[] {
 	const results: string[] = [];
-	const skipDirs = new Set(['.git', '.build', 'out', 'out-build', 'out-editor', 'out-vscode']);
+	const skipDirs = new Set(['.git', '.build', 'node_modules', 'out', 'out-build', 'out-editor', 'out-vscode']);
 
 	function walk(d: string): void {
 		let entries: fs.Dirent[];
@@ -160,7 +238,9 @@ function collectCargoLockDeps(filePath: string): ManifestPackage[] {
 			const block = m[1];
 			const nameMatch = block.match(/^name\s*=\s*"(.+?)"/m);
 			const verMatch = block.match(/^version\s*=\s*"(.+?)"/m);
-			if (nameMatch) {
+			const sourceMatch = block.match(/^source\s*=\s*"(.+?)"/m);
+			// Cargo workspace packages have no source and are first-party.
+			if (nameMatch && sourceMatch) {
 				results.push({
 					name: nameMatch[1],
 					version: verMatch ? verMatch[1] : '',
@@ -264,11 +344,12 @@ interface CrossRefResult {
 	manifestUniqueNameVersions: Set<string>;
 	noticeOnlyNames: string[];
 	manifestOnlyNames: string[];
+	versionDivergences: { name: string; noticeVersions: string[]; manifestVersions: string[] }[];
 	overlapCount: number;
 	bySource: Map<string, number>;
 }
 
-function crossReference(noticeNames: Set<string>, manifestPackages: ManifestPackage[]): CrossRefResult {
+function crossReference(noticeNames: Set<string>, manifestPackages: ManifestPackage[], noticeEntries: NoticeEntry[]): CrossRefResult {
 	const manifestUniqueNames = new Set<string>();
 	const manifestUniqueNameVersions = new Set<string>();
 
@@ -296,6 +377,37 @@ function crossReference(noticeNames: Set<string>, manifestPackages: ManifestPack
 	const noticeOnlyNames = [...noticeNames].filter(n => !manifestUniqueNames.has(n)).sort();
 	const manifestOnlyNames = [...manifestUniqueNames].filter(n => !noticeNames.has(n)).sort();
 	const overlapCount = [...noticeNames].filter(n => manifestUniqueNames.has(n)).length;
+	const noticeVersions = new Map<string, Set<string>>();
+	for (const entry of noticeEntries) {
+		if (entry.version) {
+			const name = entry.name.toLowerCase();
+			const versions = noticeVersions.get(name) ?? new Set<string>();
+			versions.add(entry.version);
+			noticeVersions.set(name, versions);
+		}
+	}
+	const manifestVersions = new Map<string, Set<string>>();
+	for (const pkg of manifestPackages) {
+		if (pkg.version) {
+			const name = pkg.name.toLowerCase();
+			const versions = manifestVersions.get(name) ?? new Set<string>();
+			versions.add(pkg.version);
+			manifestVersions.set(name, versions);
+		}
+	}
+	const versionDivergences = [...noticeVersions]
+		.flatMap(([name, versions]) => {
+			const manifest = manifestVersions.get(name);
+			if (!manifest || versions.size === 0 || manifest.size === 0) {
+				return [];
+			}
+			const notice = [...versions].sort();
+			const manifestValues = [...manifest].sort();
+			return notice.every(version => manifest.has(version)) && manifestValues.every(version => versions.has(version))
+				? []
+				: [{ name, noticeVersions: notice, manifestVersions: manifestValues }];
+		})
+		.sort((a, b) => a.name.localeCompare(b.name));
 
 	return {
 		manifestPackages,
@@ -303,6 +415,7 @@ function crossReference(noticeNames: Set<string>, manifestPackages: ManifestPack
 		manifestUniqueNameVersions,
 		noticeOnlyNames,
 		manifestOnlyNames,
+		versionDivergences,
 		overlapCount,
 		bySource,
 	};
@@ -398,6 +511,26 @@ function printReport(noticePath: string, stats: NoticeStats, xref: CrossRefResul
 		console.log('');
 	}
 
+	if (xref.versionDivergences.length > 0) {
+		console.log(`  WARNING: Packages with NOTICE/manifest version differences: ${xref.versionDivergences.length}`);
+		for (const divergence of xref.versionDivergences.slice(0, 50)) {
+			console.log(`     - ${divergence.name}: NOTICE [${divergence.noticeVersions.join(', ')}], manifests [${divergence.manifestVersions.join(', ')}]`);
+		}
+		if (xref.versionDivergences.length > 50) {
+			console.log(`     ... and ${xref.versionDivergences.length - 50} more`);
+		}
+		console.log('');
+	}
+
+	const unknownLicenses = stats.entries.filter(entry => !entry.license);
+	if (unknownLicenses.length > 0) {
+		console.log(`  WARNING: NOTICE entries without a declared license: ${unknownLicenses.length}`);
+		for (const entry of unknownLicenses) {
+			console.log(`     - ${entry.name}${entry.version ? ` ${entry.version}` : ''} (line ${entry.lineNumber})`);
+		}
+		console.log('');
+	}
+
 	// -- Section 3: Summary --
 	console.log('-- 3. SUMMARY ------------------------------------------------');
 	console.log('');
@@ -455,12 +588,20 @@ function printReport(noticePath: string, stats: NoticeStats, xref: CrossRefResul
 
 function main(): void {
 	const args = parseArgs(process.argv.slice(2));
+	let scope: AuditScope;
+	try {
+		scope = resolveScope(args['scope']);
+	} catch (error) {
+		console.error(`Error: ${(error as Error).message}`);
+		process.exit(1);
+	}
 
 	if (!args['notice']) {
-		console.error('Usage: npx tsx build/azure-pipelines/oss/audit-notices.ts --notice <path> [--repo <path>]');
+		console.error('Usage: node build/azure-pipelines/oss/audit-notices.ts --notice <path> [--repo <path>] [--scope <all|root|cli>]');
 		console.error('');
 		console.error('  --notice   Path to ThirdPartyNotices.txt');
 		console.error('  --repo     Path to the repo root (defaults to cwd)');
+		console.error('  --scope    Manifest scope: all (default), root (excluding cli/**), or cli');
 		process.exit(1);
 	}
 
@@ -481,19 +622,27 @@ function main(): void {
 	const stats = analyzeNotice(entries);
 
 	console.log(`Walking repo for manifests: ${repoRoot}`);
+	console.log(`  Manifest scope: ${scope}`);
+	console.log(`  Manifest sources: ${scope === 'all' ? 'repository root and cli/**' : scope === 'root' ? 'repository root (excluding cli/**)' : 'cli/**'}`);
+
+	const excludedExtensions = scope === 'root' ? readExcludedExtensions(repoRoot) : [];
+	if (scope === 'root') {
+		console.log(`  Excluded (not distributed): build/** (except build/win32/Cargo.lock), test/**, .vscode/**, src/**/test/**, extensions/{${excludedExtensions.join(', ')}}/**`);
+	}
+	const inScope = (filePath: string): boolean => isPathInScope(path.relative(repoRoot, filePath), scope, excludedExtensions);
 
 	// Collect all manifest packages
 	const allManifestPkgs: ManifestPackage[] = [];
 
 	// package.json files
-	const packageJsonFiles = walkFiles(repoRoot, n => n === 'package.json');
+	const packageJsonFiles = walkFiles(repoRoot, n => n === 'package.json').filter(inScope);
 	console.log(`  Found ${packageJsonFiles.length} package.json files`);
 	for (const f of packageJsonFiles) {
 		allManifestPkgs.push(...collectPackageJsonDeps(f));
 	}
 
 	// package-lock.json files (full transitive dependency tree)
-	const packageLockFiles = walkFiles(repoRoot, n => n === 'package-lock.json');
+	const packageLockFiles = walkFiles(repoRoot, n => n === 'package-lock.json').filter(inScope);
 	console.log(`  Found ${packageLockFiles.length} package-lock.json files`);
 	const lockfileBreakdown = new Map<string, number>();
 	for (const f of packageLockFiles) {
@@ -504,14 +653,14 @@ function main(): void {
 	}
 
 	// Cargo.lock files
-	const cargoLockFiles = walkFiles(repoRoot, n => n === 'Cargo.lock');
+	const cargoLockFiles = walkFiles(repoRoot, n => n === 'Cargo.lock').filter(inScope);
 	console.log(`  Found ${cargoLockFiles.length} Cargo.lock files`);
 	for (const f of cargoLockFiles) {
 		allManifestPkgs.push(...collectCargoLockDeps(f));
 	}
 
 	// cgmanifest.json files
-	const cgManifestFiles = walkFiles(repoRoot, n => n === 'cgmanifest.json');
+	const cgManifestFiles = walkFiles(repoRoot, n => n === 'cgmanifest.json').filter(inScope);
 	console.log(`  Found ${cgManifestFiles.length} cgmanifest.json files`);
 	for (const f of cgManifestFiles) {
 		allManifestPkgs.push(...collectCgManifestDeps(f));
@@ -526,8 +675,13 @@ function main(): void {
 		noticeNames.add(e.name.toLowerCase());
 	}
 
-	const xref = crossReference(noticeNames, allManifestPkgs);
+	const xref = crossReference(noticeNames, allManifestPkgs, entries);
 	printReport(noticePath, stats, xref, lockfileBreakdown);
+	if (xref.manifestOnlyNames.length > 0) {
+		process.exitCode = 1;
+	}
 }
 
-main();
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))) {
+	main();
+}

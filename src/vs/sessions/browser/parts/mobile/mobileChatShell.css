@@ -465,8 +465,7 @@
  *        > .sessions-chat-picker-slot                      (Approvals)
  *   .new-chat-repo-config-container > .monaco-toolbar
  *      > .monaco-action-bar > .actions-container > .action-item
- *        > .sessions-chat-agent-host-config
- *          > .sessions-chat-picker-slot[]                  (Branch + Worktree)
+ *        > .sessions-chat-picker-slot[]                  (Branch + Worktree)
  *
  * The desktop sheet `chatWidget.css` already sets `display: flex`,
  * `min-width: 0` and `overflow: hidden` at every level so labels can
@@ -555,8 +554,7 @@
 .agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .monaco-toolbar,
 .agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .monaco-action-bar,
 .agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .monaco-action-bar > .actions-container,
-.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .monaco-action-bar > .actions-container > .action-item,
-.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .sessions-chat-agent-host-config {
+.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .monaco-action-bar > .actions-container > .action-item {
 	display: flex;
 	flex-direction: row;
 	align-items: center;

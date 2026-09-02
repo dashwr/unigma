@@ -124,7 +124,7 @@ export interface IDeleteChatOptions {
  * It owns workspace discovery, session creation, session listing, and picker contributions.
  *
  * One provider can serve multiple session types. Multiple provider instances can
- * serve the same session type (e.g., one per remote agent host).
+	 * serve the same session type (e.g., one per remote connection).
  */
 export interface ISessionsProvider {
 	/**

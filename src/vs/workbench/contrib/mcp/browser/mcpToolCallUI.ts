@@ -11,7 +11,6 @@ import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { derived, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { isMobile, isWeb, locale } from '../../../../base/common/platform.js';
 import { hasKey } from '../../../../base/common/types.js';
-import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ColorScheme } from '../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
@@ -33,10 +32,7 @@ export interface IMcpAppResourceContent extends McpApps.McpUiResourceMeta {
 
 /**
  * Transport abstraction for the constrained subset of MCP requests an MCP
- * App's webview makes back to the host. Two implementations exist: one
- * routes through {@link IMcpService} (local servers), the other through
- * {@link IAgentHostService.handleMcpRequest} on an `mcp://` AHP side
- * channel (agent-host-resident servers).
+ * App's webview makes back to the local MCP service.
  */
 export interface IMcpAppCallTransport extends IDisposable {
 	/** Forwarded MCP server notifications (`notifications/*`) for this server. */
@@ -162,71 +158,10 @@ class LocalMcpAppCallTransport extends Disposable implements IMcpAppCallTranspor
 }
 
 /**
- * AHP transport: routes requests over the `mcp://` side channel via
- * {@link IAgentHostService.handleMcpRequest}, and filters
- * {@link IAgentHostService.onMcpNotification} down to this channel.
- *
- * Used for MCP servers owned by an agent host (e.g. Copilot CLI).
- */
-class AhpMcpAppCallTransport extends Disposable implements IMcpAppCallTransport {
-	private readonly _onNotification = this._register(new Emitter<{ readonly method: string; readonly params?: unknown }>());
-	readonly onNotification: Event<{ readonly method: string; readonly params?: unknown }> = this._onNotification.event;
-
-	constructor(
-		private readonly _uiData: Extract<IMcpToolCallUIData, { kind: 'agentHost' }>,
-		private readonly _channel: string,
-		@IAgentHostService private readonly _agentHostService: IAgentHostService,
-	) {
-		super();
-
-		this._register(this._agentHostService.onMcpNotification(n => {
-			if (n.channel === this._channel) {
-				this._onNotification.fire({ method: n.method, params: n.params });
-			}
-		}));
-	}
-
-	async log(params: MCP.LoggingMessageNotificationParams): Promise<void> {
-		// Notifications are one-way; the AHP `mcp://` channel accepts
-		// `notifications/message` from the client. We use the request
-		// path here for symmetry (the host treats `notifications/message`
-		// the same regardless of how it arrived). Failures are swallowed
-		// to avoid surfacing log-pipe errors to the App.
-		try {
-			await this._agentHostService.handleMcpRequest(this._channel, 'notifications/message', params as unknown as Record<string, unknown>);
-		} catch {
-			// no-op
-		}
-	}
-
-	async loadResource(_token: CancellationToken): Promise<IMcpAppResourceContent> {
-		const result = await this._agentHostService.handleMcpRequest(this._channel, 'resources/read', { uri: this._uiData.resourceUri }) as MCP.ReadResourceResult;
-		return readResourceContentToHtml(result.contents);
-	}
-
-	async callTool(name: string, params: Record<string, unknown>, _token: CancellationToken): Promise<MCP.CallToolResult> {
-		const result = await this._agentHostService.handleMcpRequest(this._channel, 'tools/call', { name, arguments: params }) as MCP.CallToolResult;
-		return result;
-	}
-
-	async readResource(uri: string, _token: CancellationToken): Promise<MCP.ReadResourceResult> {
-		const result = await this._agentHostService.handleMcpRequest(this._channel, 'resources/read', { uri }) as MCP.ReadResourceResult;
-		return result;
-	}
-
-	async sampling(params: MCP.CreateMessageRequest['params'], _token: CancellationToken): Promise<MCP.CreateMessageResult> {
-		const result = await this._agentHostService.handleMcpRequest(this._channel, 'sampling/createMessage', params as unknown as Record<string, unknown>) as MCP.CreateMessageResult;
-		return result;
-	}
-}
-
-/**
  * Wrapper class that "upgrades" serializable IMcpToolCallUIData into a functional
  * object that can load UI resources and proxy tool/resource calls back to the MCP server.
  *
- * Selects the underlying transport based on whether the renderer was given
- * an AHP `mcp://` channel — agent-host-resident servers route through
- * {@link IAgentHostService}, everything else uses the local {@link IMcpService}.
+ * Uses the local {@link IMcpService} transport for all MCP App calls.
  */
 export class McpToolCallUI extends Disposable {
 	/**
@@ -247,11 +182,7 @@ export class McpToolCallUI extends Disposable {
 	) {
 		super();
 
-		this._transport = this._register(
-			_uiData.kind === 'agentHost'
-				? instantiationService.createInstance(AhpMcpAppCallTransport, _uiData, _uiData.channel)
-				: instantiationService.createInstance(LocalMcpAppCallTransport, _uiData)
-		);
+		this._transport = this._register(instantiationService.createInstance(LocalMcpAppCallTransport, _uiData));
 		this.onNotification = this._transport.onNotification;
 
 		const colorTheme = observableFromEvent(

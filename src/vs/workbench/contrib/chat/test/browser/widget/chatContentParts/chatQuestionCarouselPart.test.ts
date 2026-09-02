@@ -12,7 +12,7 @@ import { ChatQuestionCarouselPart, IChatQuestionCarouselOptions } from '../../..
 import { IChatQuestionAnswerValue, IChatQuestionCarousel } from '../../../../common/chatService/chatService.js';
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { ChatQuestionCarouselData } from '../../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
-import { AgentHostAutoReplyAnswer } from '../../../../../../../platform/agentHost/common/agentHostSchema.js';
+import { CHAT_AUTO_REPLY_ANSWER } from '../../../../common/constants.js';
 
 function createMockCarousel(questions: IChatQuestionCarousel['questions'], allowSkip: boolean = true): IChatQuestionCarousel {
 	return {
@@ -1107,7 +1107,7 @@ suite('ChatQuestionCarouselPart', () => {
 				answeredExternally: true,
 				autoReply: true,
 				answerPresentation: 'conversation',
-				data: { q1: AgentHostAutoReplyAnswer },
+				data: { q1: CHAT_AUTO_REPLY_ANSWER },
 			};
 			createWidget(carousel);
 
@@ -1118,7 +1118,7 @@ suite('ChatQuestionCarouselPart', () => {
 				hasGenericMessage: !!widget.domNode.querySelector('.chat-question-summary-answered'),
 			}, {
 				question: 'Question: What should we work on next?',
-				answer: `Answered: ${AgentHostAutoReplyAnswer}`,
+				answer: `Answered: ${CHAT_AUTO_REPLY_ANSWER}`,
 				answerIcon: true,
 				hasGenericMessage: false,
 			});

@@ -44,9 +44,9 @@ export type IEditArcTelemetryClassification = {
 	languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language id of the document.' };
 	mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The mode chat was in.' };
 	uniqueEditId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The unique identifier for the edit.' };
-	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host provider that produced the edit.' };
-	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host session identifier.' };
-	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the edit was produced in an Agent Host subagent session.' };
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider that produced the edit.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent session identifier.' };
+	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the edit was produced in a subagent session.' };
 
 	didBranchChange: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Indicates if the branch changed in the meantime. If the branch changed (value is 1); this event should probably be ignored.' };
 	timeDelayMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The time delay between the user accepting the edit and measuring the survival rate.' };

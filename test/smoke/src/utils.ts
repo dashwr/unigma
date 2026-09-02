@@ -416,7 +416,7 @@ export async function dumpFailureDiagnostics(
 		logger.log(`[${label}] failed to list playwright artifacts in ${logsPath}: ${err instanceof Error ? err.message : String(err)}`);
 	}
 
-	// 2. Capture send-button state (Agents Window flow only).
+	// 2. Capture send-button state when the caller supplied a selector.
 	const sendButtonSelector = options?.sendButtonSelector;
 	if (sendButtonSelector) {
 		try {
@@ -469,10 +469,8 @@ export async function dumpFailureDiagnostics(
 	//    we resolve that from the exact `COPILOT_HOME` the app launched with (see
 	//    `getCopilotRuntimeLogDir`).
 	//    NOTE: every Copilot-runtime session spawns this runtime, but the detail
-	//    differs. Agent Host sessions (Agents Window / local AgentHost) write a
-	//    full, verbose account (run at `trace`). The Chat Sessions editor (Copilot
-	//    CLI / Claude) and Local sessions run the SDK in-process and install their
-	//    own log writer that routes the detailed model/turn diagnostics to
+	//    differs. The Chat Sessions editor (Copilot CLI) and Local sessions run the
+	//    SDK in-process and install their own log writer that routes the detailed model/turn diagnostics to
 	//    `logService` (the `GitHub Copilot Chat.log` tailed in step 3), so their
 	//    `process-*.log` is usually just the runtime's startup/lifecycle — enough
 	//    to tell whether the runtime came up (if it did but the turn never

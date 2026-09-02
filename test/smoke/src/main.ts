@@ -13,6 +13,7 @@ import * as vscodetest from '@vscode/test-electron';
 import fetch from 'node-fetch';
 import { Quality, MultiLogger, Logger, ConsoleLogger, FileLogger, measureAndLog, getDevElectronPath, getBuildElectronPath, getBuildVersion, ApplicationOptions } from '../../automation';
 import { retry } from './utils';
+import { applyNeutralFixtureOverlay } from './fixtureOverlay';
 
 import { setup as setupDataLossTests } from './areas/workbench/data-loss.test';
 import { setup as setupPreferencesTests } from './areas/preferences/preferences.test';
@@ -33,7 +34,6 @@ import { setup as setupChatSandboxTests } from './areas/chat/chatSandbox.test';
 import { setup as setupChatSessionsTests } from './areas/chat/chatSessions.test';
 import { setup as setupChatModelConfigTests } from './areas/chat/chatModelConfig.test';
 import { setup as setupAccessibilityTests } from './areas/accessibility/accessibility.test';
-import { setup as setupAgentsWindowTests } from './areas/agentsWindow/agentsWindow.test';
 import { setup as setupBrowserViewTests } from './areas/browserView/browserView.test';
 
 const rootPath = path.join(__dirname, '..', '..', '..');
@@ -164,7 +164,7 @@ process.once('exit', () => {
 });
 
 const testRepoUrl = 'https://github.com/microsoft/vscode-smoketest-express';
-const workspacePath = path.join(testDataPath, `vscode-smoketest-express`);
+const workspacePath = path.join(testDataPath, `unigma-smoke-fixture`);
 const extensionsPath = path.join(testDataPath, 'extensions-dir');
 fs.mkdirSync(extensionsPath, { recursive: true });
 
@@ -289,6 +289,7 @@ async function setupRepository(): Promise<void> {
 			cp.spawnSync('git', ['clean', '-xdf'], { cwd: workspacePath, stdio: 'inherit' });
 		}
 	}
+	applyNeutralFixtureOverlay(workspacePath);
 }
 
 async function ensureStableCode(): Promise<void> {
@@ -443,7 +444,6 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	if (!opts.web) { setupChatSandboxTests(logger); }
 	if (!opts.web && !opts.remote) { setupChatSessionsTests(logger); }
 	if (!opts.web && !opts.remote) { setupChatModelConfigTests(logger); }
-	if (!opts.web && !opts.remote) { setupAgentsWindowTests(logger); }
-	if (!opts.web && !opts.remote) { setupBrowserViewTests(logger); }
+	if (!opts.web && !opts.remote) { setupBrowserViewTests(logger, { chatPanelSupported: false }); }
 	setupAccessibilityTests(logger, opts, quality);
 });

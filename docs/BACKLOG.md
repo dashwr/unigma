@@ -1,9 +1,107 @@
 # unigma — backlog implementável
 
-> **status:** backlog derivado da arquitetura aprovada em 2026-08-22. A E-00 permanece
-> parcialmente concluída: há build, artefato e smoke de núcleo Windows x64 e Linux
-> x64; a revisão final de distribuição continua pendente. As demais
-> tarefas continuam futuras. Este arquivo não autoriza distribuição ou publicação.
+> **status:** backlog derivado da arquitetura aprovada em 2026-08-22. A E-00 tem
+> build, artefato, auditoria técnica e smoke de núcleo Windows x64 e Linux x64
+> reproduzidos no head `838ca94e`; a revisão legal/third-party e os direitos de
+> branding continuam pendentes. O plano de fechamento está em
+> [`planos/2026-08-26-e00-e01.md`](planos/2026-08-26-e00-e01.md).
+> As demais tarefas além dos recortes 2A/2B continuam futuras. Este arquivo não
+> autoriza distribuição ou publicação.
+
+> feito: overnight 2026-08-27 executou triagem E00–E03, aplicou correções locais
+> no bridge, auditor e recortes estruturalmente independentes, e registrou evidência/bloqueios em
+> [`status/2026-08-27-overnight.md`](status/2026-08-27-overnight.md); nenhum épico
+> foi promovido sem runner, bundle ou revisão independente.
+>
+> feito: `test-build-scripts` passou com 270 testes/40 suites e `compile-client`
+> passou em `2.47 min`; ambos são evidência local e não fecham os gates oficiais.
+>
+> feito: decisão `D-023` confirmou manter `service-only`; `opencode serve` já é
+> headless, então a próxima etapa é auditar superfícies e aplicar somente patch
+> mínimo comprovado.
+>
+> feito: plano de ondas E00–E03 criado em
+> [`planos/2026-08-27-e00-e03-ondas.md`](planos/2026-08-27-e00-e03-ondas.md) e
+> apontado pelo `AGENTS.md`; os recortes 2A/2B foram verificados e a onda 3 não
+> foi iniciada.
+>
+> feito: onda 1 executada nas lanes 1A–1F; evidências e bloqueios foram
+> consolidados em [`status/2026-08-27-overnight.md`](status/2026-08-27-overnight.md);
+> os recortes 2A/T-020 e 2B/T-030 da onda 2 foram verificados localmente, sem
+> promover E02/E03 a aceite.
+>
+> feito: 2026-08-29 — a implementação local da onda 1/T-100–T-104 removeu as
+> contribuições e o subsistema Agent Host herdados, suas entradas de build/SDK e
+> smoke/E2E, com busca estática sem imports residuais. O estado permanece
+> `review`: compile, typecheck, testes, artefato e delta de notices ainda devem
+> ser colhidos no runner oficial.
+>
+> feito: 2026-08-29 — removido o caminho residual de Agent Sessions Welcome da
+> configuração de startup, layout, tema e walkthrough; a página órfã foi excluída.
+>
+> feito: 2026-08-29 — compatibilidade do runtime fixada em OpenCode `1.18.23`,
+> com rejeição fail-closed de versões diferentes; compile/typecheck do cliente e
+> 60 testes do runtime passaram sob Node `24.18.0`.
+>
+> feito: 2026-08-30 — matriz oficial verde no head `91867fb1`: Windows
+> `33328903196` e Linux/WSL2 `33330427263`, ambos com pacote, auditoria de
+> distribuição, smoke e evidência de artefato. Antes disso, dois defeitos do
+> corte `D-024` foram corrigidos: `IAgentSessionsService` deixou de ser
+> registrado enquanto 36 consumidores do stack de chat continuavam vivos — o
+> customer `MainThreadChatSessions` quebrava o RPC do extension host — e
+> `ChatStatusBarEntry` ficava fora do gate `isChatPanelEnabled`, mantendo um
+> ícone sem destino cujo dashboard lia `defaultChatAgent` inexistente. A
+> classificação dos gaps de notices root mostrou que as 7 "licenças ausentes"
+> são falso positivo do parser e que 254 dos 978 manifest-only não são
+> distribuídos; após remover as dependências Copilot da raiz e de `remote/`, o
+> escopo root ficou em 695 manifest-only. A geração final depende do artefato
+> CG do Azure DevOps.
+>
+> feito: 2026-08-30 — `D-032` desativa somente `workbench.panel.chat`; o smoke
+> preserva os casos Integrated Browser independentes, declara os dois casos Chat
+> como capability não suportada e usa fixture visual neutra. O auditor ganhou
+> `--scope all|root|cli`; a CLI passa com zero manifest-only/licença ausente. O
+> escopo root permanece pendente; os 7 avisos de licença são falso positivo do
+> parser, e o notice final não foi regenerado após a poda de dependências.
+>
+> validado: 2026-08-30 — no head `ac74acec`, Windows (`33340526388`) e
+> Linux/WSL2 (`33341927790`) passaram instalação limpa, pacote, auditoria,
+> smoke e evidência após remover `@github/copilot` e `@github/copilot-sdk` da
+> raiz e de `remote/`. Artefatos: Windows `9740716863` / `251764464` bytes;
+> Linux `9741090425` / `178618673` bytes.
+>
+> validado: 2026-08-31 — o patch de contrato real OpenCode e a fronteira SSH
+> fail-closed passaram novamente no mesmo head `d00521d6`: Windows
+> `33345230165` e Linux/WSL2 `33347302898`; artefatos `9742391434` /
+> `251783295` bytes e `9742755123` / `178649969` bytes.
+>
+> feito: 2026-08-29 — auditoria somente-leitura do CLI Rust registrada em
+> [`status/2026-08-29-cli-audit.md`](status/2026-08-29-cli-audit.md). Ela separa o
+> Code Server (necessário ao SSH remoto, preservado) do Agent Host/AHP herdado
+> (removível) e originou as decisões `D-027` e `D-028`. Nenhum código foi alterado
+> na auditoria.
+>
+> próximo plano: [`planos/2026-08-29-cli-ssh-remoto.md`](planos/2026-08-29-cli-ssh-remoto.md).
+> Etapa A desacopla o Agent Host do CLI preservando `code_server.rs`, o bridge, o
+> multiplexer, o protocolo e o `command-shell`; etapa B implementa e valida
+> OpenSSH → `unigma-server` remoto → extension host remoto →
+> `unigma-agent-runtime` → `opencode serve` (T-050/T-051/T-052/T-053). Os testes
+> ficam concentrados no fim de cada etapa.
+>
+> feito local: 2026-08-29 — `CLI-001` removeu consumidores/módulos AHP do CLI Rust,
+> fixou `PROTOCOL_VERSION=4`, preservou o Code Server e removeu o subcomando Agent
+> das completions. `cargo test` passou com 33 testes e `terminal-suggest` compilou
+> sem erros. O aceite permanece em `review`: clippy tem cinco lints baseline,
+> Node 24/runner e a atualização de `cli/ThirdPartyNotices.txt` continuam pendentes.
+>
+> evidência runner: a execução [`33267418418`](https://github.com/dashwr/unigma/actions/runs/33267418418)
+> passou no commit `a3300897`, com build Windows x64, auditoria de pacote, smoke,
+> checks focados e contrato do runtime; o artefato não expirou. Clippy e notices
+> continuam gates separados.
+>
+> evidência Linux: a execução [`33279351708`](https://github.com/dashwr/unigma/actions/runs/33279351708)
+> passou no commit `e6b4e1bd` após a correção de retry/backoff para downloads do
+> npm/node-gyp; build, auditoria, smoke e upload de evidência concluíram.
 
 ## como usar
 
@@ -20,15 +118,16 @@
 
 Registro consolidado do trabalho executado no checkout local `E:\unigma`, nos
 clones temporários de validação e no runner self-hosted Windows. As execuções
-`32896363977` e `32916035363` criaram evidência e artefatos de teste Windows x64
-e Linux x64; a revisão final de distribuição ainda está pendente.
+finais `32930950550` e `32929454545` criaram evidência, auditoria técnica e
+artefatos de teste Windows x64 e Linux x64; a revisão legal/third-party ainda
+está pendente.
 
 | frente | feito | ainda necessário |
 | --- | --- | --- |
 | T-001 upstream | tag `1.134.0`, SHA, Node, Electron e alvos registrados em `docs/UPSTREAM.md` e `DECISIONS.md` | validar compatibilidade de build/artefato em ambiente suportado |
 | T-002 importação | snapshot importado; `upstream` configurado; licenças/notices preservados; método registrado; builds/artefatos de teste Windows x64 e Linux x64 reproduzidos | revisar a árvore upstream e os metadados empacotados antes de distribuição |
-| T-003 harness | comandos reais registrados em `AGENTS.md`; `npm ci`, compile, empacotamento e smoke de núcleo passaram em Windows x64 (`32896363977`) e Linux x64 (`32916035363`) | revisão final; `test-node` depende de `out/` |
-| T-004 identidade | `README.md`, `product.json`, `resources/unigma/` e revisão inicial de terceiros ajustados; tar Linux inspecionado | corrigir/justificar autoria upstream no pacote, decidir extensões de autenticação, concluir auditoria legal/licenças e direitos dos ativos |
+| T-003 harness | comandos reais registrados em `AGENTS.md`; `npm ci`, compile, empacotamento, auditoria e smoke de núcleo passaram em Windows x64 (`32930950550`) e Linux x64 (`32929454545`) | revisão final; `test-node` depende de `out/` |
+| T-004 identidade | `README.md`, `product.json`, `resources/unigma/`, metadados próprios, filtros de extensões e auditor técnico ajustados; tar/ZIP finais inspecionados | concluir auditoria legal/licenças, inventário de terceiros e direitos dos ativos |
 
 ### bloqueios ambientais registrados
 
@@ -89,10 +188,25 @@ e Linux x64; a revisão final de distribuição ainda está pendente.
   Não instalar ferramenta nem executar o scanner de licenças com rede sem nova
   necessidade explícita.
 
-Esses bloqueios não foram classificados como bugs do unigma. A evidência de
-artefato/smoke para Windows x64 e Linux x64 está concluída; a E-00 só pode ser
-marcada integralmente concluída após a revisão de distribuição exigida por
-T-002/T-004.
+### resultado final da rodada 2026-08-26
+
+- `5efc250d` adicionou o auditor sem dependências aos dois workflows e
+  `838ca94e` corrigiu o último erro de tipo da view nativa;
+- `32929454545` (Linux WSL2) e `32930950550` (Windows x64), ambos no head
+  `838ca94e`, passaram `npm ci`, testes do runtime, compile/checks focados,
+  empacotamento, auditoria e smoke, com artefatos publicados;
+- a auditoria direta dos pacotes confirmou identidade própria, licença/notices
+  preservados, metadados próprios, gallery nula e ausência das quatro extensões
+  proibidas. Os ativos de plataforma empacotados coincidem com as fontes
+  versionadas;
+- esses resultados encerram o gate técnico de build/distribuição da E-00, mas
+  não substituem o inventário legal completo nem a revisão independente dos
+  direitos/originalidade da marca.
+
+Os bloqueios históricos acima não foram classificados como bugs do unigma. A
+evidência técnica de artefato/smoke para Windows x64 e Linux x64 está concluída;
+a E-00 só pode ser marcada integralmente concluída após a revisão de distribuição
+exigida por T-002/T-004.
 
 ## fontes e rastreabilidade
 
@@ -132,6 +246,7 @@ T-002/T-004.
 | E-06 | segurança e performance | fronteiras testadas e baseline/regressões mensuráveis | artefato executável |
 | E-07 | qualidade e distribuição | testes, builds multiplataforma e gate de release | implementação integrada |
 | E-08 | Intelligence Index/Autopilot | roteamento local opt-in, versionado, mensurável e integrado à UI nativa | E-01, E-02, E-03 e gates de E-06 |
+| E-09 | perfil OpenCode service-only e bundle | decepador reproduzível, runtime bundled, atualização atômica e rollback | E-00/T-001 e E-01/T-011 |
 
 # TASKS
 
@@ -224,15 +339,17 @@ ativos e release continuam bloqueados.
 ## E-01 — contratos operacionais
 
 **status:** os quatro contratos da E-01 estão documentados no checkout. T-010
-tem contrato implementado e validado; T-011, T-012 e T-013 continuam
-especificações documentais condicionais, sem suporte funcional. A E-01 não
-declara suporte de OpenCode, providers, integrações locais ou SSH.
+tem implementação inicial e T-011/T-012/T-013 têm políticas/matrizes iniciais,
+mas o fechamento exige evidência executável fail-closed. O plano de fechamento
+separa o gate contratual do suporte funcional downstream; nenhum provider,
+integração local ou SSH é anunciado sem teste real.
 
 ### T-010 — especificar domínio e RPC UI↔runtime
 
-**status:** contrato TypeScript implementado e validado, com validação estrutural
-e teste de contrato; runtime e integração funcional permanecem nas tarefas
-posteriores.
+**status:** contrato TypeScript e handler RPC do runtime têm implementação
+inicial, com testes-fonte para duplicidade, sessão ausente, concorrência,
+rollback e redaction. A suíte compilada do working tree atual ainda precisa ser
+executada no runner.
 
 - **objetivo:** transformar `AgentCommand`/`AgentEvent` em contrato TypeScript
   versionado, com estados, erros, `requestId` e validação de fronteira.
@@ -257,9 +374,19 @@ posteriores.
 
 ### T-011 — definir compatibilidade OpenCode e providers
 
-**status:** especificação documental condicional; versão, checksum e binário
-OpenCode não foram fixados nem testados, portanto nenhum suporte funcional ou de
-release é declarado.
+**status:** matriz documental e fixture interna alinhadas aos 15 pares
+método/path consultados pelo cliente; `/usr/bin/opencode` `1.18.23` foi
+verificado por SHA-256 e passou no probe real isolado de health, OpenAPI,
+workspace, SSE, sessão e operações mínimas. Nenhum provider/modelo é anunciado
+como suportado.
+
+> feito: 2026-08-30 — o `OpenCodeHttpClient` compilado foi validado contra o
+> binário real `1.18.23`. `GET /provider`, operação requerida, responde com
+> `5 750 600` bytes e era rejeitada pelo limite único de 4 MiB; o limite de
+> resposta HTTP subiu para 16 MiB e o guarda de evento SSE ficou em 4 MiB. Um
+> teste de integração opt-in (`OPENCODE_REAL_E2E=1` mais versão exata) cobre
+> health, `/doc`, `/path`, SSE e as operações do perfil; a suíte padrão continua
+> sem depender do executável externo.
 
 - **objetivo:** enumerar versão/protocolo HTTP/SSE, endpoints usados, eventos,
   tratamento de reinício e conjunto inicial de providers/modelos permitido.
@@ -280,9 +407,10 @@ release é declarado.
 
 ### T-012 — definir política local de MCP, plugins e regras
 
-**status:** especificação documental condicional, sem suporte funcional;
-implementação e evidências de carregamento, recusa, trust e redaction continuam
-pendentes.
+**status:** preflight sanitizado, revalidação no extension host, bridge
+serializável workbench↔extension host e testes-fonte de recusa implementados. O
+inventário conectado de plugin/regra, a suíte compilada e a evidência contra
+OpenCode real continuam pendentes; não há suporte funcional anunciado.
 
 - **objetivo:** definir fontes, formato, confiança, carregamento, recusa e
   isolamento das integrações locais encaminhadas ao OpenCode.
@@ -302,9 +430,10 @@ pendentes.
 
 ### T-013 — definir contrato de SSH remoto
 
-**status:** especificação documental condicional, sem suporte funcional; conexão,
-provisionamento e execução da matriz continuam pendentes. Host remoto Windows
-permanece recusado por este contrato e não é suporte publicado.
+**status:** política pura e matriz fail-closed implementadas, com smoke local das
+recusas. Transporte, provisionamento, `known_hosts` e conexão real continuam
+pendentes. Host remoto Windows permanece recusado por este contrato e não é
+suporte publicado.
 
 - **objetivo:** fixar matriz de host/cliente, provisionamento permitido,
   `known_hosts`, agente SSH, falhas e versão do servidor remoto.
@@ -326,6 +455,10 @@ permanece recusado por este contrato e não é suporte publicado.
 
 ### T-020 — criar esqueleto de `unigma-agent-runtime`
 
+**status:** recorte 2A verificado em Node `24.18.0`/npm `11.16.0`; compile e a
+suíte oficial do runtime passaram com 59 testes. Runner multiplataforma e
+integração E02/E03 ainda estão pendentes.
+
 - **objetivo:** criar a extensão interna com camadas `application`, `domain` e
   `infrastructure`, ativação preguiçosa e ponto de RPC.
 - **responsável lógico:** engenharia de runtime.
@@ -343,8 +476,9 @@ permanece recusado por este contrato e não é suporte publicado.
 
 ### T-021 — supervisionar CLI `opencode serve`
 
-**status:** implementação inicial e testes fonte adicionados; execução e teste
-contra um binário OpenCode fixado permanecem pendentes.
+**status:** implementação inicial, testes fonte e execução compilada do runtime
+passaram nos runs finais; teste contra um binário OpenCode fixado permanece
+pendente.
 
 - **objetivo:** iniciar, aguardar, reutilizar e encerrar somente o processo
   criado pelo runtime, com uma instância por extension host.
@@ -364,9 +498,8 @@ contra um binário OpenCode fixado permanecem pendentes.
 
 ### T-022 — implementar cliente HTTP/SSE OpenCode
 
-**status:** adapter e fixture estrutural local adicionados; compatibilidade real
-permanece condicional a T-011 e os testes ainda não foram executados neste
-checkout.
+**status:** adapter, fixture estrutural local e testes compilados executados nos
+runs finais; compatibilidade real permanece condicional a T-011.
 
 - **objetivo:** encapsular os endpoints documentados e converter eventos SSE em
   tipos internos, sem vazar transporte para a UI.
@@ -386,8 +519,8 @@ checkout.
 
 ### T-023 — implementar armazenamento mínimo e diagnóstico redigido
 
-**status:** armazenamento mínimo, redaction e testes fonte adicionados; execução
-e integração no fluxo de sessão permanecem pendentes.
+**status:** armazenamento mínimo, redaction e testes compilados executados nos
+runs finais; integração no fluxo de sessão permanece pendente.
 
 - **objetivo:** persistir somente referência de sessão/configuração permitida e
   produzir logs locais com correlação sem conteúdo sensível.
@@ -427,6 +560,10 @@ e integração no fluxo de sessão permanecem pendentes.
 
 ### T-030 — criar contribuição nativa `unigmaAgent`
 
+**status:** recorte 2B verificado localmente; compile do cliente e teste browser
+focado passaram. Integração de sessão/controle, matriz oficial e runner ainda
+estão pendentes.
+
 - **objetivo:** registrar contribuição de workbench, comandos, painel e ciclo de
   vida sem criar Webview ou acesso direto à rede/processo.
 - **responsável lógico:** engenharia do workbench Code - OSS.
@@ -463,6 +600,10 @@ e integração no fluxo de sessão permanecem pendentes.
 
 ### T-032 — renderizar streaming e estados de conexão
 
+> feito: 2026-08-31 — bridge aceita o envelope real de `message.part.updated`,
+> traduz status estruturado e a UI nativa acumula conteúdo por delta; validação
+> do runner e reconexão sem duplicação continuam pendentes.
+
 - **objetivo:** transformar eventos SSE em atualização incremental, com conexão,
   reconexão, erro e cancelamento observáveis.
 - **responsável lógico:** UI nativa + runtime.
@@ -479,6 +620,11 @@ e integração no fluxo de sessão permanecem pendentes.
 - **bloqueia:** AC-003, AC-014 e parte de AC-015.
 
 ### T-033 — implementar diff e aprovação explícita
+
+> feito: 2026-08-31 — diff `SnapshotFileDiff` e respostas reais de permissão
+> (`permission.asked`/`permission.replied`) atravessam o contrato privado; a UI
+> só retira a pendência após a confirmação do runtime. Runner e bundle oficial
+> ainda não validaram o recorte ponta a ponta.
 
 - **objetivo:** apresentar alteração, decisão do usuário e resultado de
   aprovação/rejeição sem autoaprovação ou restauração de pendência.
@@ -569,16 +715,125 @@ e integração no fluxo de sessão permanecem pendentes.
 - **paralelo:** pode rodar em paralelo com T-040 e T-041 após T-024.
 - **bloqueia:** AC-005, AC-008 e gate de segurança.
 
+### T-043 — integrar atalhos de ferramentas e skills
+
+> parcial: 2026-08-31 — parser nativo de `@`/`/`, catálogo RPC sanitizado e
+> consulta comprovada a `/command` + `/skill` foram implementados. `@` permanece
+> referência textual de arquivo/agente sem catálogo especulativo; a validação
+> de build/teste passou no Windows `33465962415` e Linux/WSL `33465963804`.
+
+> extensão: 2026-09-01 — runtime agora descobre e sanitiza modelos de
+> `GET /provider` por workspace, sem expor credenciais, headers, options ou
+> custos. O painel/toggle global `unigma.agent.hiddenModels` foi integrado no
+> escopo de usuário. O runtime aceita seleção por sessão apenas para par já
+> descoberto e o envia no schema `prompt_async.model`; a UI só mostra ativo após
+> o ACK do runtime. A validação no runner continua pendente.
+
+- **objetivo:** oferecer `@` para ferramentas e `/` para skills na superfície
+  nativa do agente, encaminhando a seleção pelo contrato do OpenCode.
+- **responsável lógico:** workbench nativo + runtime OpenCode.
+- **dependências:** T-024, T-030, T-031 e T-012.
+- **arquivos/módulos prováveis:** `src/vs/workbench/contrib/unigmaAgent/`,
+  contrato RPC e adaptador OpenCode.
+- **critérios de aceite:** ferramentas/skills são resolvidos somente a partir de
+  fontes autorizadas; estados desconhecidos são observáveis; foco e teclado
+  funcionam; a UI não acessa processo, rede ou segredo diretamente.
+- **testes necessários:** resolução válida/inválida, trust, aprovação, teclado,
+  acessibilidade e sessão indisponível.
+- **riscos:** duplicar catálogo do OpenCode ou criar execução paralela;
+  mitigação: referências transitórias e OpenCode como fonte de verdade.
+- **paralelo:** pode rodar com T-044 após T-031, sem editar o mesmo contrato.
+- **bloqueia:** AC-027.
+
+### T-044 — integrar mensagens intersessão e chips de agentes
+
+- **objetivo:** expor mensagens entre sessões locais e chips de agente/subagente
+  com estados `thinking`, `typing` e `idle`.
+- **responsável lógico:** runtime + workbench nativo.
+- **dependências:** T-024, T-031, T-032 e T-041.
+- **arquivos/módulos prováveis:** `application/subagent/`, eventos RPC e
+  `unigmaAgent/browser/`.
+- **critérios de aceite:** a relação pai/filha usa IDs do OpenCode; mensagens
+  respeitam a sessão e a autoridade corretas; chips não inventam estado nem
+  persistem conteúdo; a UI permanece incremental e responsiva.
+- **testes necessários:** sessão pai/filha, mensagem entregue/recusada, mudança
+  de estado, encerramento, reconexão e ausência de duplicação de histórico.
+- **riscos:** criar um bus paralelo ou confundir colaboração com sincronização;
+  mitigação: transporte local, fonte OpenCode e estado transitório.
+- **paralelo:** pode rodar com T-043 após T-031; T-045 é independente no contrato.
+- **bloqueia:** AC-027.
+
+### T-045 — definir protocolo de controle remoto dormente
+
+- **objetivo:** definir tipos versionados para controle remoto futuro sem ativar
+  listener, cloud, colaboração em tempo real ou backend no MVP.
+- **responsável lógico:** arquitetura de runtime + segurança.
+- **dependências:** T-010, T-024 e T-061.
+- **arquivos/módulos prováveis:** contrato RPC, `domain/` e testes de schema;
+  nenhum servidor novo.
+- **critérios de aceite:** serialização, versão, capacidades e recusas são
+  testáveis; não há socket/listener, fila, sincronização ou persistência; o
+  protocolo não contorna trust, aprovação ou política do OpenCode.
+- **testes necessários:** payload válido/inválido, versão incompatível, ausência
+  de ativação e inspeção do artefato.
+- **riscos:** protocolo dormente virar API pública ou colaboração implícita;
+  mitigação: flag inexistente em runtime, sem endpoint e documentação explícita.
+- **paralelo:** pode rodar com T-043/T-044 sem editar a UI.
+- **bloqueia:** AC-028.
+
 ## E-05 — remoto SSH
 
+> feito parcial: 2026-08-30 — `unigma-remote-ssh` passou a registrar a autoridade
+> `ssh-remote`, validar aliases/targets sem segredo, testar disponibilidade do
+> OpenSSH apenas com `ssh -V` e aplicar gates fail-closed antes de qualquer
+> conexão. O transporte, o `unigma-server`, a host key e a matriz real continuam
+> bloqueados: este ambiente não possui servidor nem host keys configuradas.
+
 ### T-050 — criar/adaptar autoridade remota OpenSSH
+
+> feito parcial: 2026-09-01 — `bootstrapManifest` valida em memória o contrato
+> estrito v1 do par `unigma-server` + `unigma+opencode`, incluindo hashes,
+> tamanhos, commit/target e caminhos seguros. Ainda não há gerador de artefato,
+> conexão, cópia, escrita ou ativação remota.
+
+> extensão: 2026-09-01 — `build/unigma/make-payload.ts` monta localmente o
+> par a partir de dois binários explícitos, copia a licença OpenCode somente se
+> ela for fornecida e gera `manifest.json` com SHA-256. A fonte auditada é
+> OpenCode `1.18.23`/MIT no commit `c2eacd72…`; build do checkout, notices e
+> qualquer distribuição continuam pendentes.
+
+> feito: 2026-09-02 — o artefato `unigma-server` Linux x64 foi produzido no
+> runner WSL (run `33610235193`) e o par v1 foi montado localmente com o OpenCode
+> `1.18.23`; `validateBootstrapManifest` aceitou o `manifest.json` real. Duas
+> correções de build tornaram isso possível: o servidor passou a ser empacotado
+> por esbuild, como o alvo desktop já fazia, em vez da trilha `gulp-tsb` com
+> mangling (44 s contra mais de 40 min sem terminar), e `remote/LICENSE` passou a
+> existir para que o pacote do servidor carregue a licença. Transporte OpenSSH,
+> staging, ativação remota e VPS continuam pendentes.
+
+> extensão: 2026-09-02 — o payload v1 passou a transportar o servidor como
+> `server/unigma-server.tar.gz` completo, não um wrapper isolado, e
+> `.github/workflows/unigma-server-linux-artifact.yml` empacota esse arquivo no
+> runner WSL. O artefato ainda **não** foi produzido: os runs expuseram e
+> corrigiram quatro defeitos reais (empacotamento Copilot exigido sem
+> `builtInExtensions`, uso da task `-ci` sem compile prévio, membros `protected`
+> promovidos a públicos em `ChangesetReviewActionViewItem` e três erros de tipo
+> em `unigmaAgent`) e um problema de ambiente (`/tmp` do WSL é tmpfs e consumia
+> ~5,5 GB de RAM, deixando ~5,3 GB disponíveis). Transporte, staging, ativação e
+> VPS continuam pendentes.
 
 - **objetivo:** integrar `unigma-remote-ssh` ao modelo de autoridade remota do
   Code - OSS usando OpenSSH existente.
 - **responsável lógico:** engenharia remota.
-- **dependências:** T-002, T-003, T-013.
+- **dependências:** T-002, T-003, T-013 e a etapa A de
+  [`planos/2026-08-29-cli-ssh-remoto.md`](planos/2026-08-29-cli-ssh-remoto.md),
+  que deixa o CLI sem o Agent Host e com o Code Server intacto.
 - **arquivos/módulos prováveis:** `extensions/unigma-remote-ssh/src/`, manifesto,
-  adaptadores OpenSSH e testes.
+  adaptadores OpenSSH e testes; do lado do servidor, `cli/src/tunnels/code_server.rs`
+  e o entry point `command-shell`, preservados por `D-027`.
+- **servidor remoto:** `unigma-server` construído deste fork (`D-028`), acoplado
+  por commit ao cliente; `D-032` exige push SSH confirmado do par
+  `unigma-server` + `unigma+opencode`, com manifesto/hashes e ativação atômica.
 - **critérios de aceite:** usa `known_hosts` e agente/chaves do usuário; não
   solicita nem persiste segredos; host remoto possui extension host compatível;
   falhas são observáveis.
@@ -597,8 +852,10 @@ e integração no fluxo de sessão permanecem pendentes.
 - **dependências:** T-050, T-021, T-022 e T-023.
 - **arquivos/módulos prováveis:** `unigma-remote-ssh/`, runtime, resolução de
   host/paths e ciclo de vida remoto.
-- **critérios de aceite:** OpenCode roda no destino; caminhos/Git/worktrees são
-  remotos; loopback é do host remoto; encerramento limpa apenas processo criado.
+- **critérios de aceite:** OpenCode roda no destino, dentro do extension host
+  remoto hospedado pelo `unigma-server` — não em substituição a ele; caminhos/Git/
+  worktrees são remotos; loopback é do host remoto e nunca é exposto ao desktop;
+  encerramento limpa apenas processo criado.
 - **testes necessários:** sessão remota, Git remoto, dois workspaces, perda SSH,
   reconexão e processo remoto órfão.
 - **riscos:** confundir loopback local/remoto ou vazar workspace; mitigação:
@@ -872,18 +1129,19 @@ e integração no fluxo de sessão permanecem pendentes.
 
 ### T-085 — gate de aceitação do MVP
 
-- **objetivo:** consolidar evidências de AC-001 a AC-015 e declarar o que passou,
-  falhou ou permanece fora da entrega, incluindo a frente E-08 quando ela fizer
+- **objetivo:** consolidar evidências de AC-001 a AC-029 e declarar o que passou,
+  falhou ou permanece fora da entrega, incluindo E-08 e E-09 quando fizerem
   parte da entrega integrada.
 - **responsável lógico:** release manager + QA principal.
 - **dependências:** T-034, T-041, T-042, T-053, T-062, T-074, T-081, T-083,
-  T-084 e T-094.
+  T-084, T-094 e T-099.
 - **arquivos/módulos prováveis:** `docs/ACCEPTANCE.md`, relatório de evidências,
   artefatos e changelog futuro.
-- **critérios de aceite:** AC-001 a AC-024 têm evidência reproduzível quando
+- **critérios de aceite:** AC-001 a AC-029 têm evidência reproduzível quando
   fizerem parte do escopo da entrega; falha ou lacuna bloqueia a declaração de
-  pronto; relatório referencia commit, plataforma, comando e artefato. Direção
-  documental de E-08 não é evidência de implementação.
+  pronto; relatório referencia commit, plataforma, comando, artefato, patchset e
+  versão do bundle. Direção documental de E-08/E-09 não é evidência de
+  implementação.
 - **testes necessários:** suíte completa unitária, contrato, integração, SSH,
   segurança, performance, visual, Autopilot/roteador e smoke multiplataforma.
 - **riscos:** aceitar por documentação sem execução ou esconder suporte parcial;
@@ -1150,6 +1408,122 @@ exemplos numéricos da direção, inclusive `~49`, não são valores normativos.
   evidências pode ser distribuída por critério depois que os testes terminarem.
 - **bloqueia:** T-085, AC-024 e declaração de suporte do E-08.
 
+## E-09 — perfil OpenCode service-only e bundle
+
+**status:** direção confirmada em 2026-08-26 e refinada em 2026-08-27; `opencode
+serve` já é headless, mas o perfil bundled, o decepador e a atualização atômica
+ainda não foram implementados ou aceitos. Não fazer poda ampla sem auditoria de
+superfícies alcançáveis/empacotadas. Ver
+[`OPENCODE-SERVICE-ONLY.md`](OPENCODE-SERVICE-ONLY.md).
+
+### T-095 — inventariar superfícies e fixar a fronteira service-only
+
+- **objetivo:** mapear no upstream OpenCode o harness que deve permanecer e as
+  superfícies TUI/onboarding/interativas que serão removidas ou redirecionadas.
+- **estado factual em 2026-08-26:** além do inventário CLI de
+  `/usr/bin/opencode` `1.18.23`, o checkout upstream
+  `/home/dasher/projects/unigma/opencode` foi analisado em `dev`, HEAD
+  `c2eacd72afc4a4984564c393e15ab30011057269`, com árvore limpa. O mapa de
+  módulos, donos e decisões está em
+  [`OPENCODE-SERVICE-ONLY.md`](OPENCODE-SERVICE-ONLY.md). T-095 está concluída
+  no recorte estático pré-patch; o probe continua sendo do binário instalado,
+  não de um executável construído a partir desse commit. T-096 tem um rascunho
+  local não commitado no worktree candidato. O candidato passou typecheck,
+  build Linux service-only, smoke, dois testes in-process, probe loopback e
+  reaplicação em uma segunda árvore limpa; também passou os testes focados de
+  sessão/evento/diff/autorização e os modos `coverage`/`auth` do exercício HTTP.
+  O modo `effect` excedeu o timeout de 900 segundos. Segue sem patchset
+  versionado no unigma, manifesto, pipeline, validação Windows ou artefato
+  aceito.
+- **responsável lógico:** mantenedor OpenCode + arquitetura de produto.
+- **dependências:** T-001, T-003 e T-011.
+- **arquivos/módulos prováveis:** checkout upstream OpenCode, matriz de
+  compatibilidade e `docs/OPENCODE-SERVICE-ONLY.md`.
+- **critérios de aceite:** cada superfície tem decisão e evidência; sessões,
+  tool loop, permissões, compaction, limites, retries, plugins, MCP, skills,
+  streaming e subagentes têm dono explícito; nenhum código é removido por
+  varredura cega.
+- **testes necessários:** inventário repetível contra o commit fixado e probe
+  headless antes do patch.
+- **riscos:** confundir UI com harness ou assumir comportamento do SDK `dev`;
+  mitigação: `/doc`, commit e matriz versionados.
+- **paralelo:** pode rodar com T-043/T-044 depois que o contrato for registrado.
+- **bloqueia:** T-096 e AC-025/AC-026.
+
+### T-096 — aplicar patchset reproduzível do decepador
+
+- **objetivo:** produzir o perfil `service-only` a partir do upstream, com patch
+  pequeno, identificado, reaplicável e separado do código do unigma.
+- **responsável lógico:** mantenedor OpenCode/build.
+- **dependências:** T-095, T-003 e T-011.
+- **arquivos/módulos prováveis:** checkout/patches do OpenCode, `build/` e
+  documentação de proveniência.
+- **critérios de aceite:** o patch remove/redireciona apenas as superfícies
+  decididas; mantém o harness e o contrato HTTP/SSE; não altera instalação,
+  credencial ou dados do usuário; falha de aplicação interrompe o pipeline.
+- **testes necessários:** aplicação em checkout limpo, rebuild, health, `/doc`,
+  sessão, evento, permissão e ausência das entradas interativas previstas.
+- **riscos:** fork permanente ou regressão silenciosa do harness; mitigação:
+  patchset mínimo, revisão e teste contra upstream fixado.
+- **paralelo:** não pode compartilhar a mesma árvore de patch com outro trabalho.
+- **bloqueia:** T-097 e AC-025/AC-026.
+
+### T-097 — gerar bundle versionado com manifesto
+
+- **objetivo:** empacotar `unigma+opencode` por plataforma e registrar
+  proveniência, hashes, versão, patchset e resultados do pipeline.
+- **responsável lógico:** build/release + integração OpenCode.
+- **dependências:** T-096, T-003, T-062 e T-083.
+- **arquivos/módulos prováveis:** `build/`, workflows, manifesto de artefato e
+  `docs/OPENCODE-COMPATIBILITY.md`.
+- **critérios de aceite:** o artefato é determinístico dentro da matriz de
+  plataforma; binários não entram no repositório; auditoria preserva licenças e
+  notices; configuração/credenciais/sessões ficam fora do bundle.
+- **testes necessários:** build Windows/Linux x64, hash, layout, probe do
+  executável bundled e inspeção de separação de dados.
+- **riscos:** empacotar dados do usuário ou anunciar o probe errado como release;
+  mitigação: manifesto e auditoria bloqueantes.
+- **paralelo:** builds de plataformas diferentes seguem a regra do runner e não
+  rodam em paralelo no mesmo host.
+- **bloqueia:** T-098, T-099 e AC-026.
+
+### T-098 — implementar troca atômica e rollback do bundle
+
+- **objetivo:** definir e implementar a substituição do bundle somente com o
+  processo parado, preservando a versão corrente até a validação do candidato.
+- **responsável lógico:** build/release + runtime desktop.
+- **dependências:** T-097, T-023 e T-021.
+- **arquivos/módulos prováveis:** launcher/empacotamento, diretórios de aplicação
+  e testes de atualização; não criar serviço remoto.
+- **critérios de aceite:** candidato inválido não substitui a versão corrente;
+  troca válida é atômica; rollback restaura o bundle anterior; configuração,
+  credenciais, sessões e histórico permanecem intactos.
+- **testes necessários:** processo ativo, processo parado, interrupção durante a
+  troca, candidato inválido, rollback e reabertura de sessão.
+- **riscos:** corrupção do aplicativo ou migração acidental de dados; mitigação:
+  staging local, rename atômico e diretórios de dados separados.
+- **paralelo:** somente depois de T-097 e sem compartilhar o diretório de bundle.
+- **bloqueia:** T-099 e AC-026.
+
+### T-099 — fechar suporte do bundle por evidência
+
+- **objetivo:** validar a combinação upstream + patchset + executável + plataforma
+  e separar probe de desenvolvimento, candidato e suporte oficial.
+- **responsável lógico:** QA/release + revisão de segurança e produto.
+- **dependências:** T-097, T-098, T-011, T-062 e T-083.
+- **arquivos/módulos prováveis:** manifesto, artefatos, probes, auditoria e
+  `docs/ACCEPTANCE.md`.
+- **critérios de aceite:** health, `/doc`, `/path`, SSE, sessão, diff, permissão,
+  restart e fluxo `OpenCodeClient` passam no bundle; toda falha bloqueia suporte;
+  a matriz publica exatamente versão, hash, alvo e patchset testados.
+- **testes necessários:** processo real bundled, incompatibilidade, restart,
+  reconexão, logs redigidos e inspeção de artefato em Windows/Linux x64.
+- **riscos:** declarar compatibilidade sem testar o bundle ou provider/modelo;
+  mitigação: gate por combinação e nenhuma promessa além da evidência.
+- **paralelo:** pode revisar AC-025/AC-026 em paralelo com E-08 somente em
+  artefatos e fixtures separados.
+- **bloqueia:** T-085, AC-025 e AC-026.
+
 # SUBTASKS quando uma tarefa exigir decomposição
 
 As seguintes subtarefas tornam explícitas as partes que podem ser distribuídas
@@ -1224,6 +1598,11 @@ T-030 + T-034 + T-086 + T-090 -> T-091
 T-086/T-087/T-088/T-089/T-090 -> T-092
 T-024 + T-091 + T-092 -> T-093 -> T-094
 T-094 + T-085 -> gate final da frente E-08/MVP
+T-024 + T-030 + T-031 + T-012 -> T-043
+T-024 + T-031 + T-032 + T-041 -> T-044
+T-010 + T-024 + T-061 -> T-045
+T-001 + T-003 + T-011 -> T-095 -> T-096 -> T-097 -> T-098 -> T-099
+T-099 + T-085 -> gate final do bundle E-09/MVP
 ```
 
 ## PODE RODAR EM PARALELO
@@ -1237,6 +1616,8 @@ T-094 + T-085 -> gate final da frente E-08/MVP
 - dentro do workbench: T-031, T-032, T-033 e T-034 podem ser distribuídas por
   área após o esqueleto e o contrato;
 - capacidades T-040, T-041 e T-042 podem rodar em paralelo após T-024;
+- T-043 e T-044 podem rodar em paralelo após seus contratos e dependências;
+- T-045 pode rodar em paralelo com T-043/T-044, sem criar servidor ou listener;
 - remoto T-050/T-051 e a trilha local de UI/runtime podem avançar em paralelo;
 - T-061, T-070, T-080 e preparação de CI podem avançar assim que suas entradas
   existirem;
@@ -1248,6 +1629,8 @@ T-094 + T-085 -> gate final da frente E-08/MVP
   não editem os mesmos arquivos; T-093 só começa após ambos;
 - T-093 só pode compartilhar fixtures com T-081/T-074 mediante coordenação; caso
   contrário, as suítes permanecem separadas.
+- T-095 pode ser especificada em paralelo com E-04 após T-011; T-096/T-097/T-098
+  não devem compartilhar a árvore de patch com outra frente.
 
 ## PRECISA AGUARDAR
 
@@ -1268,6 +1651,12 @@ T-094 + T-085 -> gate final da frente E-08/MVP
 - T-091 precisa aguardar T-030/T-034 e os eventos de T-090;
 - T-092 precisa aguardar T-086 a T-090; T-093 precisa aguardar T-091/T-092;
 - T-094 precisa aguardar T-062 e T-093.
+- T-043 precisa aguardar T-024/T-030/T-031/T-012; T-044 precisa aguardar
+  T-024/T-031/T-032/T-041; T-045 precisa aguardar T-010/T-024/T-061.
+- T-096 precisa aguardar T-095; T-097 precisa aguardar T-096; T-098 precisa
+  aguardar T-097; T-099 precisa aguardar T-097/T-098 e as evidências de T-011.
+- T-085 precisa aguardar T-099 quando o bundle service-only fizer parte da
+  entrega.
 
 ## BLOQUEIA OUTRA TAREFA
 
@@ -1289,6 +1678,9 @@ T-094 + T-085 -> gate final da frente E-08/MVP
 - T-090 bloqueia a integração final da UI T-091;
 - T-091/T-092 bloqueiam a integração e as métricas T-093;
 - T-093 bloqueia a revisão final T-094, que bloqueia T-085 e AC-016 a AC-024.
+- T-043/T-044 bloqueiam AC-027; T-045 bloqueia AC-028;
+- T-095 bloqueia todo o pipeline service-only; T-096 bloqueia T-097;
+  T-097 bloqueia T-098/T-099; T-099 bloqueia T-085 e AC-025/AC-026.
 
 ## ordem de execução recomendada
 
@@ -1302,9 +1694,139 @@ T-094 + T-085 -> gate final da frente E-08/MVP
 8. T-072/T-073 → T-074, CI T-082 e empacotamento T-083;
 9. T-084;
 10. T-086 → (T-087 + T-088) → T-089 → T-090;
-11. T-091 + T-092 → T-093 → T-094 → T-085.
+11. T-091 + T-092 → T-093 → T-094;
+12. T-095 → T-096 → T-097 → T-098 → T-099;
+13. T-043 + T-044 + T-045 e T-099 → T-085.
 
 Esse particionamento maximiza paralelismo por fronteira: runtime, workbench,
 SSH, performance e CI têm responsáveis e diretórios distintos. Quando duas
 tarefas precisarem editar o mesmo arquivo, a dependência deve ser explicitada ou
 o trabalho deve ser dividido em subtarefas por módulo.
+
+## registro da rodada — 2026-08-26
+
+- foi criado `docs/planos/2026-08-26-e00-e01.md` com três barreiras rígidas para o
+  fechamento atual de E-00/E-01;
+- a onda 1 reúne E00-A, E01-A/T-010, E01-B/T-011 e E01-D/T-013, que não
+  compartilham arquivos de implementação; E00-B ficou na onda 2 por compartilhar
+  `docs/status/THIRD-PARTY-REVIEW.md` com E00-A;
+- a onda 2 contém E00-B e E01-C/T-012, sendo que T-012 depende da versão e da
+  configuração observadas em T-011;
+- a onda 3 é E01-E: evidência final, testes, validação Linux/Windows sequencial
+  e atualização dos documentos de aceite;
+- nenhuma tarefa técnica foi marcada como concluída por esta reorganização;
+  permanecem válidos os estados, bloqueios e evidências registrados acima.
+
+## resultado da onda 1 — 2026-08-26
+
+Execução da onda 1 encerrada com os estados abaixo. A onda 2 foi iniciada
+parcialmente em E01-C/T-012; a onda 3 não foi iniciada. Nenhum item foi
+promovido a concluído quando o teste exigido ficou bloqueado.
+
+### E00-A — parcial/bloqueada
+
+- o auditor de notices passou a executar diretamente com Node, sem `tsx` global;
+- a execução encontrou 79 notices, 1.393 nomes em manifests, 72 sobrepostos,
+  7 `notice-only`, 1.321 `manifest-only`, 7 licenças não declaradas e 7
+  divergências notice/manifest; não encontrou duplicatas;
+- hashes de licença/notices foram conferidos; `node --check` dos auditores passou;
+- `docs/status/THIRD-PARTY-REVIEW.md` e
+  `docs/status/2026-08-26-third-party-inventory.md` receberam a evidência e as
+  limitações observadas;
+- a frente permanece bloqueada por lacunas de classificação, ausência local dos
+  tar/ZIP finais e falta de dependências para `test-build-scripts`.
+
+### E01-A / T-010 — parcial
+
+- o handler RPC passou a rejeitar `sessionId` cuja referência pertence a outro
+  workspace;
+- foram adicionados casos para workspace divergente, duplicidade concorrente,
+  retry após rollback e dispose;
+- `npm test` não carregou a suíte compilada porque `mocha` está ausente e `tsc`
+  também não está disponível localmente; não houve instalação de dependências;
+- `git diff --check` passou. A suíte compilada exigida continua pendente.
+
+### E01-B / T-011 — parcial
+
+- `/usr/bin/opencode` `1.18.23` foi sondado em loopback; o SHA-256 Linux
+  registrado foi `f80650dcfc1308afaecc2d343c9a0a52fdc2dacd49150b7256a000acf068799f`;
+- passaram health, OpenAPI, `/doc`, `/path`, `/event`, `server.connected`,
+  sessão, status, detalhe, mensagens, diff, `prompt_async`, abort, permissão
+  sintética, providers/configuração sem credencial, restart e nova assinatura
+  SSE;
+- o adaptador passou a usar `/path.directory` como autoridade quando presente,
+  com `worktree` como possível raiz Git pai; a política padrão de restart ficou
+  limitada a uma tentativa;
+- a matriz e os adaptadores receberam as evidências. Nenhum provider/modelo foi
+  anunciado e o binário externo não foi tratado como bundle suportado;
+- a suíte compilada continua bloqueada por `mocha`; SHA Windows, manifesto que
+  prove a origem do binário Linux, SSE interrompido/reconexão do cliente, eventos
+  reais de prompt, diff não vazio e permissão real continuam pendentes.
+
+### E01-D / T-013 — parcial
+
+- a matriz/política SSH fail-closed foi validada para Windows/Linux x64 → host
+  Linux x64 e recusas de host Windows, arquitetura fora da matriz, trust,
+  chaves/hosts inválidos, OpenSSH ausente, destino inválido, transporte perdido
+  e gates ausentes;
+- foram adicionados testes para gate ausente e para garantir saída declarativa
+  sem instruções de credencial, fallback ou replay;
+- o teste-fonte foi bloqueado pela ausência do artefato compilado
+  `remoteSshPolicy.js`; `tsc` não está disponível localmente;
+- não houve conexão SSH, alteração de `known_hosts` ou uso de credenciais.
+
+### nota operacional
+
+`sudo` pode ser executado quando indispensável **somente mediante autorização
+explícita pelo askpass/interação do usuário**. Isso não autoriza execução
+automática, armazenamento de senha ou contorno das regras de privilégio; não foi
+usado nesta onda.
+
+## resultado parcial da onda 2 — 2026-08-26
+
+### E01-C / T-012 — parcial
+
+- o contrato privado de transporte foi versionado e validado na fronteira, com
+  comandos/eventos serializáveis, versão, `requestId`, erros sanitizados e sem
+  configuração bruta ou segredo;
+- o bridge passou a encaminhar comandos por
+  `unigma.agent.runtime.transport.send` e eventos por
+  `unigma.agent.runtime.transport.event`; o retorno de objeto com métodos/eventos
+  por `executeCommand` foi removido;
+- o runtime revalida trust e preflight imediatamente antes de
+  `ProcessManager.ensureStarted()`, recusa `unknownOrigin` na composição de
+  produção sem classificador de plugin/regra, rejeita request duplicado e sessão
+  desconhecida, valida eventos e encerra conexão/processo de forma assíncrona;
+- o workbench classifica MCP e aceita somente classificações sanitizadas para
+  plugin/regra. Como o inventário de plugin/regra ainda não está conectado, a
+  view mantém `sourceInventoryComplete: false` e recusa o startup;
+- foram adicionados/ajustados testes-fonte para contrato, bridge, ativação,
+  eventos inválidos, duplicidade, sessão ausente e inventário incompleto;
+- uma revisão independente somente de leitura confirmou as correções de
+  revalidação, duplicidade, sessão, eventos e teardown, sem findings novos
+  altos/médios;
+- passaram checagens de sintaxe TypeScript, smoke puro da política, parsing dos
+  manifestos e `git diff --check`;
+ - a suíte oficial ainda não foi executada: `node_modules` não existe e
+  `npm ci --no-audit --no-fund` exige Node `24.18.0`, enquanto o ambiente usa
+  `v26.7.0`; por isso `mocha`, `gulp` e `tsc` continuam ausentes;
+- a instalação de dependências foi autorizada pelo responsável, mas ainda não
+  foi concluída. O próximo comando autorizado é `npm ci --no-audit --no-fund`
+  neste checkout, após disponibilizar o Node fixado; nenhum `sudo`, instalação
+  global ou `--ignore-scripts` deve ser usado.
+
+### E00-B / AC-012
+
+- escopo ajustado por `D-030`: prova formal de autoria e trademark clearance não
+  bloqueiam a entrega FOSS; a frente deve remover identidade upstream visível e
+  preservar copyright, licenças e notices aplicáveis.
+
+### estado operacional
+
+- branch `work/2026-08-26-e00-e03`, HEAD observado `709cccdb`;
+- alterações permanecem sem commit e misturadas ao working tree compartilhado da
+  onda 1; nenhum reset, push ou artefato novo foi produzido;
+- após a instalação, executar compile/testes do runtime e `npm run
+  typecheck-client`, registrar a saída e só então decidir se T-012 permanece
+  parcial ou pode avançar para E01-E.
+- feito: instruções operacionais do repositório consolidadas em `AGENTS.md`.

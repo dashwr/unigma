@@ -9,6 +9,10 @@ unigma não replica estados que já pertencem ao Code - OSS, OpenCode, Git ou
 OpenSSH. O armazenamento próprio é local, mínimo e não contém credenciais de
 provider, chaves SSH, tokens ou cópia do workspace.
 
+O bundle `unigma+opencode` e seu manifesto de proveniência pertencem ao artefato
+de build, não ao estado do usuário. Atualização e rollback substituem o bundle;
+não migram nem reescrevem os dados mantidos pelo OpenCode.
+
 ## dados próprios mínimos
 
 | conceito | campos mínimos propostos | armazenamento | retenção |
@@ -17,6 +21,9 @@ provider, chaves SSH, tokens ou cópia do workspace.
 | configuração unigma | chaves definidas pelo schema de settings | settings de usuário/workspace | administrada pelo Code - OSS |
 | estado visual local | seleção de painel e filtros não sensíveis | `globalState` ou memória | descartável/removível |
 | evento em exibição | referência de sessão, tipo e payload validado | memória | duração da sessão/UI |
+| relação e estado de agente | `sessionId`, `parentID` e estado derivado validado | memória; OpenCode/SSE é a fonte de verdade | duração da sessão/UI |
+| modo de interação | seleção transitória de ferramenta `@` ou skill `/` | memória e configuração não sensível, quando necessário | até a interação/sessão ou remoção pelo usuário |
+| chip de agente | identidade não sensível, `sessionId` e estado `thinking`/`typing`/`idle` | memória | duração da sessão/UI |
 | correlação de diagnóstico | `requestId`, referência de sessão e nível | log local do Code - OSS | política local do aplicativo |
 
 `workspaceUri` é necessário apenas para associar uma referência de sessão ao
@@ -66,6 +73,10 @@ Uma aprovação pendente, uma operação de subagente e a fila de eventos existe
 somente enquanto a sessão está ativa. Após reinício, a UI consulta o OpenCode;
 ela não presume que uma aprovação antiga ainda seja válida nem a restaura.
 
+O protocolo de controle remoto, enquanto dormente, possui somente contrato e
+tipos versionados. Não há listener, fila, sincronização, identidade remota ou
+estado persistido associado a ele no MVP.
+
 ## dados deliberadamente ausentes
 
 - usuários, contas, organizações, papéis ou permissões RBAC;
@@ -75,6 +86,7 @@ ela não presume que uma aprovação antiga ainda seja válida nem a restaura.
   de prompts, histórico e raciocínio de roteamento;
 - cópia de tokens, caches OAuth, senhas ou chaves SSH;
 - cópia indexada ou upload do workspace.
+- catálogo, conta, listener ou estado de controle remoto.
 
 Esses dados exigiriam casos de uso novos e revisão explícita de segurança,
 retenção, criptografia e autorização.

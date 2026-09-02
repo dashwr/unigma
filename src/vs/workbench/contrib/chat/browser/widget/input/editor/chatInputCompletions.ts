@@ -54,7 +54,7 @@ import { IChatRequestVariableEntry } from '../../../../common/attachments/chatVa
 import { IDynamicVariable, toAttachedContextDynamicVariable } from '../../../../common/attachments/chatVariables.js';
 import { ChatAgentLocation, ChatModeKind, isSupportedChatFileScheme } from '../../../../common/constants.js';
 import { isToolSet } from '../../../../common/tools/languageModelToolsService.js';
-import { IChatSessionsService, isAgentHostTarget } from '../../../../common/chatSessionsService.js';
+import { IChatSessionsService } from '../../../../common/chatSessionsService.js';
 import { ICustomizationHarnessService } from '../../../../common/customizationHarnessService.js';
 import { matchesSessionType } from '../../../../common/promptSyntax/service/promptsService.js';
 import { ChatSubmitAction, IChatExecuteActionContext } from '../../../actions/chatExecuteActions.js';
@@ -76,17 +76,6 @@ const SlashCommandWord = /\/[\p{L}0-9_.:-]*/gu;
  * Regex matching an agent-or-slash command word (e.g. `@agent` or `/cmd`).
  */
 const AgentOrSlashCommandWord = /(@|\/)[\p{L}0-9_.:-]*/gu;
-
-/**
- * Returns `true` when the widget's chat session is backed by an agent
- * host (local or remote). For these sessions, completions are delegated
- * to the agent host via `AgentHostInputCompletions`, and the workbench's
- * default in-process providers (file/symbol/tool/agent) short-circuit.
- */
-function isAgentHostBackedWidget(widget: IChatWidget): boolean {
-	const sessionResource = widget.viewModel?.model.sessionResource;
-	return !!sessionResource && isAgentHostTarget(getChatSessionType(sessionResource));
-}
 
 class SlashCommandCompletions extends Disposable {
 	constructor(
@@ -230,10 +219,6 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
-				if (isAgentHostBackedWidget(widget)) {
-					return;
-				}
-
 				const range = computeCompletionRanges(model, position, SlashCommandWord);
 				if (!range) {
 					return null;
@@ -299,10 +284,6 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
-				if (isAgentHostBackedWidget(widget)) {
-					return;
-				}
-
 				// regex is the opposite of `mcpPromptReplaceSpecialChars` found in `mcpTypes.ts`
 				const range = computeCompletionRanges(model, position, /\/[\p{L}0-9_.-]*/gu);
 				if (!range) {
@@ -361,10 +342,6 @@ class AgentCompletions extends Disposable {
 					return;
 				}
 
-				if (isAgentHostBackedWidget(widget)) {
-					return;
-				}
-
 				const range = computeCompletionRanges(model, position, SlashCommandWord);
 				if (!range) {
 					return;
@@ -399,10 +376,6 @@ class AgentCompletions extends Disposable {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				const viewModel = widget?.viewModel;
 				if (!widget || !viewModel) {
-					return;
-				}
-
-				if (isAgentHostBackedWidget(widget)) {
 					return;
 				}
 
@@ -506,10 +479,6 @@ class AgentCompletions extends Disposable {
 					return;
 				}
 
-				if (isAgentHostBackedWidget(widget)) {
-					return;
-				}
-
 				if (widget.lockedAgentId) {
 					return null;
 				}
@@ -574,10 +543,6 @@ class AgentCompletions extends Disposable {
 
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (widget?.location !== ChatAgentLocation.Chat || widget.input.currentModeKind !== ChatModeKind.Ask) {
-					return;
-				}
-
-				if (isAgentHostBackedWidget(widget)) {
 					return;
 				}
 
@@ -938,7 +903,7 @@ class BuiltinDynamicCompletions extends Disposable {
 				}));
 
 			return { suggestions, incomplete: true };
-		}, BuiltinDynamicCompletions.VariableNameDef, true, attachedContextCompletionAdditionalTriggerCharacters);
+		}, BuiltinDynamicCompletions.VariableNameDef, attachedContextCompletionAdditionalTriggerCharacters);
 
 		// File/Folder completions in one go and m
 		const fileWordPattern = new RegExp(`[${escapeForCharClass(chatVariableLeader)}${escapeForCharClass(chatAgentLeader)}][^\\s]*`, 'g');
@@ -1038,7 +1003,7 @@ class BuiltinDynamicCompletions extends Disposable {
 				// User has typed #session: — fetch all sessions and show them inline
 				const allSessions: { title: string; sessionResource: URI; lastMessageDate: number; icon: ThemeIcon }[] = [];
 
-				const sessionProviderFilter = [AgentSessionProviders.Local, AgentSessionProviders.Background, AgentSessionProviders.AgentHostCopilot];
+				const sessionProviderFilter = [AgentSessionProviders.Local, AgentSessionProviders.Background];
 				for await (const group of this.chatSessionsService.getChatSessionItems(sessionProviderFilter, token)) {
 					if (token.isCancellationRequested) {
 						return;
@@ -1126,19 +1091,13 @@ class BuiltinDynamicCompletions extends Disposable {
 		return undefined;
 	}
 
-	private registerVariableCompletions(debugName: string, provider: (details: IVariableCompletionsDetails, token: CancellationToken) => ProviderResult<CompletionList>, wordPattern: RegExp = BuiltinDynamicCompletions.VariableNameDef, includeAgentHost = false, additionalTriggerCharacters: readonly string[] = []) {
+	private registerVariableCompletions(debugName: string, provider: (details: IVariableCompletionsDetails, token: CancellationToken) => ProviderResult<CompletionList>, wordPattern: RegExp = BuiltinDynamicCompletions.VariableNameDef, additionalTriggerCharacters: readonly string[] = []) {
 		this._register(this.languageFeaturesService.completionProvider.register({ scheme: Schemas.vscodeChatInput, hasAccessToAllModels: true }, {
 			_debugDisplayName: `chatVarCompletions-${debugName}`,
 			triggerCharacters: [chatVariableLeader, chatAgentLeader, ...additionalTriggerCharacters],
 			provideCompletionItems: async (model: ITextModel, position: Position, context: CompletionContext, token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (!widget) {
-					return;
-				}
-
-				if (!includeAgentHost && isAgentHostBackedWidget(widget)) {
-					// Agent-host sessions delegate completions to the host
-					// process via `AgentHostInputCompletions`.
 					return;
 				}
 
@@ -1350,12 +1309,6 @@ class ToolCompletions extends Disposable {
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (!widget) {
-					return null;
-				}
-
-				if (isAgentHostBackedWidget(widget)) {
-					// Agent-host sessions delegate completions to the host
-					// process via `AgentHostInputCompletions`.
 					return null;
 				}
 

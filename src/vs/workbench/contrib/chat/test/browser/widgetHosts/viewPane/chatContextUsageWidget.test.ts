@@ -156,11 +156,10 @@ suite('ChatContextUsageWidget', () => {
 		let currentData: IObservable<IChatContextUsageData | undefined> | undefined;
 		const details = {
 			domNode: document.createElement('div'),
-			setChatWidget: () => { },
 			dispose: () => { },
 		} as unknown as ChatContextUsageDetails;
 		const widget = createWidget({
-			createInstance: (_ctor: unknown, _chatWidget: unknown, data: IObservable<IChatContextUsageData | undefined>) => {
+			createInstance: (_ctor: unknown, data: IObservable<IChatContextUsageData | undefined>) => {
 				currentData = data;
 				return details;
 			},

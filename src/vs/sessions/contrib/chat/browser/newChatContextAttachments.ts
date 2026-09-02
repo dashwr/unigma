@@ -33,7 +33,7 @@ import { basename } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../workbench/browser/labels.js';
 
-import { IChatRequestVariableEntry, isAgentHostCompletionVariableEntry, isPastedTextArtifact, OmittedState } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { IChatRequestVariableEntry, isPastedTextArtifact, OmittedState } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { isLocation } from '../../../../editor/common/languages.js';
 import { resizeImage } from '../../../../workbench/contrib/chat/browser/chatImageUtils.js';
 import { createImageHoverContent, openPastedTextArtifact } from '../../../../workbench/contrib/chat/browser/attachments/chatAttachmentWidgets.js';
@@ -119,7 +119,7 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 		this._resourceLabels.clear();
 		dom.clearNode(this._container);
 
-		const visibleAttachments = this._attachedContext.filter(entry => !isAgentHostCompletionVariableEntry(entry));
+		const visibleAttachments = this._attachedContext;
 		if (visibleAttachments.length === 0) {
 			this._container.style.display = 'none';
 			return;

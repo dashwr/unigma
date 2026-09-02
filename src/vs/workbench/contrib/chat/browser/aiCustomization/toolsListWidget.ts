@@ -37,7 +37,7 @@ import { IWorkbenchEnvironmentService } from '../../../../services/environment/c
 import { ExtensionState, IExtension, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { GalleryItemInstallState, GalleryItemRenderer, IGalleryItemProvider } from './galleryItemRenderer.js';
 import { ILanguageModelToolsService, IToolData, IToolSet, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
-import { countEnabledCustomizationTools, getToolSetTriState, IAgentHostToolSetEnablementService, isToolEnabledInSet, IToolEnablementState } from '../agentSessions/agentHost/agentHostToolSetEnablementService.js';
+import { countEnabledCustomizationTools, getToolSetTriState, IToolSetEnablementService, isToolEnabledInSet, IToolEnablementState } from './toolSetEnablementService.js';
 import './media/aiCustomizationManagement.css';
 
 const $ = DOM.$;
@@ -123,8 +123,7 @@ class ToolsGalleryItemProvider implements IGalleryItemProvider<IExtension> {
 
 /**
  * Chat Customizations → Tools: a searchable, collapsible tree of tool sets and their member
- * tools. Enablement is read/written via {@link IAgentHostToolSetEnablementService}, scoped to
- * `sessionType` (the agent host is the only target for Tools customizations).
+ * tools. Enablement is read and written per session type.
  */
 export class ToolsListWidget extends Disposable {
 
@@ -169,7 +168,7 @@ export class ToolsListWidget extends Disposable {
 	constructor(
 		private readonly _sessionType: string,
 		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
-		@IAgentHostToolSetEnablementService private readonly _enablementService: IAgentHostToolSetEnablementService,
+		@IToolSetEnablementService private readonly _enablementService: IToolSetEnablementService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IDialogService private readonly _dialogService: IDialogService,

@@ -1,0 +1,36 @@
+{
+  "name": "unigma-remote-ssh",
+  "displayName": "Unigma Remote SSH",
+  "description": "Internal SSH remote policy boundary for Unigma.",
+  "version": "0.0.1",
+  "publisher": "unigma",
+  "license": "MIT",
+  "private": true,
+  "enabledApiProposals": [
+    "resolvers"
+  ],
+  "engines": {
+    "vscode": "^1.134.0"
+  },
+  "extensionKind": [
+    "ui"
+  ],
+  "activationEvents": [
+    "onResolveRemoteAuthority:ssh-remote"
+  ],
+  "main": "./out/extension.js",
+  "capabilities": {
+    "virtualWorkspaces": false,
+    "untrustedWorkspaces": {
+      "supported": false
+    }
+  },
+  "scripts": {
+    "compile": "gulp compile-extension:unigma-remote-ssh",
+    "watch": "gulp watch-extension:unigma-remote-ssh",
+    "test": "node --test out/test/*.test.js"
+  },
+  "devDependencies": {
+    "@types/node": "24.x"
+  }
+}

@@ -42,7 +42,7 @@ suite('MainThreadDataChannels', () => {
 		let providerWatcherDisposeCount = 0;
 		store.add(linkPresentationService.registerLinkPresentationProvider({
 			id: 'test.sessions',
-			uriPattern: /^agent-host-session:/i,
+			uriPattern: /^test-session:/i,
 			initialKind: 'session',
 			enablement: 'test.richLinks.enabled',
 		}, {
@@ -87,7 +87,7 @@ suite('MainThreadDataChannels', () => {
 			() => extHost.createLinkPresentationWatcher(extension, 'test.sessions', URI.parse('https://example.com/not-supported')),
 			/does not accept/,
 		);
-		const watcher = store.add(extHost.createLinkPresentationWatcher(extension, 'test.sessions', URI.parse('agent-host-session://copilotcli/session')));
+		const watcher = store.add(extHost.createLinkPresentationWatcher(extension, 'test.sessions', URI.parse('test-session://copilotcli/session')));
 		const values: vscode.LinkPresentationData[] = [watcher.presentation];
 		store.add(watcher.onDidChangePresentation(() => values.push(watcher.presentation)));
 
@@ -116,8 +116,8 @@ suite('MainThreadDataChannels', () => {
 				{ kind: 'session', title: 'Running session', status: { kind: 'pending', label: 'Working' }, isLoading: true },
 				{ kind: 'session', title: 'Completed session', status: { kind: 'success', label: 'Completed' } },
 			],
-			acceptedRules: [{ id: 'test.sessions', source: '^agent-host-session:', flags: 'i', initialKind: 'session' }],
-			linkPresentationRules: [{ id: 'test.sessions', source: '^agent-host-session:', flags: 'i', initialKind: 'session' }],
+			acceptedRules: [{ id: 'test.sessions', source: '^test-session:', flags: 'i', initialKind: 'session' }],
+			linkPresentationRules: [{ id: 'test.sessions', source: '^test-session:', flags: 'i', initialKind: 'session' }],
 			ruleChangeCount: 2,
 			providerWatcherCreateCount: 2,
 			providerWatcherDisposeCount: 2,

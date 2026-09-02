@@ -13,7 +13,8 @@
     "workspace"
   ],
   "activationEvents": [
-    "onCommand:unigma.agent.runtime.activate"
+    "onCommand:unigma.agent.runtime.activate",
+    "onCommand:unigma.agent.runtime.transport.send"
   ],
   "main": "./out/extension.js",
   "scripts": {
@@ -33,12 +34,21 @@
         "command": "unigma.agent.runtime.activate",
         "title": "Activate Unigma Agent Runtime",
         "category": "Unigma"
+      },
+      {
+        "command": "unigma.agent.runtime.transport.send",
+        "title": "Unigma Agent Runtime Transport",
+        "category": "Unigma"
       }
     ],
     "menus": {
       "commandPalette": [
         {
           "command": "unigma.agent.runtime.activate",
+          "when": "false"
+        },
+        {
+          "command": "unigma.agent.runtime.transport.send",
           "when": "false"
         }
       ]

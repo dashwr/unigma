@@ -56,10 +56,22 @@ jobs:
           node --version | grep -Fx "v$node_version"
           npm --version | grep -Ev '^(1[2-9]|[2-9][0-9])\.'
 
-          build="$(mktemp -d)"
+          build_root="$HOME/.cache/unigma/server-build"
+          mkdir -p "$build_root"
+          echo "--- build filesystem ---"
+          df -h "$build_root" /tmp
+          build="$(mktemp -d -p "$build_root")"
           trap 'rm -rf "$build"' EXIT
           tar --exclude=.git --exclude=node_modules --exclude=.build -C "$source" -cf - . | tar -C "$build" -xf -
+          # The build copy has no .git, but postinstall and the build date task
+          # both require a repository with a HEAD commit. Reuse the source commit
+          # date so the generated build date stays deterministic.
+          commit_date="$(git -C "$source" log -1 --format=%cI "$commit")"
           git -C "$build" init --quiet
+          GIT_AUTHOR_DATE="$commit_date" GIT_COMMITTER_DATE="$commit_date" \
+            git -C "$build" -c user.name='unigma ci' -c user.email='ci@unigma.invalid' \
+            -c commit.gpgsign=false commit --quiet --allow-empty \
+            --message="$commit" --no-verify
           cd "$build"
           export BUILD_SOURCEVERSION="$commit"
           export NODE_OPTIONS="--max-old-space-size=12288"
@@ -68,14 +80,47 @@ jobs:
           export MAKEFLAGS=-j12
           node build/azure-pipelines/common/disableFoundryLocalInstall.ts
           npm ci --no-audit --no-fund
-          node --experimental-strip-types --max-old-space-size=12288 ./node_modules/gulp/bin/gulp.js vscode-reh-linux-x64-min-ci
+          echo "--- WSL memory before build ---"
+          free -m
+          build_log="$build/unigma-server-build.log"
+          # Run the server build stage by stage so a stalled stage is identifiable
+          # in the log instead of hiding inside one opaque aggregate task.
+          run_stage() {
+            echo "=== stage: $1 (started $(date -Is)) ==="
+            stdbuf -oL -eL timeout --signal=TERM --kill-after=1m 75m \
+              node --experimental-strip-types --max-old-space-size=12288 \
+              ./node_modules/gulp/bin/gulp.js "$1" 2>&1 | stdbuf -oL tee -a "$build_log"
+            local status="${PIPESTATUS[0]}"
+            echo "=== stage: $1 (finished $(date -Is), status $status) ==="
+            return "$status"
+          }
+          set +e
+          gulp_status=0
+          for stage in vscode-reh-linux-x64-min
+          do
+            run_stage "$stage"
+            gulp_status=$?
+            [ "$gulp_status" -eq 0 ] || break
+          done
+          set -e
+          echo "--- gulp exit status: $gulp_status ---"
+          echo "--- WSL memory after build ---"
+          free -m
+          if [ "$gulp_status" -ne 0 ]; then
+            echo "--- kernel out-of-memory evidence (if any) ---"
+            dmesg 2>/dev/null | tail -n 40 || echo "dmesg unavailable"
+            exit "$gulp_status"
+          fi
           server_root="$build/../vscode-reh-linux-x64"
+          echo "--- packaged server tree ---"
+          ls -la "$server_root" || { echo "server root missing at $server_root" >&2; ls -la "$build/.." >&2; exit 1; }
+          ls -la "$server_root/bin" || true
           test -x "$server_root/bin/unigma-server"
-          test -f "$server_root/LICENSE.txt"
+          test -f "$server_root/LICENSE"
           rm -rf "$output"
           mkdir -p "$output/server"
           tar --owner=0 --group=0 -czf "$output/server/unigma-server.tar.gz" -C "$(dirname "$server_root")" "$(basename "$server_root")"
-          cp "$server_root/LICENSE.txt" "$output/LICENSE-unigma-server.txt"
+          cp "$server_root/LICENSE" "$output/LICENSE-unigma-server.txt"
           {
             printf 'source=unigma\n'
             printf 'commit=%s\n' "$commit"

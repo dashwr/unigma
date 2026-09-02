@@ -46,7 +46,6 @@ import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBa
 import { setupVoiceInputDecorations } from './voiceInputDecorations.js';
 import { INewChatVoiceTargetService } from './newChatVoice.js';
 import { ISessionsChatViewStateService } from './chatViewStateService.js';
-import { ExternalSessionBanner } from './externalSessionBanner.js';
 
 export function shouldShowSessionChatTip(sessionStatus: SessionStatus | undefined): boolean {
 	return sessionStatus === undefined || !isActiveSessionStatus(sessionStatus);
@@ -138,7 +137,6 @@ export class ChatView extends AbstractChatView {
 
 	private readonly _widget: ChatWidget;
 	private readonly _widgetContainer: HTMLElement;
-	private readonly _externalSessionBanner: ExternalSessionBanner;
 
 	/** Session banners (CI failures, created comments) shown above the chat input. */
 	private readonly _banners: SessionInputBanners;
@@ -232,15 +230,6 @@ export class ChatView extends AbstractChatView {
 			this._buildStyles(this._isActive)
 		));
 		this._widget.render(this._widgetContainer);
-		this._externalSessionBanner = this._register(scopedInstantiationService.createInstance(
-			ExternalSessionBanner,
-			this.element,
-			{
-				onDidChangeLayout: () => this._layoutChatWidget(),
-				onDidDismissWithFocus: () => this._widget.focusInput(),
-			}
-		));
-		this.element.insertBefore(this._externalSessionBanner.domNode, this._widgetContainer);
 		this._register(autorun(reader => {
 			const sessionStatus = this._currentSessionObs.read(reader)?.status.read(reader);
 			if (!shouldShowSessionChatTip(sessionStatus)) {
@@ -352,7 +341,6 @@ export class ChatView extends AbstractChatView {
 	override setChat(chat: IChat, historyKey?: string, session?: ISession): void {
 		this.chatPillsDebugService.clear(this._chatPills);
 		this._currentSessionObs.set(session, undefined);
-		this._externalSessionBanner.setSession(session);
 		const resource = chat.resource;
 		const previousChatResource = this._currentChatResource;
 		const chatChanged = !isEqual(previousChatResource, resource);
@@ -466,7 +454,7 @@ export class ChatView extends AbstractChatView {
 
 		const contribution = this.chatSessionsService.getChatSessionContribution(sessionType);
 		if (contribution) {
-			this._widget.lockToCodingAgent(contribution.name, contribution.displayName, sessionType, contribution.agentHostProviderId);
+			this._widget.lockToCodingAgent(contribution.name, contribution.displayName, sessionType);
 		} else {
 			this._widget.unlockFromCodingAgent();
 		}

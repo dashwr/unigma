@@ -260,7 +260,7 @@ export class MobileTitlebarPart extends Disposable {
 		// Switch between title and toolbar based on whether a new (empty)
 		// chat session is active AND whether the toolbar has anything to
 		// show. The latter is important because on desktop/electron or
-		// when no agent hosts are configured the toolbar can be empty —
+		// when no provider actions are configured the toolbar can be empty —
 		// in that case we keep the title visible.
 		const newChatKeySet = new Set([IsNewChatSessionContext.key]);
 		const updateCenterMode = () => {
@@ -353,9 +353,6 @@ export class MobileTitlebarPart extends Disposable {
 			entitlement,
 			sentiment: this.chatEntitlementService.sentiment,
 			quotas: this.chatEntitlementService.quotas,
-			// The conditional-auth opt-in is desktop-only (the native agent host it
-			// lets in does not run on mobile/web).
-			allowSignedOutWhenUsable: false,
 		});
 
 		// Avatar
@@ -444,7 +441,6 @@ export class MobileTitlebarPart extends Disposable {
 			entitlement: this.chatEntitlementService.entitlement,
 			sentiment: this.chatEntitlementService.sentiment,
 			quotas: this.chatEntitlementService.quotas,
-			allowSignedOutWhenUsable: false,
 		}));
 		if (badgeKey) {
 			this.dismissedBadgeKey = badgeKey;

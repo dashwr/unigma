@@ -15,7 +15,6 @@ import { NullChatDebugFileLoggerService } from '../../../../../platform/chat/com
 import { IConfigurationService } from '../../../../../platform/configuration/common/configurationService';
 import { IVSCodeExtensionContext } from '../../../../../platform/extContext/common/extensionContext';
 import { MockFileSystemService } from '../../../../../platform/filesystem/node/test/mockFileSystemService';
-import { FileType } from '../../../../../platform/filesystem/common/fileTypes';
 import { MockGitService } from '../../../../../platform/ignore/node/test/mockGitService';
 import { ILogService } from '../../../../../platform/log/common/logService';
 import { NullMcpService } from '../../../../../platform/mcp/common/mcpService';
@@ -65,15 +64,6 @@ class MockLocalSession {
 export class NullAgentSessionsWorkspace implements IAgentSessionsWorkspace {
 	_serviceBrand: undefined;
 	constructor(readonly isAgentSessionsWorkspace = false) { }
-}
-
-class TrackingFileSystemService extends MockFileSystemService {
-	readDirectoryCallCount = 0;
-
-	override async readDirectory(uri: URI): Promise<[string, FileType][]> {
-		this.readDirectoryCallCount++;
-		return super.readDirectory(uri);
-	}
 }
 
 class TestExtensionContext extends mock<IVSCodeExtensionContext>() {
@@ -686,47 +676,6 @@ describe('CopilotCLISessionService', () => {
 	});
 
 	describe('CopilotCLISessionService.getAllSessions', () => {
-		it('filters Agent Host sessions without per-session stats', async () => {
-			const fileSystem = new TrackingFileSystemService();
-			const globalStorageUri = URI.file('/user-data/User/globalStorage/github.copilot-chat');
-			fileSystem.mockDirectory(URI.file('/user-data/agentSessionData'), [
-				['legacy-owned', FileType.Directory],
-				['not-a-session', FileType.File],
-			]);
-			const filteredService = disposables.add(createSessionService({
-				extensionContext: new TestExtensionContext(globalStorageUri),
-				fileSystem,
-			}));
-			const filteredManager = await filteredService.getSessionManager() as unknown as MockCliSdkSessionManager;
-			const sessions = [
-				{ id: 'agent-host', clientName: 'vscode-agent-host' },
-				{ id: 'legacy:owned', clientName: 'vscode' },
-				{ id: 'extension-host', clientName: 'vscode' },
-				{ id: 'standalone', clientName: 'copilot-cli' },
-			];
-			for (const { id, clientName } of sessions) {
-				const sdkSession = new MockCliSdkSession(id, new Date(0));
-				sdkSession.clientName = clientName;
-				sdkSession.summary = id;
-				filteredManager.sessions.set(id, sdkSession);
-			}
-
-			const result = await filteredService.getAllSessions(CancellationToken.None);
-			const targetedAgentHostItem = await filteredService.getSessionItem('agent-host', CancellationToken.None);
-
-			expect({
-				sessionIds: result.map(item => item.id),
-				targetedAgentHostItem,
-				readDirectoryCallCount: fileSystem.readDirectoryCallCount,
-				statCallCount: fileSystem.getStatCallCount(),
-			}).toEqual({
-				sessionIds: ['extension-host', 'standalone'],
-				targetedAgentHostItem: undefined,
-				readDirectoryCallCount: 1,
-				statCallCount: 0,
-			});
-		});
-
 		it('will not list created sessions', async () => {
 			const session = await service.createSession({ model: 'gpt-test', ...sessionOptionsFor(URI.file('/tmp')) }, CancellationToken.None);
 			disposables.add(session);

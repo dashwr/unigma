@@ -20,16 +20,13 @@ import { RETURN_TO_VSCODE_EDITOR_COMMAND_ID } from '../common/sessionCommands.js
 export function createSessionsSignInDialogOptions(
 	commandService: ICommandService,
 	showReturnToVSCodeEditor: boolean,
-	allowContinueWithoutSignIn = false,
-	onContinueWithoutSignIn: () => void = () => { },
 ) {
 	return {
 		forceSignInDialog: true,
 		dialogIcon: Codicon.agent,
 		dialogTitle: localize('sessions.signIn', "Sign in to use Agents"),
-		disableCloseButton: !allowContinueWithoutSignIn,
+		disableCloseButton: true,
 		dialogExtraClasses: ['sessions-welcome-dialog'],
-		allowContinueWithoutSignIn,
 		renderDialogFooter: showReturnToVSCodeEditor ? (footer: HTMLElement) => createDialogAction(
 			footer,
 			localize('sessions.returnToVSCodeEditor', "Return to VS Code Editor"),
@@ -37,7 +34,6 @@ export function createSessionsSignInDialogOptions(
 				void commandService.executeCommand<void>(RETURN_TO_VSCODE_EDITOR_COMMAND_ID).catch(onUnexpectedError);
 			}
 		) : undefined,
-		onDidDismissDialog: allowContinueWithoutSignIn ? onContinueWithoutSignIn : undefined,
 	};
 }
 

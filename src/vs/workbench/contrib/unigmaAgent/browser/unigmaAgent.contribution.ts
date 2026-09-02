@@ -11,6 +11,7 @@ import { SyncDescriptor } from '../../../../platform/instantiation/common/descri
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
 import {
@@ -21,10 +22,23 @@ import {
 } from '../../../common/views.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { UNIGMA_AGENT_MANIFEST } from './unigmaAgentManifest.js';
-import { IUnigmaAgentRuntime, UnigmaAgentRuntimePlaceholder } from './unigmaAgentRuntime.js';
+import { IUnigmaAgentRuntime, UnigmaAgentRuntime } from './unigmaAgentRuntime.js';
 import { UnigmaAgentViewPane } from './unigmaAgentView.js';
 
-registerSingleton(IUnigmaAgentRuntime, UnigmaAgentRuntimePlaceholder, InstantiationType.Delayed);
+registerSingleton(IUnigmaAgentRuntime, UnigmaAgentRuntime, InstantiationType.Delayed);
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	id: 'unigma.agent',
+	properties: {
+		'unigma.agent.hiddenModels': {
+			scope: ConfigurationScope.APPLICATION,
+			type: 'array',
+			items: { type: 'string' },
+			default: [],
+			description: localize('unigmaAgent.hiddenModels', 'Model IDs hidden from the Unigma Agent model panel.'),
+		},
+	},
+});
 
 const unigmaAgentIcon = registerIcon(
 	'unigma-agent-view-icon',

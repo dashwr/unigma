@@ -6,8 +6,9 @@
 import 'mocha';
 import assert from 'assert';
 import { createServer, type Server, type ServerResponse } from 'node:http';
+import * as path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { OpenCodeHttpClient, type OpenCodeEvent } from '../infrastructure/openCodeHttpClient';
+import { OpenCodeHttpClient, SUPPORTED_OPENCODE_VERSION, type OpenCodeEvent } from '../infrastructure/openCodeHttpClient';
 import type { DiagnosticRecord, OwnedProcessHandle } from '../domain/runtime';
 
 const workspacePath = process.platform === 'win32' ? 'C:\\unigma-workspace' : '/tmp/unigma-workspace';
@@ -15,7 +16,6 @@ const workspaceUri = pathToFileURL(workspacePath).toString();
 
 const requiredOperations = [
 	['GET', '/global/health'],
-	['GET', '/doc'],
 	['GET', '/path'],
 	['GET', '/event'],
 	['GET', '/session'],
@@ -48,7 +48,10 @@ function documentFor(missingOperation?: readonly [string, string]): Record<strin
 
 interface FixtureOptions {
 	readonly document?: Record<string, unknown>;
+	readonly healthVersion?: string;
 	readonly workspacePath?: string;
+	readonly workspaceResponse?: unknown;
+	readonly providerPaddingBytes?: number;
 	readonly onEvent?: (response: ServerResponse, index: number) => void;
 }
 
@@ -65,17 +68,17 @@ async function createFixture(options: FixtureOptions = {}): Promise<Fixture> {
 	const eventResponses: ServerResponse[] = [];
 	const server = createServer((request, response) => {
 		const requestPath = request.url?.split('?')[0] ?? '/';
-		requests.push({ method: request.method ?? 'GET', path: requestPath, headers: request.headers });
+		requests.push({ method: request.method ?? 'GET', path: request.url ?? '/', headers: request.headers });
 		request.resume();
 
 		if (requestPath === '/global/health') {
-			return json(response, { healthy: true, version: 'fixture-0.1' });
+			return json(response, { healthy: true, version: options.healthVersion ?? SUPPORTED_OPENCODE_VERSION });
 		}
 		if (requestPath === '/doc') {
 			return json(response, options.document ?? documentFor());
 		}
 		if (requestPath === '/path') {
-			return json(response, { path: options.workspacePath ?? workspacePath });
+			return json(response, options.workspaceResponse ?? { path: options.workspacePath ?? workspacePath });
 		}
 		if (requestPath === '/event') {
 			response.writeHead(200, { 'content-type': 'text/event-stream', connection: 'keep-alive' });
@@ -98,6 +101,9 @@ async function createFixture(options: FixtureOptions = {}): Promise<Fixture> {
 		}
 		if (request.method === 'POST' && (/^\/session\/[^/]+\/prompt_async$/.test(requestPath) || requestPath === '/session')) {
 			return json(response, { ok: true });
+		}
+		if (requestPath === '/provider' && options.providerPaddingBytes) {
+			return json(response, { providers: [], padding: 'x'.repeat(options.providerPaddingBytes) });
 		}
 		if (requestPath.startsWith('/session/') || requestPath === '/provider' || requestPath === '/config/providers') {
 			return json(response, {});
@@ -175,6 +181,19 @@ suite('Unigma OpenCode HTTP/SSE client', () => {
 		}
 	});
 
+	test('fails closed for an unsupported OpenCode version', async () => {
+		const fixture = await createFixture({ healthVersion: '1.18.24' });
+		const client = new OpenCodeHttpClient({ requestTimeoutMs: 500, startupTimeoutMs: 1000 });
+
+		try {
+			await assert.rejects(client.connect(processFor(fixture.endpoint)), /Unsupported OpenCode version: 1\.18\.24/);
+			assert.ok(!fixture.requests.some(request => request.path === '/doc'));
+		} finally {
+			await client.disconnect();
+			await fixture.close();
+		}
+	});
+
 	test('diagnoses unknown events and stops on malformed envelopes without payload logging', async () => {
 		const captured = diagnostics();
 		const fixture = await createFixture();
@@ -212,6 +231,32 @@ suite('Unigma OpenCode HTTP/SSE client', () => {
 		}
 	});
 
+	test('accepts OpenCode directory and worktree path fields', async () => {
+		const fixture = await createFixture({ workspaceResponse: { directory: workspacePath, worktree: workspacePath } });
+		const client = new OpenCodeHttpClient({ requestTimeoutMs: 500, startupTimeoutMs: 1000 });
+
+		try {
+			await client.connect(processFor(fixture.endpoint));
+			assert.ok(fixture.requests.some(request => request.path === '/path'));
+		} finally {
+			await client.disconnect();
+			await fixture.close();
+		}
+	});
+
+	test('uses directory as the workspace authority when worktree is a parent directory', async () => {
+		const fixture = await createFixture({ workspaceResponse: { directory: workspacePath, worktree: path.parse(workspacePath).root } });
+		const client = new OpenCodeHttpClient({ requestTimeoutMs: 500, startupTimeoutMs: 1000 });
+
+		try {
+			await client.connect(processFor(fixture.endpoint));
+			assert.ok(fixture.requests.some(request => request.path === '/event'));
+		} finally {
+			await client.disconnect();
+			await fixture.close();
+		}
+	});
+
 	test('requires every documented operation, including methods', async () => {
 		const fixture = await createFixture({ document: documentFor(['POST', '/session']) });
 		const client = new OpenCodeHttpClient({ requestTimeoutMs: 500, startupTimeoutMs: 1000 });
@@ -219,6 +264,27 @@ suite('Unigma OpenCode HTTP/SSE client', () => {
 		try {
 			await assert.rejects(client.connect(processFor(fixture.endpoint)), /missing a required operation: POST \/session/);
 			assert.ok(!fixture.requests.some(request => request.path === '/event'));
+		} finally {
+			await client.disconnect();
+			await fixture.close();
+		}
+	});
+
+	test('accepts a required response larger than the SSE event guard', async function () {
+		/*
+		 * OpenCode 1.18.23 answers `GET /provider` with more than 5 MiB on a bare
+		 * workspace, so the HTTP guard must not reject a required operation.
+		 */
+		this.timeout(20_000);
+		const fixture = await createFixture({ providerPaddingBytes: 6 * 1024 * 1024 });
+		const client = new OpenCodeHttpClient({ requestTimeoutMs: 15_000, startupTimeoutMs: 1000 });
+
+		try {
+			await client.connect(processFor(fixture.endpoint));
+			const providers = await client.send({ method: 'GET', path: '/provider' });
+			assert.ok(providers && typeof providers === 'object');
+			await client.send({ method: 'GET', path: '/provider?directory=%2Ftmp%2Funigma-workspace' });
+			assert.ok(fixture.requests.some(request => request.path === '/provider?directory=%2Ftmp%2Funigma-workspace'));
 		} finally {
 			await client.disconnect();
 			await fixture.close();
@@ -234,6 +300,58 @@ suite('Unigma OpenCode HTTP/SSE client', () => {
 			fixture.eventResponses[0].end();
 			await waitFor(() => fixture.eventResponses.length === 2 && fixture.requests.some(request => request.path === '/session/session-one/message'));
 			assert.ok(fixture.requests.filter(request => request.path === '/event').every(request => request.headers['last-event-id'] === undefined));
+		} finally {
+			await client.disconnect();
+			await fixture.close();
+		}
+	});
+
+	test('performs periodic health checks after connection', async () => {
+		const fixture = await createFixture();
+		const captured = diagnostics();
+		const client = new OpenCodeHttpClient({
+			diagnostics: captured.sink,
+			requestTimeoutMs: 500,
+			startupTimeoutMs: 1000,
+			healthCheckIntervalMs: 20,
+		});
+
+		try {
+			await client.connect(processFor(fixture.endpoint));
+			// Wait for at least one health check
+			await waitFor(() => fixture.requests.filter(request => request.path === '/global/health').length >= 2);
+			const healthRequests = fixture.requests.filter(request => request.path === '/global/health');
+			assert.ok(healthRequests.length >= 2, `Expected at least 2 health requests, got ${healthRequests.length}`);
+		} finally {
+			await client.disconnect();
+			await fixture.close();
+		}
+	});
+
+	test('diagnoses unhealthy server during periodic health check', async () => {
+		const fixture = await createFixture();
+		const captured = diagnostics();
+		const client = new OpenCodeHttpClient({
+			diagnostics: captured.sink,
+			requestTimeoutMs: 500,
+			startupTimeoutMs: 1000,
+			healthCheckIntervalMs: 20,
+		});
+
+		try {
+			await client.connect(processFor(fixture.endpoint));
+			// Override health response to return unhealthy
+			const originalHandler = fixture.server.listeners('request')[0];
+			fixture.server.removeAllListeners('request');
+			fixture.server.on('request', (request, response) => {
+				if (request.url?.split('?')[0] === '/global/health') {
+					return json(response, { healthy: false, version: 'fixture-0.1' });
+				}
+				originalHandler.call(fixture.server, request, response);
+			});
+
+			await waitFor(() => captured.records.some(record => record.code === 'opencode.health.unhealthy'));
+			assert.ok(captured.records.some(record => record.code === 'opencode.health.unhealthy'));
 		} finally {
 			await client.disconnect();
 			await fixture.close();

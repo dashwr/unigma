@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) 2026 unigma contributors
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
@@ -26,14 +26,14 @@ suite('AgentProtocol', () => {
 
 	test('accepts every command shape', () => {
 		const commands: readonly AgentCommand[] = [
-			{ version: AGENT_PROTOCOL_VERSION, requestId: 'start-1', type: AgentCommandType.StartSession, workspaceUri: 'file:///workspace' },
+			{ version: AGENT_PROTOCOL_VERSION, requestId: 'start-1', type: AgentCommandType.StartSession, workspaceUri: 'file:///workspace', localIntegrationPreflight: { accepted: true } },
 			{ version: AGENT_PROTOCOL_VERSION, requestId: 'stop-1', type: AgentCommandType.StopSession, sessionId: 'session-1' },
 			{ version: AGENT_PROTOCOL_VERSION, requestId: 'input-1', type: AgentCommandType.SendInput, sessionId: 'session-1', text: 'Explain this change.' },
 			{ version: AGENT_PROTOCOL_VERSION, requestId: 'diff-1', type: AgentCommandType.RequestDiff, sessionId: 'session-1' },
 			{ version: AGENT_PROTOCOL_VERSION, requestId: 'approve-1', type: AgentCommandType.Approve, sessionId: 'session-1', approvalId: 'approval-1' },
 			{ version: AGENT_PROTOCOL_VERSION, requestId: 'reject-1', type: AgentCommandType.Reject, sessionId: 'session-1', approvalId: 'approval-1', reason: 'Not now.' },
 			{ version: AGENT_PROTOCOL_VERSION, requestId: 'worktrees-1', type: AgentCommandType.ListWorktrees, sessionId: 'session-1' },
-			{ version: AGENT_PROTOCOL_VERSION, requestId: 'config-1', type: AgentCommandType.ApplyConfiguration, configuration: { provider: 'local', model: 'default' } },
+			{ version: AGENT_PROTOCOL_VERSION, requestId: 'config-1', type: AgentCommandType.ApplyConfiguration, sessionId: 'session-1', configuration: { provider: 'local', model: 'default' } },
 		];
 
 		for (const command of commands) {
@@ -93,6 +93,37 @@ suite('AgentProtocol', () => {
 		}), false);
 	});
 
+	test('requires a sanitized local integration preflight', () => {
+		const accepted = validateAgentCommand({
+			version: AGENT_PROTOCOL_VERSION,
+			requestId: 'start-accepted',
+			type: AgentCommandType.StartSession,
+			localIntegrationPreflight: { accepted: true },
+		});
+		const refused = validateAgentCommand({
+			version: AGENT_PROTOCOL_VERSION,
+			requestId: 'start-refused',
+			type: AgentCommandType.StartSession,
+			localIntegrationPreflight: { accepted: false, code: 'permissionDenied' },
+		});
+		const missing = validateAgentCommand({
+			version: AGENT_PROTOCOL_VERSION,
+			requestId: 'start-missing',
+			type: AgentCommandType.StartSession,
+		});
+		const malformed = validateAgentCommand({
+			version: AGENT_PROTOCOL_VERSION,
+			requestId: 'start-malformed',
+			type: AgentCommandType.StartSession,
+			localIntegrationPreflight: { accepted: false, code: 'raw-config' },
+		});
+
+		assert.strictEqual(accepted.valid, true);
+		assert.strictEqual(refused.valid, true);
+		assert.strictEqual(missing.valid, false);
+		assert.strictEqual(malformed.valid, false);
+	});
+
 	test('rejects fields outside the private contract', () => {
 		const commandError = validateAgentCommand({
 			version: AGENT_PROTOCOL_VERSION,
@@ -110,6 +141,40 @@ suite('AgentProtocol', () => {
 			token: 'must-not-cross-the-boundary',
 		});
 		assert.strictEqual(eventError.valid, false);
+	});
+
+	test('accepts only documented permission replies', () => {
+		for (const reply of ['once', 'always', 'reject'] as const) {
+			const resolved: AgentEvent = {
+				version: AGENT_PROTOCOL_VERSION,
+				type: AgentEventType.PermissionResolved,
+				sessionId: 'session-1',
+				resolution: { approvalId: 'approval-1', reply },
+			};
+			assert.strictEqual(validateAgentEvent(resolved).valid, true);
+			assert.strictEqual(isAgentEvent(resolved), true);
+		}
+
+		// An undocumented reply, a missing approval, or an extra field must fail closed.
+		for (const resolution of [
+			{ approvalId: 'approval-1', reply: 'maybe' },
+			{ approvalId: '', reply: 'once' },
+			{ reply: 'once' },
+			{ approvalId: 'approval-1', reply: 'once', reason: 'extra' },
+		]) {
+			assert.strictEqual(validateAgentEvent({
+				version: AGENT_PROTOCOL_VERSION,
+				type: AgentEventType.PermissionResolved,
+				sessionId: 'session-1',
+				resolution,
+			}).valid, false);
+		}
+
+		assert.strictEqual(validateAgentEvent({
+			version: AGENT_PROTOCOL_VERSION,
+			type: AgentEventType.PermissionResolved,
+			resolution: { approvalId: 'approval-1', reply: 'once' },
+		}).valid, false, 'a resolution without a session must be rejected');
 	});
 
 	test('accepts stateful errors emitted by the application layer', () => {

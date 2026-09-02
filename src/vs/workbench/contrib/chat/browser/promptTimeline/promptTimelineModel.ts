@@ -136,7 +136,7 @@ export class PromptTimelineModel extends Disposable {
 	/** The chat session resource, tracked reactively so the editing session can be resolved. */
 	private readonly _sessionResource: IObservable<URI | undefined>;
 
-	/** The chat editing session for this chat, if one exists (local or agent-host). */
+	/** The chat editing session for this chat, if one exists. */
 	private readonly _editingSession = derived(this, reader => {
 		const resource = this._sessionResource.read(reader);
 		if (!resource) {
@@ -571,7 +571,7 @@ export class PromptTimelineModel extends Disposable {
 
 	/**
 	 * Resolves which sides of a file diff can actually be read. Prefers the frozen
-	 * before/after snapshots so only this turn's changes show, but the agent-host
+	 * before/after snapshots so only this turn's changes show, but a remote
 	 * checkpoint blobs backing them can be missing (an added file's original, or a
 	 * pruned/restored session where whole checkpoints are gone). The modified side
 	 * then falls back to the live working file so review still opens with the best
@@ -609,7 +609,7 @@ export class PromptTimelineModel extends Disposable {
 
 	/**
 	 * Per-request file diffs, preferring the session type's authoritative
-	 * provider (agent-host sessions expose a server-computed per-turn changeset
+	 * provider (remote sessions expose a server-computed per-turn changeset
 	 * that survives reload), and falling back to the chat editing session.
 	 */
 	private _diffsForRequest(requestId: string, reader?: IReader): readonly IEditSessionEntryDiff[] {

@@ -3,50 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-use futures::{stream::FuturesUnordered, FutureExt, StreamExt};
+use futures::{stream::FuturesUnordered, StreamExt};
 use std::{
 	net::{IpAddr, Ipv4Addr, SocketAddr},
 	str::FromStr,
-	sync::Arc,
 };
 use sysinfo::Pid;
 
-use super::{args::CommandShellArgs, agent_host::ensure_supervisor_running, CommandContext};
+use super::{args::CommandShellArgs, CommandContext};
 use crate::{
 	async_pipe::{get_socket_name, listen_socket_rw_stream, AsyncRWAccepter},
 	log,
-	state::LauncherPaths,
-	tunnels::{
-		serve_stream,
-		shutdown_signal::ShutdownRequest,
-		AuthRequired, ServeStreamParams, SharedActiveAgentHost,
-	},
+	tunnels::{serve_stream, shutdown_signal::ShutdownRequest, AuthRequired, ServeStreamParams},
 	util::errors::{wrap, AnyError, CodeError},
 	util::prereqs::PreReqChecker,
 };
 
 /// Runs the internal stdin/stdout control server without creating a public
-/// Dev Tunnel. The editor's local agent-host supervisor is still discovered
-/// lazily when a connected server actually needs it.
+/// Dev Tunnel.
 pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Result<i32, AnyError> {
 	let platform = PreReqChecker::new().verify().await?;
 	let mut shutdown_reqs = vec![ShutdownRequest::CtrlC];
 	if let Some(p) = args.parent_process_id.and_then(|p| Pid::from_str(&p).ok()) {
 		shutdown_reqs.push(ShutdownRequest::ParentProcessKilled(p));
 	}
-
-	let active_agent_host: SharedActiveAgentHost = {
-		let paths = ctx.paths.clone();
-		let log = ctx.log.clone();
-		async move {
-			ensure_supervisor_running(&paths, &log)
-				.await
-				.map(Arc::new)
-				.map_err(Arc::new)
-		}
-		.boxed()
-		.shared()
-	};
 
 	let mut params = ServeStreamParams {
 		log: ctx.log,
@@ -58,7 +38,6 @@ pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Resul
 			.unwrap_or(AuthRequired::VSDA),
 		exit_barrier: ShutdownRequest::create_rx(shutdown_reqs),
 		code_server_args: (&ctx.args).into(),
-		active_agent_host: Some(active_agent_host),
 	};
 
 	args.server_args.apply_to(&mut params.code_server_args);
@@ -71,7 +50,9 @@ pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Resul
 					.await
 					.map_err(|e| wrap(e, "error listening on socket"))?;
 
-				params.log.result(format!("Listening on {}", socket.display()));
+				params
+					.log
+					.result(format!("Listening on {}", socket.display()));
 				Box::new(listener)
 			}
 			(Some(_), _, _) | (_, Some(_), _) => {

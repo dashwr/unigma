@@ -7,31 +7,21 @@ import { request as httpRequest, type ClientRequest, type IncomingMessage } from
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { DisposableLike, OwnedProcessHandle, WorkspaceReference } from '../domain/runtime';
-import type { DiagnosticSink, OpenCodeClient } from '../application/runtimePorts';
+import type { DiagnosticSink, OpenCodeClient, OpenCodeEvent, OpenCodeRequest } from '../application/runtimePorts';
 
-export type OpenCodeHttpMethod = 'GET' | 'POST';
-
-export interface OpenCodeRequest {
-	readonly method: OpenCodeHttpMethod;
-	readonly path: string;
-	readonly body?: unknown;
-}
-
-export interface OpenCodeEvent {
-	readonly type: string;
-	readonly properties: Record<string, unknown>;
-}
+export type { OpenCodeEvent, OpenCodeRequest } from '../application/runtimePorts';
+export type OpenCodeHttpMethod = OpenCodeRequest['method'];
 
 export interface OpenCodeHttpClientOptions {
 	readonly requestTimeoutMs?: number;
 	readonly startupTimeoutMs?: number;
+	readonly healthCheckIntervalMs?: number;
 	readonly diagnostics?: DiagnosticSink;
 	readonly sleep?: (milliseconds: number) => Promise<void>;
 }
 
 const REQUIRED_OPERATIONS = [
 	{ method: 'GET', path: '/global/health' },
-	{ method: 'GET', path: '/doc' },
 	{ method: 'GET', path: '/path' },
 	{ method: 'GET', path: '/event' },
 	{ method: 'GET', path: '/session' },
@@ -66,12 +56,22 @@ const KNOWN_EVENT_TYPES = new Set([
 	'message.part.removed',
 	'session.diff',
 	'permission.updated',
+	'permission.asked',
 	'permission.replied',
 ]);
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 const DEFAULT_STARTUP_TIMEOUT_MS = 15_000;
-const MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
+const DEFAULT_HEALTH_CHECK_INTERVAL_MS = 30_000;
+/*
+ * `GET /provider` is a required operation of the profile and the observed
+ * OpenCode 1.18.23 response is larger than 5 MiB on a bare workspace, so the
+ * HTTP guard must admit it while still bounding memory.
+ */
+const MAX_RESPONSE_BYTES = 16 * 1024 * 1024;
+/* A single SSE event stays under the smaller guard; no observed event needs more. */
+const MAX_EVENT_BUFFER_BYTES = 4 * 1024 * 1024;
+export const SUPPORTED_OPENCODE_VERSION = '1.18.23';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -113,6 +113,7 @@ function eventFromPayload(payload: unknown): OpenCodeEvent {
 export class OpenCodeHttpClient implements OpenCodeClient<OpenCodeRequest, OpenCodeEvent> {
 	private readonly requestTimeoutMs: number;
 	private readonly startupTimeoutMs: number;
+	private readonly healthCheckIntervalMs: number;
 	private readonly diagnostics: DiagnosticSink | undefined;
 	private readonly sleep: (milliseconds: number) => Promise<void>;
 	private readonly listeners = new Set<(event: OpenCodeEvent) => void>();
@@ -129,10 +130,12 @@ export class OpenCodeHttpClient implements OpenCodeClient<OpenCodeRequest, OpenC
 	private connectionResolve: (() => void) | undefined;
 	private connectionReject: ((error: Error) => void) | undefined;
 	private documentOperations: readonly DocumentOperation[] = [];
+	private healthCheckTimer: NodeJS.Timeout | undefined;
 
 	public constructor(options: OpenCodeHttpClientOptions = {}) {
 		this.requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
 		this.startupTimeoutMs = options.startupTimeoutMs ?? DEFAULT_STARTUP_TIMEOUT_MS;
+		this.healthCheckIntervalMs = options.healthCheckIntervalMs ?? DEFAULT_HEALTH_CHECK_INTERVAL_MS;
 		this.diagnostics = options.diagnostics;
 		this.sleep = options.sleep ?? (milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds)));
 	}
@@ -162,6 +165,7 @@ export class OpenCodeHttpClient implements OpenCodeClient<OpenCodeRequest, OpenC
 			this.validateWorkspacePath(await this.requestJson('/path'), process.workspaceUri);
 			await this.waitForServerConnected(Math.max(1, deadline - Date.now()));
 			this.connected = true;
+			this.startHealthCheck();
 		} catch (error) {
 			await this.disconnect();
 			throw error;
@@ -173,7 +177,18 @@ export class OpenCodeHttpClient implements OpenCodeClient<OpenCodeRequest, OpenC
 			return Promise.reject(new Error('OpenCode client is not connected.'));
 		}
 
-		if (!this.documentOperations.some(operation => operation.method === request.method && operation.matcher.test(request.path))) {
+		let pathname: string;
+		try {
+			const url = new URL(request.path, this.endpoint);
+			if (url.origin !== this.endpoint.origin) {
+				throw new Error('OpenCode request must target the owned loopback endpoint.');
+			}
+			pathname = url.pathname;
+		} catch {
+			return Promise.reject(new Error('OpenCode request path is invalid.'));
+		}
+
+		if (!this.documentOperations.some(operation => operation.method === request.method && operation.matcher.test(pathname))) {
 			return Promise.reject(new Error(`OpenCode endpoint is outside the MVP profile: ${request.path}`));
 		}
 
@@ -194,6 +209,7 @@ export class OpenCodeHttpClient implements OpenCodeClient<OpenCodeRequest, OpenC
 			clearTimeout(this.reconnectTimer);
 			this.reconnectTimer = undefined;
 		}
+		this.stopHealthCheck();
 
 		this.connectionReject?.(new Error('OpenCode client disconnected.'));
 		this.connectionResolve = undefined;
@@ -216,6 +232,9 @@ export class OpenCodeHttpClient implements OpenCodeClient<OpenCodeRequest, OpenC
 				const health = await this.requestJson('/global/health');
 				if (!isRecord(health) || health.healthy !== true || typeof health.version !== 'string' || health.version.length === 0) {
 					throw new Error('OpenCode health response is invalid.');
+				}
+				if (health.version !== SUPPORTED_OPENCODE_VERSION) {
+					throw new Error(`Unsupported OpenCode version: ${health.version}. Expected ${SUPPORTED_OPENCODE_VERSION}.`);
 				}
 				return;
 			} catch (error) {
@@ -258,7 +277,20 @@ export class OpenCodeHttpClient implements OpenCodeClient<OpenCodeRequest, OpenC
 	}
 
 	private validateWorkspacePath(response: unknown, workspaceUri: string): void {
-		if (!isRecord(response) || typeof response.path !== 'string' || response.path.length === 0) {
+		if (!isRecord(response)) {
+			throw new Error('OpenCode path response is invalid.');
+		}
+		const directory = response.directory;
+		const pathValue = response.path;
+		const worktree = response.worktree;
+		const authoritativePath = typeof directory === 'string' && directory.length > 0
+			? directory
+			: typeof pathValue === 'string' && pathValue.length > 0
+				? pathValue
+				: typeof worktree === 'string' && worktree.length > 0
+					? worktree
+					: undefined;
+		if (!authoritativePath) {
 			throw new Error('OpenCode path response is invalid.');
 		}
 
@@ -267,7 +299,8 @@ export class OpenCodeHttpClient implements OpenCodeClient<OpenCodeRequest, OpenC
 			throw new Error('Workspace reference is not a local file URI.');
 		}
 
-		if (this.normalizeFilesystemPath(response.path) !== this.normalizeFilesystemPath(fileURLToPath(expected))) {
+		const expectedPath = this.normalizeFilesystemPath(fileURLToPath(expected));
+		if (this.normalizeFilesystemPath(authoritativePath) !== expectedPath) {
 			throw new Error('OpenCode path does not match the authorized workspace.');
 		}
 	}
@@ -343,7 +376,7 @@ export class OpenCodeHttpClient implements OpenCodeClient<OpenCodeRequest, OpenC
 
 	private consumeSseChunk(chunk: string): void {
 		this.eventBuffer += chunk;
-		if (Buffer.byteLength(this.eventBuffer) > MAX_RESPONSE_BYTES) {
+		if (Buffer.byteLength(this.eventBuffer) > MAX_EVENT_BUFFER_BYTES) {
 			this.failEventStream(new Error('OpenCode event is too large.'));
 			return;
 		}
@@ -437,6 +470,50 @@ export class OpenCodeHttpClient implements OpenCodeClient<OpenCodeRequest, OpenC
 		this.eventRequest = undefined;
 		this.eventResponse = undefined;
 		this.rejectConnection(error);
+	}
+
+	private startHealthCheck(): void {
+		this.stopHealthCheck();
+		if (this.healthCheckIntervalMs <= 0 || !this.endpoint) {
+			return;
+		}
+		this.healthCheckTimer = setInterval(() => {
+			if (!this.connected || this.disconnecting || !this.endpoint) {
+				return;
+			}
+			void this.performHealthCheck();
+		}, this.healthCheckIntervalMs);
+	}
+
+	private stopHealthCheck(): void {
+		if (this.healthCheckTimer) {
+			clearInterval(this.healthCheckTimer);
+			this.healthCheckTimer = undefined;
+		}
+	}
+
+	private async performHealthCheck(): Promise<void> {
+		if (!this.endpoint || this.disconnecting) {
+			return;
+		}
+		try {
+			const health = await this.requestJson('/global/health');
+			if (!isRecord(health) || health.healthy !== true) {
+				this.diagnostics?.record({ level: 'warn', code: 'opencode.health.unhealthy' });
+			}
+		} catch (error) {
+			if (this.disconnecting) {
+				return;
+			}
+			if (isRetryableConnectionError(error)) {
+				this.diagnostics?.record({ level: 'warn', code: 'opencode.health.connectionLost' });
+				this.connected = false;
+				this.stopHealthCheck();
+				this.scheduleReconnect();
+			} else {
+				this.diagnostics?.record({ level: 'error', code: 'opencode.health.failed' });
+			}
+		}
 	}
 
 	private requestJson(path: string, method: OpenCodeHttpMethod = 'GET', body?: unknown): Promise<unknown> {

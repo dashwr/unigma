@@ -18,7 +18,7 @@ import { IChatContentPart } from './chatContentParts.js';
 import './media/chatMcpServersInteractionContent.css';
 
 /**
- * Renders a lightweight "Starting MCP servers …" progress hint for agent-host
+ * Renders a lightweight "Starting MCP servers …" progress hint for remote
  * sessions. The set of servers still starting is driven by the observable on
  * {@link IChatMcpServersStartingSlow.servers}; when it empties (all servers
  * started, content began arriving, or the turn ended) the part hides itself.

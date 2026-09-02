@@ -100,21 +100,15 @@ export function isModelValidForSession(
 }
 
 /**
- * Reconstructs the "Manage Models" identifier that an agent-host copy of an
- * extension-provided BYOK model is toggled under, or `undefined` when the model
- * is not such a copy. Re-exported from the shared `ILanguageModelChatMetadata`
- * namespace (which also backs the `common` model-visibility layer) so picker and
- * management code reconstruct the identifier the same way.
+ * Returns the "Manage Models" identifier associated with an extension-provided
+ * BYOK model, or `undefined` when the model has no alternate identifier.
  */
-export const getAgentHostByokManageModelsIdentifier = ILanguageModelChatMetadata.getAgentHostByokManageModelsIdentifier;
+export const getByokManageModelsIdentifier = ILanguageModelChatMetadata.getByokManageModelsIdentifier;
 
 /**
  * Whether a model should be hidden from the picker given the user's Manage Models
- * visibility toggles. Matches the model by its own identifier and, for agent-host
- * copies of extension BYOK models, additionally by the reconstructed original
- * identifier (see {@link getAgentHostByokManageModelsIdentifier}) — which includes
- * any user-configured provider group carried across the bridge — so a BYOK model
- * hidden in Manage Models is also hidden in the agent-host picker.
+ * visibility toggles. Matches the model by its own identifier and, when present,
+ * by its alternate BYOK identifier as well.
  */
 export function isModelHiddenInPicker(
 	model: ILanguageModelChatMetadataAndIdentifier,
@@ -123,7 +117,7 @@ export function isModelHiddenInPicker(
 	if (isModelHidden(model.identifier)) {
 		return true;
 	}
-	const manageModelsIdentifier = getAgentHostByokManageModelsIdentifier(model.metadata);
+	const manageModelsIdentifier = getByokManageModelsIdentifier(model.metadata);
 	return manageModelsIdentifier !== undefined && isModelHidden(manageModelsIdentifier);
 }
 
@@ -133,11 +127,9 @@ export function isModelHiddenInPicker(
  * that is being opened.
  *
  * The draft is shared across all session types, so its `selectedModel` can belong to a
- * different pool in either direction — e.g. a `copilot/*` model leaking into an agent-host
- * session, or an `agent-host-*` model leaking into a general/local session. Applying such a
- * cross-pool model while the session is opening lets the sync resolve it to (and persist) a
- * wrong default over the destination pool's persisted model. Dropped when present but not valid
- * for `sessionType`; an in-pool draft model is kept. See
+ * different pool. Applying such a cross-pool model while the session is opening lets the sync
+ * resolve it to (and persist) a wrong default over the destination pool's persisted model.
+ * Dropped when present but not valid for `sessionType`; an in-pool draft model is kept. See
  * `chatInputPart._getPersistedEmptyInputState`.
  */
 export function shouldDropAgnosticDraftModel(
@@ -153,7 +145,7 @@ export function shouldDropAgnosticDraftModel(
  * shared new-chat draft, the default mode/permission level, and `chat.defaultModel`.
  *
  * `hasNoRequests` is sampled when the input binds, and a contributed session's requests load after
- * that — so on its own it reports a started agent-host session as new. A contributed session's
+	 * that — so on its own it reports a started contributed session as new. A contributed session's
  * resource keeps its `untitled-` path until the session is started, so it stays accurate
  * regardless of load timing. Local sessions have no such marker and rely on `hasNoRequests`.
  */
@@ -188,7 +180,7 @@ export function shouldRestorePerTypeModelOnSessionSwitch(isEmpty: boolean, sessi
 /**
  * Find a model in `pool` that matches `previous` by id, then family, then
  * name (case-insensitive). Used to carry a selection across model pools
- * (e.g. `copilot/claude-sonnet-4.6` → `agent-host-copilotcli:claude-sonnet-4.6`).
+ * (for example, a model with the same family exposed by another provider).
  * Returns `undefined` when no candidate matches.
  */
 export function findBestMatchingModel(

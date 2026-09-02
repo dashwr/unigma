@@ -72,7 +72,7 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 				user: 'Continue the implementation',
 				assistant: [{
 					kind: 'markdown',
-					text: 'The [implementation session](agent-host-session://copilotcli/rich-links) is still working.',
+					text: 'The [implementation session](test-session://copilotcli/rich-links) is still working.',
 				}],
 			}],
 		}),

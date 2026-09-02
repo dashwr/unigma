@@ -58,6 +58,32 @@ arquivos do workspace.
 OpenCode ser o runtime de agente. Evita uma API própria que só repetiria o
 protocolo documentado do OpenCode.
 
+### harness oficial e perfil `service-only`
+
+O backend local do agente é o OpenCode; não existe um backend remoto do unigma.
+O único harness oficial é o bundle `unigma+opencode`, preparado pelo pipeline
+do [perfil service-only](OPENCODE-SERVICE-ONLY.md). O perfil preserva o harness
+de execução do OpenCode — sessões, tool loop, compaction, limites, retries,
+plugins, MCP, skills, permissões, streaming, subagentes e providers configurados
+— e redireciona as superfícies de TUI, onboarding, prompts interativos,
+navegação e UI redundante para o workbench nativo.
+
+O “decepador” é uma transformação de build reproduzível:
+
+```text
+commit upstream -> patch service-only -> testes -> artefato versionado
+```
+
+Ele não altera uma instalação do usuário. O manifesto do bundle registra commit,
+patchset, versão, hashes, alvo e evidências. Configuração, credenciais, sessões
+e histórico permanecem fora do bundle; atualização e rollback trocam somente o
+artefato do aplicativo e exigem que o processo esteja parado.
+
+`opencode serve` já é headless; isso resolve a forma de execução, não a política
+de distribuição. A análise service-only deve verificar as superfícies realmente
+alcançáveis/empacotadas e aplicar apenas um patch mínimo comprovado, sem remover o
+harness por varredura cega.
+
 ## 3. stack
 
 | área | escolha aprovada | motivo |
@@ -65,7 +91,7 @@ protocolo documentado do OpenCode.
 | shell desktop | Code - OSS/Electron | é a base definida do produto; evita reimplementar editor, terminal e workbench |
 | linguagem do código próprio | TypeScript | é a linguagem nativa da base e das extensões Code - OSS |
 | UI de agente | contribuição nativa do workbench, TypeScript/DOM/CSS do Code - OSS | evita um renderer Webview/Chromium adicional e torna o agente parte do IDE |
-| runtime de agente | um processo `opencode serve` por extension host, gerenciado pela extensão interna | OpenCode é o runtime primário; reutilizar o processo evita custo por sessão |
+| runtime de agente | um processo do perfil bundled `opencode serve` por extension host, gerenciado pela extensão interna | OpenCode é o único harness oficial; reutilizar o processo evita custo por sessão |
 | integração remota | extensão de autoridade remota sobre OpenSSH | preserva o modelo remoto do IDE sem backend unigma |
 | persistência | settings, `workspaceState`, `globalState` e `SecretStorage` do Code - OSS | dados locais mínimos, sem novo banco |
 | VCS/worktrees | Git instalado pelo usuário | Git já é a fonte de verdade para repositórios e worktrees |
@@ -117,6 +143,10 @@ agente é a exceção explícita à regra “extensão antes de patch”: ela ev
 segunda superfície Chromium e permite UX de primeira classe. Alterações no
 núcleo além de branding, empacotamento e essa contribuição exigem medição que
 justifique seu custo de manutenção.
+
+A apresentação e a coordenação pertencem ao unigma. A TUI e os comandos de uso
+direto do OpenCode não são uma segunda UI do produto; o perfil service-only os
+remove ou redireciona sem duplicar o harness de execução.
 
 ### contribuição nativa `unigmaAgent`
 
@@ -228,10 +258,12 @@ viram eventos explícitos, nunca exceções ignoradas na UI.
 
 ### local
 
-`unigma-agent-runtime` inicia e supervisiona um processo `opencode serve`
-associado ao extension host. Ele aguarda a disponibilidade do serviço,
-conecta-se por loopback, o reutiliza entre sessões e encerra somente o processo
-que criou quando o host encerra.
+`unigma-agent-runtime` inicia e supervisiona um processo `opencode serve` do
+bundle oficial associado ao extension host. Ele aguarda a disponibilidade do
+serviço, conecta-se por loopback, o reutiliza entre sessões e encerra somente o
+processo que criou quando o host encerra. Um executável externo pode ser usado
+em probe de desenvolvimento, mas isso não transforma a versão observada em
+runtime bundled suportado.
 
 ### SSH
 
@@ -313,12 +345,14 @@ remota necessária.
 
 ### pipeline
 
-1. checkout do fork em `unigma-code`;
-2. build reproduzível usando versões fixadas pelo upstream;
-3. lint, testes unitários/contrato e smoke por plataforma;
-4. geração de artefatos Windows x64 e Linux x64;
-5. publicação de artefato somente após revisão de licenças/notices, identidade
-   e autorização explícita de release.
+1. checkout limpo do upstream OpenCode e do fork em `unigma-code`;
+2. aplicação do patchset service-only, identificado e reaplicável;
+3. build reproduzível usando versões fixadas pelo upstream;
+4. lint, testes do harness, testes de contrato HTTP/SSE e smoke por plataforma;
+5. geração do bundle versionado `unigma+opencode` para Windows x64 e Linux x64;
+6. auditoria de licenças/notices, identidade, hashes e separação dos dados do
+   usuário;
+7. publicação ou atualização somente após autorização explícita de release.
 
 GitHub Actions é a opção recomendada para CI por acompanhar o identificador
 público proposto e eliminar infraestrutura própria. A assinatura de binários,
@@ -345,7 +379,7 @@ unigma/
 │       ├── src/
 │       └── test/
 ├── resources/unigma/            # branding e metadados de distribuição
-├── build/                        # integração de empacotamento, se necessária
+├── build/                        # empacotamento e pipeline do bundle, se necessário
 ├── docs/
 └── product.json                  # identidade e endpoints permitidos
 ```
@@ -370,12 +404,15 @@ na seção 7.
 ## arquitetura aprovada
 
 Um fork desmarcado de Code - OSS, com uma contribuição nativa `unigmaAgent` no
-workbench, a extensão interna `unigma-agent-runtime` para executar o CLI
-`opencode serve` e integrar HTTP/SSE local/remotamente, e
-`unigma-remote-ssh` para transporte OpenSSH. O sistema não tem backend, banco,
-conta, RBAC, fila distribuída, cache distribuído ou cloud no MVP. Git, OpenSSH
-e OpenCode continuam fontes de verdade. Patches de performance são aplicados
-sobre Code - OSS somente quando medidos; Electron permanece upstream compatível.
+workbench, a extensão interna `unigma-agent-runtime` para executar o perfil
+bundled service-only do CLI `opencode serve` e integrar HTTP/SSE local/remotamente,
+e `unigma-remote-ssh` para transporte OpenSSH. O sistema não tem backend remoto,
+banco, conta, RBAC, fila distribuída, cache distribuído ou cloud no MVP. Git,
+OpenSSH e OpenCode continuam fontes de verdade. Patches de performance são
+aplicados sobre Code - OSS somente quando medidos; Electron permanece upstream
+compatível. O decepador e o bundle são definidos em
+[OPENCODE-SERVICE-ONLY.md](OPENCODE-SERVICE-ONLY.md), mas ainda não têm
+implementação aceita.
 
 ## riscos
 
@@ -392,6 +429,9 @@ sobre Code - OSS somente quando medidos; Electron permanece upstream compatível
 5. **identidade/distribuição:** `unigma` tem colisões públicas conhecidas e a
    disponibilidade de `unigma-code` não é garantia de marca. Mitigação: não
    publicar antes de validação jurídica e reserva autorizada.
+6. **perfil OpenCode:** patches service-only podem divergir do upstream ou
+   separar incorretamente apresentação e harness. Mitigação: patchset mínimo,
+   manifesto de proveniência, probe por versão e rollback atômico.
 
 ## trade-offs
 
@@ -404,6 +444,7 @@ sobre Code - OSS somente quando medidos; Electron permanece upstream compatível
 | patches Code - OSS medidos | otimiza o produto real | exige baseline e disciplina de manutenção |
 | OpenSSH nativo | não duplica autenticação/segredos | suporte remoto é dependente do ambiente SSH |
 | nenhum catálogo de extensões | menor risco legal e de supply chain | descoberta/instalação menos conveniente |
+| OpenCode bundled service-only | processo e UX sob uma fronteira clara | manter patchset, bundle, hashes e rollback |
 
 ## decisões remanescentes
 

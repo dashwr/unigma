@@ -37,10 +37,10 @@ import { ChatModel } from '../../common/model/chatModel.js';
 import { ChatRequestParser } from '../../common/requestParser/chatRequestParser.js';
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../attachments/chatVariables.js';
 import { ChatSendResult, IChatService } from '../../common/chatService/chatService.js';
-import { ResolvedChatSessionsExtensionPoint, IChatSessionsService, SessionType } from '../../common/chatSessionsService.js';
+import { ResolvedChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promptTypes.js';
-import { AgentSessionProviders, AgentSessionTarget, CHAT_DELEGATE_TO_AGENT_HOST_SESSION_COMMAND_ID, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName, IAgentHostDelegationRequest, isAgentHostTarget } from '../agentSessions/agentSessions.js';
+import { AgentSessionProviders, AgentSessionTarget, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
 import { ISCMService } from '../../../scm/common/scm.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
@@ -49,9 +49,6 @@ import { ctxHasEditorModification } from '../chatEditing/chatEditingEditorContex
 import { CHAT_SETUP_ACTION_ID } from './chatActions.js';
 import { IChatRequestPasteVariableEntry, PromptFileVariableKind, toPasteVariableEntry, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
-import { ChatSessionPosition, openChatSession } from '../chatSessions/chatSessions.contribution.js';
-import { importedTurnsFromChatModel } from '../agentSessions/agentHost/importLocalConversationToAgentSession.js';
-import type { ModelSelection } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 
 /**
  * Extracts the "owner/repo" name-with-owner from a git remote URL.
@@ -223,14 +220,6 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 					actions.push(this.toAction(AgentSessionProviders.Cloud, cloudContrib, instantiationService, location, hasGitRepo));
 				}
 
-				// Continue in any agent host session (local `agent-host-*` or remote
-				// `remote-*`), e.g. Copilot CLI / Codex / Claude agent-host sessions.
-				for (const contrib of contributions) {
-					if (contrib.canDelegate && isAgentHostTarget(contrib.type)) {
-						actions.push(this.toAction(contrib.type, contrib, instantiationService, location));
-					}
-				}
-
 				// Offer actions to enter setup if we have no contributions
 				if (actions.length === 0) {
 					actions.push(this.toSetupAction(AgentSessionProviders.Background, instantiationService));
@@ -244,8 +233,7 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 
 	private static toAction(provider: AgentSessionTarget, contrib: ResolvedChatSessionsExtensionPoint, instantiationService: IInstantiationService, location: ActionLocation, enabled: boolean = true): IActionWidgetDropdownAction {
 		const providerName = getAgentSessionProviderName(provider);
-		// For dynamically-registered agent host providers, getAgentSessionProviderName
-		// falls back to the raw session type; prefer the contribution's display name.
+		// Prefer the contribution's display name for dynamically registered providers.
 		const label = providerName === provider ? (contrib.displayName ?? providerName) : providerName;
 		return {
 			id: contrib.type,
@@ -517,54 +505,21 @@ export class CreateRemoteAgentJobAction {
 
 			// When source and target session types differ, open a new session of
 			// the target type and hand off the prior conversation as an attachment
-			// (history-import) instead of sending to the current (incompatible)
-			// session resource. This happens for any cross-type delegation in the
-			// sessions window, and whenever either the source or the target is an
-			// agent host session (e.g. Copilot CLI / Codex / Claude agent host),
-			// so delegation works from anything to any agent host session and from
-			// any agent host session to any target.
+			// instead of sending to the current (incompatible) session resource.
 			const isSessionsWindow = IsSessionsWindowContext.getValue(contextKeyService);
-			// Resolve a source session type that also covers dynamically-registered
-			// agent host providers (e.g. `agent-host-codex`), which are not part of
-			// the AgentSessionProviders enum.
 			const sourceSessionType = getAgentSessionProvider(sessionResource) ?? getChatSessionType(sessionResource);
-			const handoffToNewSession = isSessionsWindow || isAgentHostTarget(continuationTargetType) || (!!sourceSessionType && isAgentHostTarget(sourceSessionType));
+			const handoffToNewSession = isSessionsWindow;
 			if (handoffToNewSession && sourceSessionType && sourceSessionType !== continuationTargetType) {
 				const isSidebar = isIChatViewViewContext(widget.viewContext);
 
 				// Build the prior conversation transcript so context is preserved.
-				// Agent host targets consume it as an attachment (keeping the user's
-				// prompt clean); other targets (e.g. the Cloud coding agent) don't
-				// process paste attachments, so for those we inline it into the prompt.
 				const transcript = buildDelegationTranscript(chatRequests);
 				const sourceContribution = chatSessionsService.getAllChatSessionContributions().find(c => c.type === sourceSessionType || getAgentSessionProvider(c.type) === sourceSessionType);
 				const sourceName = sourceContribution?.displayName ?? getAgentSessionProviderName(sourceSessionType);
 				const continuationContext = attachedContext.asArray();
 				let handoffPrompt = userPrompt;
-				// Continuing a local chat into Copilot CLI (main window) imports the
-				// prior conversation as real, editable turns seeded into the new
-				// session, instead of handing it over as a read-only transcript
-				// attachment. The turns are threaded through the normal
-				// `openChatSession` flow so the session lifecycle (model picker,
-				// config chips, etc.) is unchanged.
-				const importConversationTurns = (continuationTargetType === SessionType.AgentHostCopilot && !isSessionsWindow)
-					? importedTurnsFromChatModel(chatModel)
-					: undefined;
-				// Carry the source session's selected model so the imported session
-				// resumes on the same model rather than the host default. The raw
-				// model id (`metadata.id`) matches the Copilot catalog shared by the
-				// local models and Copilot CLI.
-				const importConversationModelId = importConversationTurns ? widget.input.selectedLanguageModel.get()?.metadata.id : undefined;
-				const importConversationModel: ModelSelection | undefined = importConversationModelId ? { id: importConversationModelId } : undefined;
-				if (transcript && !importConversationTurns) {
-					if (isAgentHostTarget(continuationTargetType)) {
-						const transcriptAttachment = createDelegationTranscriptAttachment(transcript, sourceName);
-						if (transcriptAttachment) {
-							continuationContext.unshift(transcriptAttachment);
-						}
-					} else {
-						handoffPrompt = localize('chat.delegation.inlinePrompt', "The following is the conversation history from a previous {0} session. Continue working on it.\n\n{1}\n\nUser: {2}", sourceName, transcript, userPrompt);
-					}
+				if (transcript) {
+					handoffPrompt = localize('chat.delegation.inlinePrompt', "The following is the conversation history from a previous {0} session. Continue working on it.\n\n{1}\n\nUser: {2}", sourceName, transcript, userPrompt);
 				}
 
 				// Extract repository info from the source session to pass to the target session
@@ -574,49 +529,7 @@ export class CreateRemoteAgentJobAction {
 					initialSessionOptions.set('repositories', repoNwo);
 				}
 
-				// Agent host targets are delegated generically (no per-session-type
-				// command). In the Agents window a single registered command creates
-				// the target session through the session management service; in the
-				// main window we open the session directly. Both paths carry the
-				// transcript as an attachment.
-				if (isAgentHostTarget(continuationTargetType)) {
-					if (isSessionsWindow) {
-						const delegationRequest: IAgentHostDelegationRequest = {
-							type: continuationTargetType,
-							displayName: continuationTarget.displayName,
-							prompt: handoffPrompt,
-							attachedContext: continuationContext,
-						};
-						await commandService.executeCommand(CHAT_DELEGATE_TO_AGENT_HOST_SESSION_COMMAND_ID, delegationRequest);
-					} else {
-						await instantiationService.invokeFunction(innerAccessor => openChatSession(
-							innerAccessor,
-							{
-								type: continuationTargetType,
-								displayName: continuationTarget.displayName,
-								position: isSidebar ? ChatSessionPosition.Sidebar : ChatSessionPosition.Editor,
-								// Replace the source chat editor in place so switching harness
-								// feels like the same chat continues rather than opening a new
-								// tab. The source (local) session stays in chat history and is
-								// recoverable. The sidebar path already swaps in place via
-								// `loadSession`, so it needs no replacement. Pass the source
-								// resource (not a bare flag) so the correct editor is resolved
-								// at replace time even if the active editor changed meanwhile.
-								replaceEditorForResource: isSidebar ? undefined : sessionResource,
-							},
-							{
-								prompt: handoffPrompt,
-								attachedContext: continuationContext,
-								initialSessionOptions: initialSessionOptions.size > 0 ? initialSessionOptions : undefined,
-								importConversation: importConversationTurns ? { turns: importConversationTurns, model: importConversationModel } : undefined,
-							}
-						));
-					}
-					return;
-				}
-
-				// Non-agent-host targets (e.g. Cloud / Background) continue to use
-				// their per-session-type new-session command.
+				// Use the target provider's new-session command.
 				const actionId = isSidebar
 					? `workbench.action.chat.openNewSessionSidebar.${continuationTargetType}`
 					: `${NEW_CHAT_SESSION_ACTION_ID}.${continuationTargetType}`;
