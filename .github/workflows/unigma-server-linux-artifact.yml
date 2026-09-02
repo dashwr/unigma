@@ -83,11 +83,32 @@ jobs:
           echo "--- WSL memory before build ---"
           free -m
           build_log="$build/unigma-server-build.log"
+          # Run the server build stage by stage so a stalled stage is identifiable
+          # in the log instead of hiding inside one opaque aggregate task.
+          run_stage() {
+            echo "=== stage: $1 (started $(date -Is)) ==="
+            stdbuf -oL -eL timeout --signal=TERM --kill-after=1m 45m \
+              node --experimental-strip-types --max-old-space-size=8192 \
+              ./node_modules/gulp/bin/gulp.js "$1" 2>&1 | stdbuf -oL tee -a "$build_log"
+            local status="${PIPESTATUS[0]}"
+            echo "=== stage: $1 (finished $(date -Is), status $status) ==="
+            return "$status"
+          }
           set +e
-          stdbuf -oL -eL timeout --signal=TERM --kill-after=1m 60m \
-            node --experimental-strip-types --max-old-space-size=8192 \
-            ./node_modules/gulp/bin/gulp.js vscode-reh-linux-x64-min 2>&1 | stdbuf -oL tee "$build_log"
-          gulp_status="${PIPESTATUS[0]}"
+          gulp_status=0
+          for stage in \
+            compile-build-with-mangling \
+            clean-extensions-build \
+            compile-non-native-extensions-build \
+            compile-copilot-extension-build \
+            compile-extension-media-build \
+            minify-vscode-reh \
+            vscode-reh-linux-x64-min-ci
+          do
+            run_stage "$stage"
+            gulp_status=$?
+            [ "$gulp_status" -eq 0 ] || break
+          done
           set -e
           echo "--- gulp exit status: $gulp_status ---"
           echo "--- WSL memory after build ---"
