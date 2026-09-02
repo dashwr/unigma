@@ -2793,18 +2793,3 @@ name = "zmij"
 version = "1.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b8848ee67ecc8aedbaf3e4122217aff892639231befc6a1b58d29fff4c2cabaa"
-
-[[patch.unused]]
-name = "russh"
-version = "0.37.1"
-source = "git+https://github.com/microsoft/vscode-russh?branch=main#fd4f608a83753f9f3e137f95600faffede71cf65"
-
-[[patch.unused]]
-name = "russh-cryptovec"
-version = "0.7.0"
-source = "git+https://github.com/microsoft/vscode-russh?branch=main#fd4f608a83753f9f3e137f95600faffede71cf65"
-
-[[patch.unused]]
-name = "russh-keys"
-version = "0.37.1"
-source = "git+https://github.com/microsoft/vscode-russh?branch=main#fd4f608a83753f9f3e137f95600faffede71cf65"
