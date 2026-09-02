@@ -15,6 +15,12 @@
 > (`33622291887`) passaram. Isso não autoriza distribuição: notices, titularidade
 > de licença e branding continuam pendentes.
 >
+> feito: 2026-09-02 — removida a extensão morta `tunnel-forwarding`, suas
+> referências de build/lint, as specs `code-tunnel`/`code-tunnel-insiders` e as
+> entradas i18n de diretórios inexistentes; a guarda do auditor contra esse nome
+> foi mantida para rejeitar artefatos residuais. Code Server/RPC, port forwarding
+> genérico do workbench e cleanup legado do instalador foram preservados.
+>
 > feito: overnight 2026-08-27 executou triagem E00–E03, aplicou correções locais
 > no bridge, auditor e recortes estruturalmente independentes, e registrou evidência/bloqueios em
 > [`status/2026-08-27-overnight.md`](status/2026-08-27-overnight.md); nenhum épico

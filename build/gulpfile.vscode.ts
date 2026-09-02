@@ -52,7 +52,6 @@ const distributionExcludedExtensions = [
 	'github',
 	'github-authentication',
 	'microsoft-authentication',
-	'tunnel-forwarding',
 ];
 
 function getLockedPackageVersion(packageName: string): string {
