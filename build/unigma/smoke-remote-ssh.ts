@@ -305,6 +305,13 @@ async function main(): Promise<void> {
 			timeoutMs: 30_000
 		}, {
 			allocateLocalPort: () => localPort,
+			// The categories are the contract's own diagnostic names and carry no
+			// destination, command or environment, so they are safe to report and
+			// are the only way to tell a refused handshake apart from a refused
+			// connection when the run happens on a runner.
+			diagnose: diagnostic => {
+				checks.push([`diagnostic.${diagnostic.phase}.${diagnostic.category}`, 'fail']);
+			},
 			spawn: arguments_ => {
 				sshProcess = runner(arguments_);
 				sshClose = waitForClose(sshProcess).then(() => { sshProcessClosed = true; });
@@ -312,6 +319,13 @@ async function main(): Promise<void> {
 			}
 		});
 		if ((opened as { readonly ok?: boolean }).ok === false) {
+			const failure = opened as { readonly code: string; readonly phase: string; readonly exitCode?: number };
+			// Without the code and phase the report says only that the handshake
+			// failed, which is not actionable from a runner log.
+			checks.push([`handshake.${failure.phase}.${failure.code}`, 'fail']);
+			if (failure.exitCode !== undefined) {
+				checks.push([`handshake.exit-code.${failure.exitCode}`, 'fail']);
+			}
 			check('handshake', false);
 			return;
 		}
