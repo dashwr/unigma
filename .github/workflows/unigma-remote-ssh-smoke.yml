@@ -30,6 +30,34 @@ jobs:
           [System.IO.File]::AppendAllText($env:GITHUB_ENV, "WSL_SOURCE=$wslSource`n")
           [System.IO.File]::AppendAllText($env:GITHUB_ENV, "WSL_BUILD=/home/dasher/unigma-remote-ssh-smoke-build`n")
 
+      # The smoke needs an sshd to connect to. This installs the binary in the
+      # build environment only; the product is still forbidden by
+      # docs/SSH-CONTRACT.md section 5 from installing or configuring sshd on any
+      # remote host. The smoke does not use the packaged system service, its host
+      # keys or its configuration: it starts its own sshd as an ordinary user, on
+      # a high loopback port, with a disposable config and disposable keys.
+      - name: install OpenSSH server in WSL
+        run: |
+          $scriptPath = Join-Path $env:RUNNER_TEMP 'unigma-remote-ssh-sshd.sh'
+          $script = @'
+          set -euo pipefail
+          if command -v sshd >/dev/null 2>&1 || [ -x /usr/sbin/sshd ]; then
+            echo "sshd already present"
+            exit 0
+          fi
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y --no-install-recommends openssh-server
+          test -x /usr/sbin/sshd
+          '@
+          $script = $script -replace "`r`n?", "`n"
+          [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))
+          $scriptPathWsl = "/mnt/$($scriptPath.Substring(0, 1).ToLowerInvariant())/$($scriptPath.Substring(3).Replace('\', '/'))"
+          & wsl.exe -d Ubuntu --user root -- bash $scriptPathWsl
+          $exitCode = $LASTEXITCODE
+          Remove-Item -Force $scriptPath -ErrorAction SilentlyContinue
+          if ($exitCode -ne 0) { exit $exitCode }
+
       - name: install Node, compile extension and run smoke in WSL
         run: |
           $scriptPath = Join-Path $env:RUNNER_TEMP 'unigma-remote-ssh-smoke.sh'
