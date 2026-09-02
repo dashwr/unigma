@@ -33,7 +33,7 @@ suite('AgentProtocol', () => {
 			{ version: AGENT_PROTOCOL_VERSION, requestId: 'approve-1', type: AgentCommandType.Approve, sessionId: 'session-1', approvalId: 'approval-1' },
 			{ version: AGENT_PROTOCOL_VERSION, requestId: 'reject-1', type: AgentCommandType.Reject, sessionId: 'session-1', approvalId: 'approval-1', reason: 'Not now.' },
 			{ version: AGENT_PROTOCOL_VERSION, requestId: 'worktrees-1', type: AgentCommandType.ListWorktrees, sessionId: 'session-1' },
-			{ version: AGENT_PROTOCOL_VERSION, requestId: 'config-1', type: AgentCommandType.ApplyConfiguration, configuration: { provider: 'local', model: 'default' } },
+			{ version: AGENT_PROTOCOL_VERSION, requestId: 'config-1', type: AgentCommandType.ApplyConfiguration, sessionId: 'session-1', configuration: { provider: 'local', model: 'default' } },
 		];
 
 		for (const command of commands) {
