@@ -116,7 +116,7 @@ function presenceArguments(cleanupArguments: readonly string[], commit: string):
 		...cleanupArguments.slice(0, commandIndex),
 		'/bin/sh',
 		'-c',
-		`if [ -e "$HOME/.unigma-server/bin/${commit}" ] || [ -L "$HOME/.unigma-server/bin/${commit}" ]; then printf 'present\\n'; else printf 'absent\\n'; fi`
+		`if [ -d "$HOME/.unigma-server/bin/${commit}" ]; then printf 'present\\n'; else printf 'absent\\n'; fi`
 	];
 }
 
