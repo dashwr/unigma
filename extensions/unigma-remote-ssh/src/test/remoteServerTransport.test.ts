@@ -43,6 +43,19 @@ class FakeProcess extends EventEmitter implements RemoteSshProcess {
 		queueMicrotask(() => this.emit('close', null, signal));
 		return true;
 	}
+
+	/**
+	 * Ends stderr and closes afterwards, the way an operating system does.
+	 *
+	 * Emitting `close` in the same tick as the write made the outcome depend on
+	 * whether readline happened to deliver the line first, which Linux did and
+	 * Windows did not, so the same input classified two different ways.
+	 */
+	exitAfterStderr(text: string, code: number): void {
+		this.stderr.end(text);
+		this.stderr.once('end', () => this.emit('close', code, null));
+		this.stderr.resume();
+	}
 }
 
 function deps(processes: readonly FakeProcess[], diagnostics: RemoteServerDiagnostic[] = []): RemoteServerTransportDependencies {
@@ -153,8 +166,7 @@ test('times out a silent master in the connect phase and terminates it', async (
 
 test('categorizes SSH stderr without forwarding its contents', async () => {
 	const process = new FakeProcess(child => {
-		child.stderr.end('Host key verification failed for build-vps\n');
-		child.emit('close', 255, null);
+		child.exitAfterStderr('Host key verification failed for build-vps\n', 255);
 	});
 	const diagnostics: RemoteServerDiagnostic[] = [];
 	const result = await openRemoteServer(input, deps([process], diagnostics));
@@ -170,8 +182,7 @@ test('keeps the specific stderr diagnosis when unrelated output follows it', asy
 	// Windows, where one extra line arrived, and the transport reported a transport
 	// failure for something only a person can fix.
 	const process = new FakeProcess(child => {
-		child.stderr.end('Host key verification failed for build-vps\nTransferred: sent 1234, received 5678 bytes\n');
-		child.emit('close', 255, null);
+		child.exitAfterStderr('Host key verification failed for build-vps\nTransferred: sent 1234, received 5678 bytes\n', 255);
 	});
 	const result = await openRemoteServer(input, deps([process], []));
 	assert.deepEqual(result, { ok: false, code: 'ssh.host-key-untrusted', phase: 'connect', exitCode: 255 });
