@@ -5,6 +5,7 @@
 
 import { gulp, rename, replace, filter, jsonEditor } from './lib/gulp/facade.ts';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import es from 'event-stream';
 import vfs from 'vinyl-fs';
@@ -270,6 +271,32 @@ function getFoundryLocalExcludeFilter(): string[] {
 	];
 }
 
+function getOpenCodeBundle(platform: string, arch: string): NodeJS.ReadWriteStream {
+	if (platform !== 'linux' || arch !== 'x64') {
+		return es.readArray([]);
+	}
+
+	const source = process.env['UNIGMA_OPENCODE_ARTIFACT'] ?? path.join(os.homedir(), '.local', 'share', 'unigma-artifacts', 'opencode-latest');
+	const binary = path.join(source, 'bin', 'opencode');
+	const license = path.join(source, 'LICENSE-opencode.txt');
+	const provenance = path.join(source, 'PROVENANCE.txt');
+	const missing = [binary, license, provenance].filter(file => !fs.existsSync(file) || !fs.statSync(file).isFile());
+	if (missing.length > 0) {
+		throw new Error(`Linux x64 packaging requires the OpenCode artifact; missing: ${missing.join(', ')}`);
+	}
+	try {
+		if (!fs.statSync(binary).isFile() || (fs.statSync(binary).mode & 0o111) === 0) {
+			throw new Error('not executable');
+		}
+	} catch (error) {
+		throw new Error(`Linux x64 packaging requires an executable OpenCode binary at ${binary}: ${error instanceof Error ? error.message : String(error)}`);
+	}
+
+	return gulp.src([binary, license, provenance], { base: source })
+		.pipe(rename(file => file.dirname = path.posix.join('opencode', file.dirname ?? '')))
+		.pipe(util.setExecutableBit(['opencode/bin/opencode']));
+}
+
 function packageTask(platform: string, arch: string, sourceFolderName: string, destinationFolderName: string, _opts?: { stats?: boolean }) {
 	const destination = path.join(path.dirname(root), destinationFolderName);
 	platform = platform || process.platform;
@@ -458,7 +485,8 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			api,
 			telemetry,
 			sources,
-			deps
+			deps,
+			getOpenCodeBundle(platform, arch)
 		];
 		let all = es.merge(...mergeStreams);
 

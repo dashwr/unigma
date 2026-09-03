@@ -8,6 +8,12 @@
 > As demais tarefas além dos recortes 2A/2B continuam futuras. Este arquivo não
 > autoriza distribuição ou publicação.
 
+> feito: 2026-09-03 — o runtime resolve o OpenCode embarcado antes de qualquer
+> configuração explícita futura e do `PATH`, recusando binário embarcado quebrado;
+> Linux x64 copia o artefato WSL configurável para `resources/app/opencode`, com
+> licença/proveniência, auditoria condicional e smoke de versão contra o pacote.
+> Windows, REH e demais alvos não exigem esse artefato; validação no runner pendente.
+
 > feito: 2026-09-03 — superfícies distribuídas Linux/Windows e textos exibidos
 > pelas extensões foram remarcados para `unigma`; templates Debian não registram
 > mais repositório ou chave Microsoft; `audit-distribution.ts` verifica identidade

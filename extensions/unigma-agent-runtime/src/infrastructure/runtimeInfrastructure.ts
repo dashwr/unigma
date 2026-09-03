@@ -20,7 +20,7 @@ export interface RuntimeInfrastructure extends DisposableLike {
 
 export function createRuntimeInfrastructure(context: vscode.ExtensionContext): RuntimeInfrastructure {
 	const diagnostics = new RedactedDiagnosticSink(vscode.window.createOutputChannel('Unigma Agent Runtime'));
-	const processManager = new ChildProcessManager();
+	const processManager = new ChildProcessManager({ applicationDirectory: vscode.env.appRoot });
 	const openCodeClient = new OpenCodeHttpClient({ diagnostics });
 	const sessionReferenceStore = new WorkspaceStateSessionReferenceStore(context.workspaceState);
 	const workspaceTrust = {

@@ -5,11 +5,13 @@
 
 import { randomUUID } from 'node:crypto';
 import { spawn as nodeSpawn, type SpawnOptions } from 'node:child_process';
+import { accessSync, constants as fsConstants, existsSync, statSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import * as path from 'node:path';
 import type { ProcessManager } from '../application/runtimePorts';
 import type { OwnedProcessHandle, WorkspaceReference } from '../domain/runtime';
+import { resolveOpenCodeCommand, type OpenCodeCandidate } from './openCodeResolver';
 
 interface SpawnedProcess {
 	readonly pid?: number;
@@ -25,6 +27,8 @@ type SpawnProcess = (command: string, args: string[], options: SpawnOptions) => 
 
 export interface ProcessManagerOptions {
 	readonly command?: string;
+	/** Application root used to locate the packaged OpenCode runtime. */
+	readonly applicationDirectory?: string;
 	readonly port?: number;
 	readonly startupTimeoutMs?: number;
 	readonly maxRestarts?: number;
@@ -37,6 +41,58 @@ const PROCESS_OWNER = 'unigma-agent-runtime' as const;
 const DEFAULT_STARTUP_TIMEOUT_MS = 10_000;
 const DEFAULT_MAX_RESTARTS = 1;
 const RESTART_BACKOFF_MS = 1_000;
+
+function inspectCandidate(command: string): OpenCodeCandidate {
+	const exists = existsSync(command);
+	let executable = false;
+	if (exists) {
+		try {
+			executable = statSync(command).isFile();
+			if (executable) {
+				accessSync(command, fsConstants.X_OK);
+			}
+		} catch {
+			executable = false;
+		}
+	}
+	return { command, exists, executable };
+}
+
+function findPathCommand(command: string): OpenCodeCandidate | undefined {
+	const pathEntries = (process.env.PATH ?? '').split(path.delimiter).filter(Boolean);
+	const extensions = process.platform === 'win32'
+		? (process.env.PATHEXT ?? '.EXE;.CMD;.BAT;.COM').split(';')
+		: [''];
+	for (const entry of pathEntries) {
+		for (const extension of extensions) {
+			const candidate = inspectCandidate(path.join(entry, `${command}${extension}`));
+			if (candidate.exists && candidate.executable) {
+				return candidate;
+			}
+		}
+	}
+	return undefined;
+}
+
+function resolveBundledCommand(applicationDirectory: string): string {
+	const embeddedPath = path.join(applicationDirectory, 'opencode', 'bin', 'opencode');
+	const embedded = inspectCandidate(embeddedPath);
+	const embeddedBundlePresent = existsSync(path.join(applicationDirectory, 'opencode'));
+	const embeddedCandidate = embeddedBundlePresent && !embedded.exists
+		? { ...embedded, exists: true }
+		: embedded;
+	// There is no user setting for an OpenCode executable in this extension yet.
+	// Keep this slot explicit so adding one later cannot silently outrank the bundle.
+	const resolution = resolveOpenCodeCommand({
+		embedded: embeddedCandidate,
+		configured: undefined,
+		path: findPathCommand('opencode'),
+	});
+	if (resolution.kind === 'unavailable') {
+		throw new Error(`Could not resolve OpenCode executable (${resolution.code}).`);
+	}
+	return resolution.command;
+}
 
 function workspacePath(workspace: WorkspaceReference): string {
 	let parsed: URL;
@@ -96,7 +152,9 @@ export class ChildProcessManager implements ProcessManager {
 	private currentWorkspace: WorkspaceReference | undefined;
 
 	public constructor(options: ProcessManagerOptions = {}) {
-		this.command = options.command ?? 'opencode';
+		// `command` is the existing test/development injection seam. Production
+		// composition supplies applicationDirectory so packaged resolution applies.
+		this.command = options.command ?? (options.applicationDirectory ? resolveBundledCommand(options.applicationDirectory) : 'opencode');
 		this.fixedPort = options.port;
 		this.startupTimeoutMs = options.startupTimeoutMs ?? DEFAULT_STARTUP_TIMEOUT_MS;
 		this.maxRestarts = options.maxRestarts ?? DEFAULT_MAX_RESTARTS;

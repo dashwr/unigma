@@ -5,7 +5,7 @@
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, renameSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
@@ -19,8 +19,13 @@ interface FixtureOptions {
 	readonly omitNode?: boolean;
 }
 
-function createDesktopFixture() {
-	const root = mkdtempSync(join(tmpdir(), 'unigma-desktop-audit-'));
+function createDesktopFixture(targetName?: string) {
+	let root = mkdtempSync(join(tmpdir(), 'unigma-desktop-audit-'));
+	if (targetName) {
+		const renamedRoot = join(root, '..', targetName);
+		renameSync(root, renamedRoot);
+		root = renamedRoot;
+	}
 	const app = join(root, 'resources', 'app');
 	mkdirSync(join(app, 'extensions', 'theme-unigma', 'themes'), { recursive: true });
 	writeFileSync(join(app, 'package.json'), JSON.stringify({
@@ -103,6 +108,38 @@ test('requires the unigma theme extension and defaults in a desktop package', ()
 		assert.equal(result.status, 0, result.stdout + result.stderr);
 		assert.match(result.stdout, /themeUnigma\.present=pass/);
 		assert.match(result.stdout, /themeUnigma\.defaults=pass/);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test('requires the OpenCode bundle only for Linux x64 desktop packages', () => {
+	const root = createDesktopFixture('VSCode-linux-x64');
+	try {
+		const missing = auditDesktop(root);
+		assert.equal(missing.status, 1);
+		assert.match(missing.stdout, /opencode\.binary=fail/);
+
+		mkdirSync(join(root, 'resources', 'app', 'opencode', 'bin'), { recursive: true });
+		writeFileSync(join(root, 'resources', 'app', 'opencode', 'bin', 'opencode'), '#!/bin/sh\n', { mode: 0o755 });
+		writeFileSync(join(root, 'resources', 'app', 'opencode', 'LICENSE-opencode.txt'), 'MIT\n');
+		writeFileSync(join(root, 'resources', 'app', 'opencode', 'PROVENANCE.txt'), 'version=1.18.23\n');
+		const complete = auditDesktop(root);
+		assert.equal(complete.status, 0, complete.stdout + complete.stderr);
+		assert.match(complete.stdout, /opencode\.binary=pass/);
+		assert.match(complete.stdout, /opencode\.license=pass/);
+		assert.match(complete.stdout, /opencode\.provenance=pass/);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test('does not require the Linux-only bundle for Windows desktop packages', () => {
+	const root = createDesktopFixture('VSCode-win32-x64');
+	try {
+		const result = auditDesktop(root);
+		assert.equal(result.status, 0, result.stdout + result.stderr);
+		assert.doesNotMatch(result.stdout, /opencode\./);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}

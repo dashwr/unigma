@@ -6,6 +6,11 @@
 
 **última atualização:** 2026-09-03
 
+**feito nesta rodada:** o runtime resolve primeiro o OpenCode Linux x64 embarcado
+em `resources/app/opencode/bin/opencode`, com licença e proveniência ao lado;
+empacotamento, auditoria condicional e smoke focado foram ligados ao workflow.
+Compile/testes locais são o limite desta rodada; runner e artefato ainda pendentes.
+
 **feito nesta rodada:** superfícies de distribuição Linux/Windows e textos
 exibidos pelas extensões foram remarcados para `unigma`; o Debian deixou de
 registrar o repositório/chave Microsoft; o auditor agora verifica identidade

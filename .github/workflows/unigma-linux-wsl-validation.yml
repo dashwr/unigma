@@ -231,6 +231,26 @@ jobs:
           Remove-Item -Force $scriptPath -ErrorAction SilentlyContinue
           if ($exitCode -ne 0) { exit $exitCode }
 
+      - name: verify bundled OpenCode in WSL
+        timeout-minutes: 2
+        run: |
+          $scriptPath = Join-Path $env:RUNNER_TEMP 'unigma-wsl-opencode-smoke.sh'
+          $script = @'
+          set -euo pipefail
+          build="$1"
+          export PATH="/opt/node-current/bin:$PATH"
+          cd "$build"
+          mkdir -p .build/logs
+          node --experimental-strip-types build/unigma/smoke-opencode-bundle.ts "$build/../VSCode-linux-x64" | tee .build/logs/unigma-opencode-bundle-smoke.txt
+          '@
+          $script = $script -replace "`r`n?", "`n"
+          [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))
+          $scriptPathWsl = "/mnt/$($scriptPath.Substring(0, 1).ToLowerInvariant())/$($scriptPath.Substring(3).Replace('\', '/'))"
+          & wsl.exe -d Ubuntu --user dasher -- bash $scriptPathWsl $env:WSL_BUILD
+          $exitCode = $LASTEXITCODE
+          Remove-Item -Force $scriptPath -ErrorAction SilentlyContinue
+          if ($exitCode -ne 0) { exit $exitCode }
+
       - name: run Linux desktop smoke test in WSL
         run: |
           $scriptPath = Join-Path $env:RUNNER_TEMP 'unigma-wsl-smoke.sh'

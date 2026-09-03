@@ -74,6 +74,10 @@ function resolveAppDirectory(packageDirectory) {
 	return candidates.length === 1 ? candidates[0] : undefined;
 }
 
+function isLinuxX64DesktopPackage(packageDirectory) {
+	return /^vscode-linux-x64$/i.test(basename(packageDirectory));
+}
+
 function extensionNotices(sourceDirectory) {
 	const extensionsDirectory = join(sourceDirectory, 'extensions');
 	if (!isDirectory(extensionsDirectory)) {
@@ -331,6 +335,12 @@ if (!packageArgument || extraArguments.length > 0) {
 
 		const packageExtensions = join(appDirectory, 'extensions');
 		check('extensions.directory', isDirectory(packageExtensions));
+		if (isLinuxX64DesktopPackage(packageDirectory)) {
+			const openCodeDirectory = join(appDirectory, 'opencode');
+			check('opencode.binary', isExecutable(join(openCodeDirectory, 'bin', 'opencode')));
+			check('opencode.license', isFile(join(openCodeDirectory, 'LICENSE-opencode.txt')));
+			check('opencode.provenance', isFile(join(openCodeDirectory, 'PROVENANCE.txt')));
+		}
 		auditUnigmaThemeExtension(appDirectory, product);
 		const extensionNames = getExtensionNames(packageExtensions);
 		const prohibited = prohibitedExtensionNames(extensionNames);
