@@ -1,0 +1,101 @@
+name: unigma remote VPS SSH smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      alias:
+        description: SSH config alias of the external VPS
+        type: string
+        required: true
+        default: unigma-vps
+      run_as:
+        description: WSL user that runs this unprivileged smoke
+        type: choice
+        options:
+          - dasher
+        required: true
+        default: dasher
+
+permissions:
+  contents: read
+
+jobs:
+  remote-vps-smoke:
+    name: remote VPS SSH smoke in Ubuntu WSL2
+    runs-on: self-hosted
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: prepare WSL paths
+        env:
+          RUN_AS: ${{ inputs.run_as }}
+        run: |
+          $workspace = $env:GITHUB_WORKSPACE -replace '\\', '/'
+          if ($workspace -notmatch '^([A-Za-z]):/(.+)$') {
+            throw "Unsupported Windows workspace path: $env:GITHUB_WORKSPACE"
+          }
+          $drive = $matches[1].ToLowerInvariant()
+          $path = $matches[2]
+          [System.IO.File]::AppendAllText($env:GITHUB_ENV, "WSL_SOURCE=/mnt/$drive/$path`n")
+          if ($env:RUN_AS -and $env:RUN_AS -ne 'dasher') { throw "Unsupported WSL user: $env:RUN_AS" }
+          [System.IO.File]::AppendAllText($env:GITHUB_ENV, "WSL_BUILD=/home/dasher/unigma-remote-vps-smoke-build`n")
+
+      - name: compile extension and run VPS smoke in WSL
+        env:
+          VPS_ALIAS: ${{ inputs.alias }}
+        run: |
+          $scriptPath = Join-Path $env:RUNNER_TEMP 'unigma-remote-vps-smoke.sh'
+          $script = @'
+          set -euo pipefail
+
+          source="$1"
+          build="$2"
+          alias="$3"
+          report="$source/.build/unigma-remote-vps-smoke.txt"
+          export UNIGMA_VPS_ALIAS="$alias"
+          node_version="$(tr -d '[:space:]' < "$source/.nvmrc")"
+          toolchain="/home/dasher/.local/share/unigma-toolchains/node-$node_version"
+          if [ ! -x "$toolchain/bin/node" ]; then
+            echo "missing Node $node_version toolchain" >&2
+            mkdir -p "$(dirname "$report")"
+            printf 'check.toolchain=fail\nsmoke=fail\n' > "$report"
+            exit 1
+          fi
+          export PATH="$toolchain/bin:$PATH"
+          node --version | grep -Fx "v$node_version"
+          npm --version | grep -Ev '^(1[2-9]|[2-9][0-9])\.'
+
+          rm -rf "$build"
+          mkdir -p "$build"
+          tar --exclude=.git --exclude=node_modules --exclude=.build -C "$source" -cf - . | tar --no-same-owner -C "$build" -xf -
+          git -C "$build" init --quiet
+          cd "$build"
+          node build/azure-pipelines/common/disableFoundryLocalInstall.ts
+          npm ci --no-audit --no-fund
+          node --experimental-strip-types ./node_modules/gulp/bin/gulp.js compile-extension:unigma-remote-ssh
+          mkdir -p "$(dirname "$report")"
+          node --experimental-strip-types build/unigma/smoke-remote-vps.ts "$report"
+          '@
+          $script = $script -replace "`r`n?", "`n"
+          [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))
+          $scriptPathWsl = "/mnt/$($scriptPath.Substring(0, 1).ToLowerInvariant())/$($scriptPath.Substring(3).Replace('\', '/'))"
+          & wsl.exe -d Ubuntu --user dasher -- bash $scriptPathWsl $env:WSL_SOURCE $env:WSL_BUILD $env:VPS_ALIAS
+          $exitCode = $LASTEXITCODE
+          Remove-Item -Force $scriptPath -ErrorAction SilentlyContinue
+          if ($exitCode -ne 0) { exit $exitCode }
+
+      - name: upload remote VPS smoke report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unigma-remote-vps-smoke-${{ github.run_id }}
+          path: |
+            .build/unigma-remote-vps-smoke.txt
+            .build/unigma-remote-vps-smoke.txt.ssh-trace.log
+          if-no-files-found: warn
+          retention-days: 7
