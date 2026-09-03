@@ -112,11 +112,16 @@ function presenceArguments(cleanupArguments: readonly string[], commit: string):
 	const commandIndex = cleanupArguments.indexOf('/bin/sh', cleanupArguments.indexOf('--') + 1);
 	// This query deliberately derives its SSH prefix from the guarded cleanup
 	// invocation. It only reads the post-condition; removal remains in safe_rm.
+	//
+	// OpenSSH joins argv into one string that the remote shell parses again, so
+	// an unquoted script is re-split there and the remainder becomes a syntax
+	// error rather than a query. The delivery builder quotes its command for the
+	// same reason; the commit is validated hexadecimal before it reaches here.
 	return [
 		...cleanupArguments.slice(0, commandIndex),
 		'/bin/sh',
 		'-c',
-		`if [ -d "$HOME/.unigma-server/bin/${commit}" ]; then printf 'present\\n'; else printf 'absent\\n'; fi`
+		`'if [ -d "$HOME/.unigma-server/bin/${commit}" ]; then printf "present\\n"; else printf "absent\\n"; fi'`
 	];
 }
 
