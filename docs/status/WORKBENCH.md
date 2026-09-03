@@ -4,7 +4,7 @@
 > datados desta pasta; este quadro responde **o que está ativo, onde parou e qual
 > é o próximo passo**.
 
-**última atualização:** 2026-09-02
+**última atualização:** 2026-09-03
 
 ## onde estamos, em uma leitura
 
@@ -105,6 +105,7 @@ adiciona uma asserção negativa. `compile-client`, `typecheck-client`, 60 teste
 | `E01-E` | evidência e fechamento de E-00/E-01 | backlog | `blocked` | consolidar runs, artefatos, aceite e status após as frentes acima | E00/E01 pendentes | [`planos/2026-08-26-e00-e01.md`](../planos/2026-08-26-e00-e01.md) |
 | `E02/E03` | runtime OpenCode e workbench nativo funcional | implementação | `in_progress` | fechar streaming incremental, permissões reais e contrato nativo de `@`/`/`; só então colher runner | E-00/E-01 em review/partial; provider/modelo autorizado para prompt real | [`BACKLOG.md`](../BACKLOG.md), [`OPENCODE-COMPATIBILITY.md`](../OPENCODE-COMPATIBILITY.md) |
 | `E09` / `T-095..T-099` | perfil service-only e bundle `unigma+opencode` | backlog | `partial` | auditar superfícies do `serve` e transformar o resultado em patch mínimo, manifesto e artefato aceitos | E-00/T-011 | [`OPENCODE-SERVICE-ONLY.md`](../OPENCODE-SERVICE-ONLY.md) |
+| `THEME-001` | tema embarcado `theme-unigma` | implementação/review | `review` | colher validação de pacote no runner; alto contraste próprio continua fora do escopo | auditoria e runner | `DECISIONS.md`, `REQUIREMENTS.md`, `ACCEPTANCE.md` |
 
 ## estados
 
@@ -151,6 +152,7 @@ adiciona uma asserção negativa. `compile-client`, `typecheck-client`, 60 teste
 
 | data | id | transição | evidência |
 | --- | --- | --- | --- |
+| 2026-09-03 | `THEME-001` | tema próprio implementado → `review` | `theme-unigma` com dark/light, defaults do workbench e onboarding atualizados; `npm run test-theme-contrast` passou com texto entre `6,47:1` e `19,16:1` e foco entre `6,34:1` e `7,19:1`, `npm run test-build-scripts` passou com 269 testes e ESLint focal passou. Runner/pacote e alto contraste próprio continuam pendentes |
 | 2026-09-02 | resolver / `AC-007` | `resolve()` deixou de recusar toda autoridade | `ac4e51ce`. Os gates continuam iguais; depois deles o resolver lê o commit do cliente de `appRoot/product.json` — mesmo mecanismo do `vscode-test-resolver`, injetado pelo build —, renderiza o destino preservando o alias byte a byte para não sobrescrever o `ssh_config` do usuário (§4.1/§4.3), chama `openRemoteServer` e devolve `ResolvedAuthority`. Commit ausente ou fora de SHA-1 recusa com `ssh.client-commit-unavailable`, sem adivinhar. Servidor não staged recusa com mensagem acionável que nomeia o comando `Stage Remote Server`, nunca provisionando sozinho (§5). `deactivate()` deixou de ser vazio e encerra sessões e leases. Lógica extraída para `remoteSshTarget.ts` e `remoteSshResolver.ts`, com `extension.ts` como fiação fina; 80 testes |
 | 2026-09-02 | staging / UI | comando de staging com confirmação modal | o comando escolhe o diretório de payload por diálogo — sem caminho oculto, download ou CDN, que §5 recusa —, valida o manifesto e mostra host, versão, tamanho e hash antes de qualquer escrita. O hash aparece **só** nessa confirmação, conforme `D-033`, e não vai para o canal de output nem para log |
 | 2026-09-02 | regressão | matriz Linux e os dois smokes verdes na ref do resolver | `unigma-linux-wsl-validation` `33692190082`, `unigma-remote-ssh-smoke` `33693339241` e `unigma-remote-staging-smoke` `33693927993` (`payload-mode.real`). A primeira tentativa da matriz, `33691430539`, falhou em `npm ci` com `ETIMEDOUT` buscando headers do Electron em `electronjs.org` após cinco tentativas: falha de rede do WSL, não do código, confirmada pela repetição verde. **Limite explícito:** nenhuma dessas evidências exercita o resolver. Elas provam transporte, staging e ativação, que ele consome; abrir uma janela remota de verdade exige workbench real e continua sem cobertura |

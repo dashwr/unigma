@@ -18,6 +18,36 @@ interface FixtureOptions {
 	readonly omitNode?: boolean;
 }
 
+function createDesktopFixture() {
+	const root = mkdtempSync(join(tmpdir(), 'unigma-desktop-audit-'));
+	const app = join(root, 'resources', 'app');
+	mkdirSync(join(app, 'extensions', 'theme-unigma', 'themes'), { recursive: true });
+	writeFileSync(join(app, 'package.json'), JSON.stringify({
+		name: 'unigma',
+		author: { name: 'Unigma contributors' },
+		repository: { type: 'git', url: 'https://github.com/dashwr/unigma.git' },
+		bugs: { url: 'https://github.com/dashwr/unigma/issues' },
+	}));
+	writeFileSync(join(app, 'product.json'), JSON.stringify({
+		nameShort: 'unigma', nameLong: 'unigma', applicationName: 'unigma', licenseName: 'MIT', licenseFileName: 'LICENSE.txt',
+		licenseUrl: 'https://github.com/dashwr/unigma/blob/main/LICENSE.txt',
+		onboardingThemes: [{ themeId: 'unigma Dark', type: 'dark' }, { themeId: 'unigma Light', type: 'light' }],
+		builtInExtensions: [], builtInExtensionsEnabledWithAutoUpdates: [],
+		nodejsArtifactFeed: '', electronArtifactFeed: '', reportIssueUrl: '', voiceWsUrl: '',
+	}));
+	writeFileSync(join(app, 'extensions', 'theme-unigma', 'package.json'), JSON.stringify({
+		name: 'theme-unigma', publisher: 'unigma', contributes: {
+			themes: [
+				{ id: 'unigma Dark', path: './themes/unigma-dark.json' },
+				{ id: 'unigma Light', path: './themes/unigma-light.json' },
+			]
+		},
+	}));
+	writeFileSync(join(app, 'extensions', 'theme-unigma', 'themes', 'unigma-dark.json'), '{}');
+	writeFileSync(join(app, 'extensions', 'theme-unigma', 'themes', 'unigma-light.json'), '{}');
+	return root;
+}
+
 function createServerFixture(options: FixtureOptions = {}) {
 	const root = mkdtempSync(join(tmpdir(), 'unigma-server-audit-'));
 	mkdirSync(join(root, 'bin'));
@@ -57,6 +87,22 @@ function createServerFixture(options: FixtureOptions = {}) {
 function audit(root: string) {
 	return spawnSync(process.execPath, ['--experimental-strip-types', script, '--server', root], { encoding: 'utf8' });
 }
+
+function auditDesktop(root: string) {
+	return spawnSync(process.execPath, ['--experimental-strip-types', script, root], { encoding: 'utf8' });
+}
+
+test('requires the unigma theme extension and defaults in a desktop package', () => {
+	const root = createDesktopFixture();
+	try {
+		const result = auditDesktop(root);
+		assert.equal(result.status, 0, result.stdout + result.stderr);
+		assert.match(result.stdout, /themeUnigma\.present=pass/);
+		assert.match(result.stdout, /themeUnigma\.defaults=pass/);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
 
 test('accepts a valid server package', () => {
 	const root = createServerFixture({

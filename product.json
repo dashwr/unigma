@@ -41,27 +41,15 @@
 	],
 	"onboardingThemes": [
 		{
-			"id": "vesper-violet",
-			"label": "Vesper Violet",
-			"themeId": "Vesper Violet",
+			"id": "unigma-dark",
+			"label": "unigma Dark",
+			"themeId": "unigma Dark",
 			"type": "dark"
 		},
 		{
-			"id": "hc-dark",
-			"label": "Dark High Contrast",
-			"themeId": "Default High Contrast",
-			"type": "hcDark"
-		},
-		{
-			"id": "solarized-dark",
-			"label": "Solarized Dark",
-			"themeId": "Solarized Dark",
-			"type": "dark"
-		},
-		{
-			"id": "light-2026",
-			"label": "Light 2026",
-			"themeId": "Light 2026",
+			"id": "unigma-light",
+			"label": "unigma Light",
+			"themeId": "unigma Light",
 			"type": "light"
 		},
 		{
@@ -71,10 +59,10 @@
 			"type": "hcLight"
 		},
 		{
-			"id": "solarized-light",
-			"label": "Solarized Light",
-			"themeId": "Solarized Light",
-			"type": "light"
+			"id": "hc-dark",
+			"label": "Dark High Contrast",
+			"themeId": "Default High Contrast",
+			"type": "hcDark"
 		}
 	],
 	"builtInExtensions": [],

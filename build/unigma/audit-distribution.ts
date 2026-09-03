@@ -101,6 +101,19 @@ function uiOnlyExtensionNames(extensionsDirectory) {
 	});
 }
 
+function auditUnigmaThemeExtension(appDirectory, product) {
+	const extensionDirectory = join(appDirectory, 'extensions', 'theme-unigma');
+	const manifest = readJson(join(extensionDirectory, 'package.json'));
+	const darkTheme = join(extensionDirectory, 'themes', 'unigma-dark.json');
+	const lightTheme = join(extensionDirectory, 'themes', 'unigma-light.json');
+	const themes = manifest?.contributes?.themes;
+	check('themeUnigma.present', isDirectory(extensionDirectory));
+	check('themeUnigma.identity', manifest?.name === 'theme-unigma' && manifest?.publisher === 'unigma');
+	check('themeUnigma.files', isFile(darkTheme) && isFile(lightTheme));
+	check('themeUnigma.defaults', product?.onboardingThemes?.some(theme => theme.themeId === 'unigma Dark' && theme.type === 'dark') === true && product?.onboardingThemes?.some(theme => theme.themeId === 'unigma Light' && theme.type === 'light') === true);
+	check('themeUnigma.contributes', Array.isArray(themes) && themes.some(theme => theme.id === 'unigma Dark' && theme.path === './themes/unigma-dark.json') && themes.some(theme => theme.id === 'unigma Light' && theme.path === './themes/unigma-light.json'));
+}
+
 function packagePaths(packageDirectory) {
 	const paths = [];
 	function walk(directory) {
@@ -242,6 +255,7 @@ if (!packageArgument || extraArguments.length > 0) {
 
 		const packageExtensions = join(appDirectory, 'extensions');
 		check('extensions.directory', isDirectory(packageExtensions));
+		auditUnigmaThemeExtension(appDirectory, product);
 		const extensionNames = getExtensionNames(packageExtensions);
 		const prohibited = prohibitedExtensionNames(extensionNames);
 		check('extensions.prohibited', prohibited.length === 0);

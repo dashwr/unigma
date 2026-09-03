@@ -1,0 +1,34 @@
+{
+  "name": "theme-unigma",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "categories": [
+    "Themes"
+  ],
+  "version": "1.0.0",
+  "publisher": "unigma",
+  "license": "MIT",
+  "engines": {
+    "vscode": "*"
+  },
+  "contributes": {
+    "themes": [
+      {
+        "id": "unigma Dark",
+        "label": "%darkThemeLabel%",
+        "uiTheme": "vs-dark",
+        "path": "./themes/unigma-dark.json"
+      },
+      {
+        "id": "unigma Light",
+        "label": "%lightThemeLabel%",
+        "uiTheme": "vs",
+        "path": "./themes/unigma-light.json"
+      }
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dashwr/unigma.git"
+  }
+}

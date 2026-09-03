@@ -8,6 +8,12 @@
 > As demais tarefas além dos recortes 2A/2B continuam futuras. Este arquivo não
 > autoriza distribuição ou publicação.
 
+> feito: 2026-09-03 — extensão embarcada `theme-unigma` adiciona `unigma Dark` e
+> `unigma Light` como defaults, com tokens próprios, sem alteração dos defaults
+> de alto contraste. O guard `test-theme-contrast` mede WCAG AA para editor e
+> chrome e a auditoria confirma a extensão/defaults no pacote; alto contraste
+> próprio permanece pendente.
+
 > feito: 2026-09-02 — o resolver foi fiado: `resolve()` lê o commit do cliente de
 > `appRoot/product.json`, preserva o alias intacto para não sobrescrever o
 > `ssh_config` do usuário, chama `openRemoteServer` e devolve `ResolvedAuthority`.

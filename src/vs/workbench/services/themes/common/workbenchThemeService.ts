@@ -39,8 +39,8 @@ export enum ThemeSettings {
 }
 
 export namespace ThemeSettingDefaults {
-	export const COLOR_THEME_DARK = 'Vesper Violet';
-	export const COLOR_THEME_LIGHT = 'Light 2026';
+	export const COLOR_THEME_DARK = 'unigma Dark';
+	export const COLOR_THEME_LIGHT = 'unigma Light';
 	export const COLOR_THEME_HC_DARK = 'Default High Contrast';
 	export const COLOR_THEME_HC_LIGHT = 'Default High Contrast Light';
 
