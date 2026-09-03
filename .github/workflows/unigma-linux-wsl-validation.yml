@@ -166,7 +166,7 @@ jobs:
           Remove-Item -Force $scriptPath -ErrorAction SilentlyContinue
           if ($exitCode -ne 0) { exit $exitCode }
 
-      - name: compile unigma agent runtime in WSL
+      - name: compile unigma extensions in WSL
         run: |
           $scriptPath = Join-Path $env:RUNNER_TEMP 'unigma-wsl-runtime-test.sh'
           $script = @'
@@ -180,6 +180,13 @@ jobs:
           cd "$build"
           node --experimental-strip-types --max-old-space-size=12288 ./node_modules/gulp/bin/gulp.js compile-extension:unigma-agent-runtime
           npm --prefix extensions/unigma-agent-runtime test
+          # unigma-remote-ssh was never compiled here, and neither is it bundled,
+          # so packaging listed its sources and shipped the extension without an
+          # entry point: the remote SSH resolver could not load in any build. The
+          # audit now refuses a package whose manifest names a file that is absent,
+          # but the extension still has to be built for it to be there.
+          node --experimental-strip-types --max-old-space-size=12288 ./node_modules/gulp/bin/gulp.js compile-extension:unigma-remote-ssh
+          npm --prefix extensions/unigma-remote-ssh test
           '@
           $script = $script -replace "`r`n?", "`n"
           [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))
