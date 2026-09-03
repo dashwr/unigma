@@ -1,0 +1,138 @@
+name: unigma WSL SSH alias
+
+# Maintenance action, not validation. The remote smokes address a host by an
+# `ssh_config` alias, because `docs/SSH-CONTRACT.md` section 4 makes the user's
+# OpenSSH configuration the source of truth and the alias is passed to `ssh`
+# byte for byte. That keeps every credential outside this project, but it also
+# means the alias has to exist on the machine that runs the smoke, and a WSL
+# rebuild loses it.
+#
+# This writes a `Host` block and nothing else. It never creates, reads, copies
+# or prints a key, and it never touches `known_hosts` or `authorized_keys`.
+
+on:
+  workflow_dispatch:
+    inputs:
+      alias:
+        description: Alias the smokes will address.
+        type: string
+        required: true
+        default: unigma-vps
+      hostname:
+        description: Host name or address the alias resolves to.
+        type: string
+        required: true
+      user:
+        description: Remote user.
+        type: string
+        required: true
+        default: root
+      port:
+        description: Remote SSH port.
+        type: string
+        required: true
+        default: '22'
+      identity:
+        description: >-
+          Private key file name inside ~/.ssh on the WSL user. The public half is
+          not used here and the file is never read.
+        type: string
+        required: true
+        default: unigma_vps
+
+permissions:
+  contents: read
+
+jobs:
+  configure-alias:
+    name: ensure the ssh alias exists in WSL
+    runs-on: self-hosted
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - name: write the alias in WSL
+        env:
+          ALIAS: ${{ inputs.alias }}
+          HOSTNAME_INPUT: ${{ inputs.hostname }}
+          REMOTE_USER: ${{ inputs.user }}
+          REMOTE_PORT: ${{ inputs.port }}
+          IDENTITY: ${{ inputs.identity }}
+        run: |
+          $scriptPath = Join-Path $env:RUNNER_TEMP 'unigma-wsl-ssh-alias.sh'
+          $script = @'
+          set -euo pipefail
+
+          alias_name="$1"
+          host_name="$2"
+          remote_user="$3"
+          remote_port="$4"
+          identity="$5"
+
+          # The inputs name a host and a file. Anything outside that shape is a
+          # mistake or an injection attempt, and a shell config file is the wrong
+          # place to find out.
+          printf '%s' "$alias_name" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$' || { echo "invalid alias" >&2; exit 1; }
+          printf '%s' "$host_name" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._-]{0,253}$' || { echo "invalid hostname" >&2; exit 1; }
+          printf '%s' "$remote_user" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$' || { echo "invalid user" >&2; exit 1; }
+          printf '%s' "$remote_port" | grep -Eq '^[1-9][0-9]{0,4}$' || { echo "invalid port" >&2; exit 1; }
+          printf '%s' "$identity" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$' || { echo "invalid identity" >&2; exit 1; }
+
+          mkdir -p "$HOME/.ssh"
+          chmod 700 "$HOME/.ssh"
+
+          key="$HOME/.ssh/$identity"
+          # IdentityFile names the private half. Pointing it at the .pub produces an
+          # alias that can never authenticate, which is a confusing way to fail.
+          if [ ! -f "$key" ]; then
+            echo "identity.present=false"
+            echo "private key $identity is not present in the WSL user's .ssh" >&2
+            exit 1
+          fi
+          echo "identity.present=true"
+          chmod 600 "$key"
+
+          config="$HOME/.ssh/config"
+          touch "$config"
+          chmod 600 "$config"
+
+          if grep -qiE "^[[:space:]]*Host[[:space:]]+$alias_name[[:space:]]*$" "$config"; then
+            echo "alias.created=false"
+            echo "alias.reason=already-present"
+          else
+            # Appended, never rewritten: this file may carry access this project
+            # knows nothing about.
+            printf '\nHost %s\n\tHostName %s\n\tUser %s\n\tPort %s\n\tIdentityFile %s\n\tIdentitiesOnly yes\n' \
+              "$alias_name" "$host_name" "$remote_user" "$remote_port" "$key" >> "$config"
+            echo "alias.created=true"
+          fi
+
+          # `ssh -G` resolves the effective configuration without connecting. When
+          # no block matches, OpenSSH echoes the alias back as the hostname, so
+          # this both proves the block is readable and avoids reporting the value.
+          resolved="$(ssh -G "$alias_name" | awk '/^hostname /{print $2}')"
+          if [ "$resolved" = "$alias_name" ]; then
+            echo "alias.resolves=false"
+            exit 1
+          fi
+          echo "alias.resolves=true"
+
+          # Authentication is reported, not required: a missing authorized_keys
+          # entry is the user's to fix and is not a reason to fail configuration.
+          if ssh -o BatchMode=yes -o ConnectTimeout=15 "$alias_name" 'uname -sm' > "$HOME/.unigma-alias-probe" 2>/dev/null; then
+            echo "alias.authenticates=true"
+            echo "alias.remote-platform=$(cat "$HOME/.unigma-alias-probe")"
+          else
+            echo "alias.authenticates=false"
+            echo "alias.hint=run ssh-copy-id for this identity if the key is not in authorized_keys"
+          fi
+          rm -f "$HOME/.unigma-alias-probe"
+          '@
+          $script = $script -replace "`r`n?", "`n"
+          [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))
+          $scriptPathWsl = "/mnt/$($scriptPath.Substring(0, 1).ToLowerInvariant())/$($scriptPath.Substring(3).Replace('\', '/'))"
+          & wsl.exe -d Ubuntu --user dasher -- bash $scriptPathWsl $env:ALIAS $env:HOSTNAME_INPUT $env:REMOTE_USER $env:REMOTE_PORT $env:IDENTITY
+          $exitCode = $LASTEXITCODE
+          Remove-Item -Force $scriptPath -ErrorAction SilentlyContinue
+          if ($exitCode -ne 0) { exit $exitCode }
