@@ -45,7 +45,7 @@ class FakeProcess extends EventEmitter implements RemoteSshProcess {
 	}
 
 	/**
-	 * Ends stderr and closes afterwards, the way an operating system does.
+	 * Ends stderr and closes on a later turn, the way an operating system does.
 	 *
 	 * Emitting `close` in the same tick as the write made the outcome depend on
 	 * whether readline happened to deliver the line first, which Linux did and
@@ -53,8 +53,7 @@ class FakeProcess extends EventEmitter implements RemoteSshProcess {
 	 */
 	exitAfterStderr(text: string, code: number): void {
 		this.stderr.end(text);
-		this.stderr.once('end', () => this.emit('close', code, null));
-		this.stderr.resume();
+		setImmediate(() => this.emit('close', code, null));
 	}
 }
 
