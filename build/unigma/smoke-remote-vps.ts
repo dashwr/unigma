@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { execFileSync } from 'node:child_process';
 import { appendFileSync, accessSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -154,6 +155,26 @@ async function main(): Promise<void> {
 		const ssh = executable('ssh');
 		check('ssh', ssh !== undefined);
 		if (!ssh) {
+			return;
+		}
+
+		// `ssh -G` resolves the effective configuration without opening a
+		// connection. When no `Host` block matches, OpenSSH echoes the alias back
+		// as the hostname and the run dies later with an opaque
+		// `Could not resolve hostname`, which reads like a DNS fault rather than a
+		// missing prerequisite. Only the boolean is reported: the user's ssh_config
+		// is theirs, and naming hosts in a build log leaks infrastructure.
+		let aliasConfigured = false;
+		try {
+			const effective = execFileSync(ssh, ['-G', destination], { encoding: 'utf8', timeout: 15_000 });
+			const hostname = effective.split(/\r?\n/).find(line => line.startsWith('hostname '))?.slice('hostname '.length).trim();
+			aliasConfigured = hostname !== undefined && hostname !== destination;
+		} catch {
+			aliasConfigured = false;
+		}
+		check('alias-configured', aliasConfigured);
+		if (!aliasConfigured) {
+			checks.push(['hint.alias', `add a Host block named ${destination} to the ssh config of the user running this smoke`]);
 			return;
 		}
 
