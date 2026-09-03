@@ -16,6 +16,11 @@
 > (`33716478896`): `opencode.version=1.18.23` contra o pacote construído, com
 > licença e proveniência presentes e a resolução escolhendo o binário embarcado.
 
+> feito: 2026-09-03 — adicionado smoke do serviço OpenCode contra o pacote Linux:
+> ele carrega resolver, ProcessManager e OpenCodeHttpClient compilados do pacote,
+> usa loopback/porta dinâmica, saúde com timeout, lista de sessões, teardown e
+> relatório. Validação no runner permanece pendente.
+
 > feito: 2026-09-03 — superfícies distribuídas Linux/Windows e textos exibidos
 > pelas extensões foram remarcados para `unigma`; templates Debian não registram
 > mais repositório ou chave Microsoft; `audit-distribution.ts` verifica identidade

@@ -23,9 +23,10 @@ abriu**, então o remoto continua implementado, não suportado.
 Depois dela, o smoke contra a VPS, que hoje para em pré-requisito: não existe um
 bloco `Host unigma-vps` no `ssh_config` do usuário da WSL.
 
-**logo depois:** `opencode serve` de fato subindo a partir do pacote — hoje o
-smoke prova versão e resolução, não serviço em execução; tema de alto contraste;
-e o passo de Welcome que sugere identidade SSH sem gerar chave.
+**logo depois:** colher no runner o smoke de `opencode serve` subindo a partir do
+pacote; o script agora cobre resolução compilada, saúde, sessão mínima e teardown.
+Depois vêm tema de alto contraste e o passo de Welcome que sugere identidade SSH
+sem gerar chave.
 
 **depois disso:** os épicos de agente (`AC-003`, `AC-004`, `AC-006`, `T-043`), e
 as decisões que são tuas e não minhas — titularidade, notices e clearance legal.
@@ -148,6 +149,7 @@ adiciona uma asserção negativa. `compile-client`, `typecheck-client`, 60 teste
 | data | id | transição | evidência |
 | --- | --- | --- | --- |
 | 2026-09-03 | `E-02` / OpenCode empacotado | o pacote Linux x64 passou a carregar o OpenCode | `7c0d30aa`. `ProcessManager` usava `command = 'opencode'` e dependia do `PATH`, então numa instalação real o runtime não subia. A resolução virou função pura com precedência embarcado → configuração → `PATH`, falhando fechado com código nomeado quando o embarcado existe mas está quebrado, em vez de cair em silêncio para o `PATH` e mascarar build ruim. O binário vem do artefato que o nosso próprio workflow constrói, nunca de download — o contrato recusa CDN e `updateUrl`. Verificado contra o pacote construído no run `33716478896`: `opencode.version=1.18.23` e `opencode.command=…/resources/app/opencode/bin/opencode`, com licença e proveniência presentes |
+| 2026-09-03 | smoke `opencode serve` | implementação → `review` | o smoke carrega os módulos compilados do pacote, inicia pelo `ChildProcessManager`, valida saúde/SSE/versão pelo `OpenCodeHttpClient`, lista sessões sem provider e encerra/valida a porta; execução no runner ainda pendente | pacote Linux x64 e workflow após auditoria |
 | 2026-09-03 | `AC-011` / tema | temas próprios do unigma, padrão e com contraste medido | `35fdf6cb`. `unigma Dark` e `unigma Light` substituem `Vesper Violet`/`Light 2026` como padrão. A paleta segue a direção já decidida — violeta dominante, magenta reservado a realce, fundos escuro/claro/lilás. Contraste não ficou no olho: `build/unigma/verify-theme-contrast.ts` calcula os pares que importam e reprova abaixo de `4.5:1`, e roda no `test-build-scripts`. Medidos, entre outros, editor `16,38:1` e `16,84:1`, aba inativa `8,06:1` e `6,47:1`. Matriz Linux `33713474988` verde. Alto contraste ficou pendente |
 | 2026-09-03 | `E00-B` / branding | branding técnico fechado, com uma remoção que importa | `3f49115d`, matriz `33714886992` verde. Saiu identidade upstream de strings exibidas, metadados, templates Linux, mensagens de instalador e descrições de extensão, e os ícones Linux passaram a vir de `resources/unigma/`. O achado sério: o `postinst` do `.deb` **registrava o repositório apt e instalava a chave GPG da Microsoft** na máquina de quem instalasse, com template debconf perguntando sobre isso. Um fork que não publica por aquele repositório não tem o que fazer adicionando-o ao sistema alheio; registro e template foram removidos. Deliberadamente intocados por serem questão legal e não de branding: copyright em metadados de executável, publisher do AppX, `LICENSE.txt` e `ThirdPartyNotices.txt`. Nomes técnicos — binários, arquivos, símbolos, o namespace `vscode` — também intocados, porque renomeá-los quebra o build sem mudar o que o usuário vê |
 | 2026-09-03 | resolver / reconexão | queda de canal deixou de encerrar a janela | `691287b1`. Toda falha do resolver era `NotAvailable`, que o workbench trata como definitiva durante reconexão — então um canal SSH caindo, a coisa mais ordinária numa sessão remota, matava a janela em vez de deixá-la voltar. Só o que pode se resolver sozinho é transitório: conexão perdida e transporte falho. Servidor ausente, host key não confiável, plataforma não suportada e build stamp inutilizável precisam de uma pessoa, e repetir esconde a mensagem que diz isso. As permanentes passaram a ser lançadas como `handled`, porque a extensão já mostrou o erro |

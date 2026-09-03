@@ -231,6 +231,51 @@ jobs:
           Remove-Item -Force $scriptPath -ErrorAction SilentlyContinue
           if ($exitCode -ne 0) { exit $exitCode }
 
+      - name: run bundled OpenCode service smoke in WSL
+        timeout-minutes: 5
+        run: |
+          $scriptPath = Join-Path $env:RUNNER_TEMP 'unigma-wsl-opencode-service-smoke.sh'
+          $script = @'
+          set -euo pipefail
+          build="$1"
+          export PATH="/opt/node-current/bin:$PATH"
+          cd "$build"
+          mkdir -p .build/logs
+          node --experimental-strip-types build/unigma/smoke-opencode-service.ts \
+            "$build/../VSCode-linux-x64" \
+            "$build/.build/logs/unigma-opencode-service-smoke.txt" | tee .build/logs/unigma-opencode-service-smoke.log
+          '@
+          $script = $script -replace "`r`n?", "`n"
+          [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))
+          $scriptPathWsl = "/mnt/$($scriptPath.Substring(0, 1).ToLowerInvariant())/$($scriptPath.Substring(3).Replace('\', '/'))"
+          & wsl.exe -d Ubuntu --user dasher -- bash $scriptPathWsl $env:WSL_BUILD
+          $exitCode = $LASTEXITCODE
+          Remove-Item -Force $scriptPath -ErrorAction SilentlyContinue
+          if ($exitCode -ne 0) { exit $exitCode }
+
+      - name: collect bundled OpenCode service smoke report
+        if: always()
+        run: |
+          $scriptPath = Join-Path $env:RUNNER_TEMP 'unigma-wsl-opencode-service-report.sh'
+          $script = @'
+          set -euo pipefail
+          build="$1"
+          source="$2"
+          mkdir -p "$source/.build/logs"
+          for report in "$build"/.build/logs/unigma-opencode-service-smoke.*; do
+            if [ -f "$report" ]; then
+              cp -f "$report" "$source/.build/logs/"
+            fi
+          done
+          '@
+          $script = $script -replace "`r`n?", "`n"
+          [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))
+          $scriptPathWsl = "/mnt/$($scriptPath.Substring(0, 1).ToLowerInvariant())/$($scriptPath.Substring(3).Replace('\', '/'))"
+          & wsl.exe -d Ubuntu --user dasher -- bash $scriptPathWsl $env:WSL_BUILD $env:WSL_SOURCE
+          $exitCode = $LASTEXITCODE
+          Remove-Item -Force $scriptPath -ErrorAction SilentlyContinue
+          if ($exitCode -ne 0) { exit $exitCode }
+
       - name: verify bundled OpenCode in WSL
         timeout-minutes: 2
         run: |
