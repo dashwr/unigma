@@ -42,6 +42,7 @@ trabalho.
 | D-032 | A distribuição unigma desativa somente a superfície `workbench.panel.chat`; serviços compartilhados necessários a MCP, inline chat, terminal/notebook e `unigmaAgent` permanecem. Comandos e smoke devem declarar essa capability indisponível sem fallback ou skip genérico. | confirmado em 2026-08-30 | resposta do responsável nesta rodada |
 | D-035 | O staging remoto retém por padrão 2 versões (ativa + anterior) e poda versões mais antigas, por mtime, somente após ativação; a VPS usa retenção 1 e falha de poda não invalida ativação. | confirmado em 2026-09-03 | resposta do responsável nesta rodada |
 | D-036 | A baseline de compatibilidade do `unigma-server` Linux é GLIBC 2.28 / GLIBCXX 3.4.25, já declarada pelo produto; o build passa a obedecê-la compilando os addons nativos contra o sysroot vendorizado. O gate de símbolos falha também em GLIBCXX e CXXABI, divergindo deliberadamente do upstream. | confirmado em 2026-09-03 | defeito em `33784052687`; correção em `33796510313` e `33797399848` |
+| D-037 | A extensão `unigma-remote-ssh` declara suporte a workspace não confiável. Resolver a autoridade acontece antes de a pasta abrir, então exigir confiança prévia é um impasse. A extensão não contribui nem lê configuração, então uma pasta hostil não tem por onde redirecionar o resolver. | confirmado em 2026-09-03 | recusa observada em `33809573631` |
 
 ### D-016 — direção confirmada e limites
 
@@ -277,6 +278,27 @@ plano de 2026-08-29:
 | V-002 | `unigma.com` está registrado até 2027. | Verisign RDAP | não usar sem direito explícito |
 | V-003 | npm `unigma` retornou 404; `unigma.dev` retornou 404 no RDAP. | npm Registry, RDAP | disponibilidade não garantida |
 | V-004 | GitHub, npm, `unigma-code.com` e `unigma-code.dev` retornaram 404 nas consultas públicas. | GitHub API, npm Registry, RDAP | candidato disponível, sem reserva ou garantia |
+
+### D-037 — o resolver remoto declara suporte a workspace não confiável
+
+- `extensions/unigma-remote-ssh/package.json` declarava
+  `capabilities.untrustedWorkspaces.supported: false`. O valor veio do gabarito;
+  não havia decisão registrada.
+- Isso é um impasse estrutural, não uma restrição. Resolver a autoridade remota
+  acontece **antes** de a pasta abrir, então não existe workspace para o usuário
+  inspecionar e confiar; a única saída seria confiar às cegas.
+- A evidência é a execução `33809573631`, a primeira janela remota real deste
+  fork. O resolver rodou e recusou em 22 ms, e o log do workbench registrou
+  `resolveAuthority(ssh-remote) returned an error` com `category=ssh.workspace-blocked`.
+- O risco que normalmente justifica `false` é uma pasta hostil apontar o resolver
+  para outro host ou outro binário por meio de configuração de workspace. Esse
+  vetor não existe aqui: a extensão **não contribui nenhuma configuração e não lê
+  nenhuma**, o que foi verificado no manifesto e no código. As entradas do
+  resolver são a autoridade da própria URI, o `~/.ssh/config` do usuário, que é
+  da máquina e fica fora do workspace, e o depósito de artefatos.
+- O staging continua exigindo confirmação explícita antes de qualquer escrita no
+  host remoto, conforme `D-032`. Declarar suporte a workspace não confiável não
+  afrouxa essa barreira.
 
 ## questões técnicas adiadas
 

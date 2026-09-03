@@ -126,6 +126,13 @@ jobs:
             exit 0
           fi
           export UNIGMA_VPS_COMMIT="$commit"
+          # The cleanup ran under whatever node was on PATH and died on
+          # ERR_NO_TYPESCRIPT, which left the staged server on the host. Cleanup
+          # is the step that must not be the one to skip the toolchain.
+          node_version="$(tr -d '[:space:]' < "$source/.nvmrc")"
+          toolchain="/home/dasher/.local/share/unigma-toolchains/node-$node_version"
+          if [ ! -x "$toolchain/bin/node" ]; then echo "missing Node $node_version toolchain" >&2; exit 1; fi
+          export PATH="$toolchain/bin:$PATH"
           cd "$build"
           node --experimental-strip-types build/unigma/clean-remote-vps.ts "$report"
           '@
