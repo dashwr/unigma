@@ -1,0 +1,81 @@
+name: unigma Windows SSH capabilities
+
+# Measures what the Windows OpenSSH client actually supports before any
+# transport redesign is chosen. The repository asserts that ControlMaster is
+# missing there, but nothing in it ever measured that, and both viable
+# alternatives to the current transport depend on -L being available.
+#
+# This connects to no host, reads no key, and never touches the user's SSH
+# configuration: every probe uses an empty config file and a control path that
+# does not exist, so only local client behaviour is observed.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-ssh-capabilities:
+    name: measure the Windows OpenSSH client
+    runs-on: self-hosted
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - name: probe the client
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $report = @()
+          $temporary = Join-Path $env:RUNNER_TEMP ("ssh-caps-" + [System.Guid]::NewGuid().ToString('N'))
+          New-Item -ItemType Directory -Path $temporary -Force | Out-Null
+          # An empty config keeps the user's ssh_config, hosts and identities out
+          # of this measurement entirely.
+          $emptyConfig = Join-Path $temporary 'empty-config'
+          Set-Content -Path $emptyConfig -Value '' -NoNewline
+          $controlPath = Join-Path $temporary 'no-such-control-socket'
+
+          function Add-Fact([string] $name, [string] $value) {
+            $script:report += ("{0}={1}" -f $name, ($value -replace '[\r\n=]', '_'))
+          }
+
+          $ssh = Get-Command ssh -ErrorAction SilentlyContinue
+          if ($null -eq $ssh) {
+            Add-Fact 'client' 'absent'
+            $report | ForEach-Object { Write-Host $_ }
+            exit 1
+          }
+          Add-Fact 'client' 'present'
+
+          # `ssh -V` writes to stderr and exits non-zero on some builds, so the
+          # streams are merged and the exit code is not treated as a verdict.
+          $version = (& ssh -V 2>&1 | Out-String).Trim()
+          Add-Fact 'version' $version
+
+          # A control operation against a socket that does not exist cannot
+          # connect. What matters is which refusal the client gives: a client
+          # without multiplexing rejects the option itself, while a client with
+          # multiplexing complains that it could not reach the socket.
+          $check = (& ssh -F $emptyConfig -o "ControlPath=$controlPath" -O check no-such-host 2>&1 | Out-String).Trim()
+          Add-Fact 'control-check.exit' "$LASTEXITCODE"
+          Add-Fact 'control-check.output' $check
+          $multiplexingRejected = $check -match 'not supported|unknown option|Bad configuration|invalid option'
+          Add-Fact 'control-master.rejected-as-unsupported' "$multiplexingRejected"
+
+          # Each remaining flag is offered with an unresolvable destination, so
+          # the client parses the option and then fails to connect. An option
+          # the build does not know is reported as a usage or configuration
+          # error instead, which is the distinction being measured.
+          foreach ($probe in @(
+            @{ name = 'accepts.-L'; arguments = @('-F', $emptyConfig, '-N', '-L', '127.0.0.1:0:/tmp/x', 'no-such-host') },
+            @{ name = 'accepts.-W'; arguments = @('-F', $emptyConfig, '-W', '127.0.0.1:1', 'no-such-host') },
+            @{ name = 'accepts.ControlMaster-option'; arguments = @('-F', $emptyConfig, '-o', 'ControlMaster=auto', '-o', "ControlPath=$controlPath", 'no-such-host', 'true') }
+          )) {
+            $output = (& ssh @($probe.arguments) -o 'BatchMode=yes' -o 'ConnectTimeout=1' 2>&1 | Out-String).Trim()
+            Add-Fact ($probe.name + '.exit') "$LASTEXITCODE"
+            Add-Fact ($probe.name + '.output') $output
+          }
+
+          Remove-Item -Recurse -Force $temporary -ErrorAction SilentlyContinue
+          $report | ForEach-Object { Write-Host $_ }
