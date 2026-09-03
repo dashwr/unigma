@@ -107,6 +107,37 @@ function uiOnlyExtensionNames(extensionsDirectory) {
 	});
 }
 
+/**
+ * Every packaged extension must actually contain the file its manifest names.
+ *
+ * `unigma-agent-runtime` shipped as a lone package.json: its `.vscodeignore`
+ * excluded `out/**`, which is only safe for extensions bundled to `dist/` by an
+ * esbuild config, and it has none. The audit passed, the package looked fine and
+ * the runtime could not have worked in an installed product. The manifest names
+ * the entry point, so the package can be asked to prove it exists.
+ */
+function auditExtensionEntryPoints(extensionsDirectory) {
+	const missing = [];
+	for (const name of getExtensionNames(extensionsDirectory)) {
+		const extensionDirectory = join(extensionsDirectory, name);
+		const manifest = readJson(join(extensionDirectory, 'package.json'));
+		const entry = typeof manifest?.main === 'string' ? manifest.main : undefined;
+		if (entry === undefined) {
+			// Themes, grammars and language packs legitimately have no entry point.
+			continue;
+		}
+		const resolved = join(extensionDirectory, entry);
+		// A manifest may omit the extension, as `./out/extension` does.
+		if (isFile(resolved) || isFile(`${resolved}.js`) || isFile(join(resolved, 'index.js'))) {
+			continue;
+		}
+		missing.push(`${name}:${entry}`);
+	}
+	check('extensionEntryPoints', missing.length === 0);
+	console.log(`extensionEntryPoints.missing=${missing.join(' ') || 'none'}`);
+	return missing.length === 0;
+}
+
 function auditUnigmaThemeExtension(appDirectory, product) {
 	const extensionDirectory = join(appDirectory, 'extensions', 'theme-unigma');
 	const manifest = readJson(join(extensionDirectory, 'package.json'));
@@ -342,6 +373,7 @@ if (!packageArgument || extraArguments.length > 0) {
 			check('opencode.provenance', isFile(join(openCodeDirectory, 'PROVENANCE.txt')));
 		}
 		auditUnigmaThemeExtension(appDirectory, product);
+		auditExtensionEntryPoints(packageExtensions);
 		const extensionNames = getExtensionNames(packageExtensions);
 		const prohibited = prohibitedExtensionNames(extensionNames);
 		check('extensions.prohibited', prohibited.length === 0);
