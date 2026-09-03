@@ -405,7 +405,23 @@ export async function openRemoteServer(input: RemoteServerTransportInput, deps: 
 			notify(deps, { category: code, phase: stage });
 			fail(failure(code, stage));
 		});
-		child.on('close', (code: number | null) => {
+		// `close` can arrive before the stderr lines have been read, and then the
+		// reason OpenSSH gave is simply lost: the failure was reported as a generic
+		// transport fault instead of the untrusted host key that caused it. The
+		// ordering is timing, not platform, but Windows lost the race consistently
+		// while Linux won it, so the same input classified two different ways.
+		let stderrDrained = false;
+		let pendingClose: { readonly code: number | null } | undefined;
+		stderrReader.on('close', () => {
+			stderrDrained = true;
+			if (pendingClose !== undefined) {
+				const close = pendingClose;
+				pendingClose = undefined;
+				concludeOnClose(close.code);
+			}
+		});
+
+		function concludeOnClose(code: number | null): void {
 			if (disposed) {
 				return;
 			}
@@ -426,6 +442,16 @@ export async function openRemoteServer(input: RemoteServerTransportInput, deps: 
 			}
 			notify(deps, { category: 'ssh.remote-server-unavailable', phase: stage, exitCode: code ?? undefined });
 			fail(failure('ssh.remote-server-unavailable', stage, code ?? undefined));
+		}
+
+		child.on('close', (code: number | null) => {
+			// A connection that already succeeded reports its loss immediately; only
+			// a failure needs the diagnosis that stderr carries.
+			if (stderrDrained || disposed || settled) {
+				concludeOnClose(code);
+				return;
+			}
+			pendingClose = { code };
 		});
 
 		try {
