@@ -67,9 +67,16 @@ jobs:
           # the client parses the option and then fails to connect. An option
           # the build does not know is reported as a usage or configuration
           # error instead, which is the distinction being measured.
+          # The two -L forms are measured separately because they decide the
+          # design. Forwarding to a remote TCP endpoint is not evidence that
+          # forwarding to a remote UNIX socket works, and the transport needs
+          # the second form: the server listens on a socket under the user's
+          # home directory, never on a port.
           foreach ($probe in @(
-            @{ name = 'accepts.-L'; arguments = @('-F', $emptyConfig, '-N', '-L', '127.0.0.1:0:/tmp/x', 'no-such-host') },
+            @{ name = 'accepts.-L.tcp'; arguments = @('-F', $emptyConfig, '-N', '-L', '127.0.0.1:15987:127.0.0.1:22', 'no-such-host') },
+            @{ name = 'accepts.-L.unix-socket'; arguments = @('-F', $emptyConfig, '-N', '-L', '127.0.0.1:15988:/home/user/.unigma-server/x.sock', 'no-such-host') },
             @{ name = 'accepts.-W'; arguments = @('-F', $emptyConfig, '-W', '127.0.0.1:1', 'no-such-host') },
+            @{ name = 'accepts.-M'; arguments = @('-F', $emptyConfig, '-M', '-o', "ControlPath=$controlPath", '-o', 'ControlPersist=no', 'no-such-host', 'true') },
             @{ name = 'accepts.ControlMaster-option'; arguments = @('-F', $emptyConfig, '-o', 'ControlMaster=auto', '-o', "ControlPath=$controlPath", 'no-such-host', 'true') }
           )) {
             $output = (& ssh @($probe.arguments) -o 'BatchMode=yes' -o 'ConnectTimeout=1' 2>&1 | Out-String).Trim()
@@ -79,3 +86,7 @@ jobs:
 
           Remove-Item -Recurse -Force $temporary -ErrorAction SilentlyContinue
           $report | ForEach-Object { Write-Host $_ }
+          # Every probe is expected to fail against an unresolvable host. This
+          # step reports what the client did; it is a measurement, not a gate,
+          # so a red run here would only mean the probes ran.
+          exit 0
