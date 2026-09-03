@@ -11,5 +11,5 @@ Installed-Size: @@INSTALLEDSIZE@@
 Provides: unigma-@@NAME@@
 Conflicts: unigma-@@NAME@@
 Replaces: unigma-@@NAME@@
-Description: Code editing. Redefined.
+Description: unigma. There's no secret.
  unigma is a code editor focused on local development and automation.

@@ -498,7 +498,8 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 		} else if (platform === 'linux') {
 			const policyDest = gulp.src('.build/policies/linux/**', { base: '.build/policies/linux' })
 				.pipe(rename(f => f.dirname = `policies/${f.dirname}`));
-			all = es.merge(all, gulp.src('resources/linux/code.png', { base: '.' }), policyDest);
+			all = es.merge(all, gulp.src('resources/unigma/unigma-icon-512.png', { base: '.' })
+				.pipe(rename('resources/linux/code.png')), policyDest);
 		} else if (platform === 'darwin') {
 			const shortcut = gulp.src('resources/darwin/bin/code.sh')
 				.pipe(replace('@@APPNAME@@', product.applicationName))

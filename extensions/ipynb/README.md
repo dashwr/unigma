@@ -1,9 +1,9 @@
-# Jupyter for Visual Studio Code
+# Jupyter for unigma
 
-**Notice:** This extension is bundled with Visual Studio Code. It can be disabled but not uninstalled.
+**Notice:** This extension is bundled with unigma. It can be disabled but not uninstalled.
 
 ## Features
 
-This extension provides the following Jupyter-related features for VS Code:
+This extension provides the following Jupyter-related features for unigma:
 
 - Open, edit and save .ipynb files

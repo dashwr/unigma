@@ -31,6 +31,8 @@ const prohibitedProductEndpoints = [
 	'reportIssueUrl',
 	'voiceWsUrl',
 ];
+const identityMetadataFile = /(?:^|\/)(?:package\.json|package\.nls(?:\.[^/]+)?\.json|[^/]+\.desktop|[^/]+\.appdata\.xml|control|[^/]+\.spec(?:\.[^/]+)?|snapcraft\.yaml)$/;
+const upstreamDisplayedIdentity = /\b(?:Visual Studio Code|Code - OSS)\b/g;
 
 const results = [];
 function check(name, passed) {
@@ -145,6 +147,77 @@ function packagePaths(packageDirectory) {
 	return paths.sort();
 }
 
+function auditDisplayedIdentity(packageDirectory) {
+	const findings = [];
+	function metadataText(filePath, relativePath) {
+		if (relativePath.endsWith('.desktop') || relativePath.endsWith('.appdata.xml') || relativePath === 'control' || relativePath.endsWith('.spec') || relativePath.includes('.spec.') || relativePath.endsWith('snapcraft.yaml')) {
+			return readFileSync(filePath, 'utf8');
+		}
+
+		const metadata = JSON.parse(readFileSync(filePath, 'utf8'));
+		if (relativePath.endsWith('package.json')) {
+			return ['displayName', 'description', 'markdownDescription']
+				.map(key => metadata[key])
+				.filter(value => typeof value === 'string')
+				.join('\n');
+		}
+
+		const values = [];
+		function collect(value) {
+			if (typeof value === 'string') {
+				if (relativePath.includes('package.nls')) {
+					values.push(value);
+				}
+				return;
+			}
+			if (Array.isArray(value)) {
+				for (const item of value) {
+					collect(item);
+				}
+				return;
+			}
+			if (value && typeof value === 'object') {
+				for (const [childKey, childValue] of Object.entries(value)) {
+					if (childKey === 'comment') {
+						continue;
+					}
+					collect(childValue);
+				}
+			}
+		}
+		collect(metadata);
+		return values.join('\n');
+	}
+
+	function walk(directory) {
+		for (const entry of readdirSync(directory, { withFileTypes: true })) {
+			const entryPath = join(directory, entry.name);
+			if (entry.isDirectory()) {
+				// Generated code and dependency sources contain technical names and
+				// legal notices; package metadata is the useful display surface.
+				if (entry.name === 'node_modules' || entry.name === 'out' || entry.name === 'node_modules.asar.unpacked') {
+					continue;
+				}
+				walk(entryPath);
+			} else if (entry.isFile()) {
+				const relativePath = relative(packageDirectory, entryPath).replace(/\\/g, '/');
+				if (!identityMetadataFile.test(relativePath)) {
+					continue;
+				}
+				const matches = metadataText(entryPath, relativePath).match(upstreamDisplayedIdentity);
+				if (matches) {
+					findings.push(`${relativePath}:${[...new Set(matches)].join(',')}`);
+				}
+			}
+		}
+	}
+
+	walk(packageDirectory);
+	check('package.displayedIdentity', findings.length === 0);
+	console.log(`package.displayedIdentity.count=${findings.length}`);
+	console.log(`package.displayedIdentity.paths=${findings.join(',')}`);
+}
+
 function auditServerPackage(packageDirectory) {
 	const layoutChecks = [
 		['server.layout.bin', isExecutable(join(packageDirectory, 'bin', 'unigma-server'))],
@@ -195,6 +268,9 @@ function auditServerPackage(packageDirectory) {
 	check('package.transientContent', packageDirectoryExists && prohibitedPaths.length === 0);
 	console.log(`package.transientContent.count=${prohibitedPaths.length}`);
 	console.log(`package.transientContent.paths=${prohibitedPaths.join(',')}`);
+	if (packageDirectoryExists) {
+		auditDisplayedIdentity(packageDirectory);
+	}
 }
 
 const arguments_ = process.argv.slice(2);
@@ -264,6 +340,7 @@ if (!packageArgument || extraArguments.length > 0) {
 		const prohibitedPaths = packagePaths(packageDirectory);
 		check('package.transientContent', prohibitedPaths.length === 0);
 		console.log(`package.transientContent.count=${prohibitedPaths.length}`);
+		auditDisplayedIdentity(packageDirectory);
 
 		if (sourceArgument) {
 			const sourceDirectory = resolve(sourceArgument);

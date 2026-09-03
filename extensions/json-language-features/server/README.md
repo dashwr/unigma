@@ -1,4 +1,4 @@
-# VSCode JSON Language Server
+# unigma JSON Language Server
 
 [![NPM Version](https://img.shields.io/npm/v/vscode-json-languageserver.svg)](https://npmjs.org/package/vscode-json-languageserver)
 [![NPM Downloads](https://img.shields.io/npm/dm/vscode-json-languageserver.svg)](https://npmjs.org/package/vscode-json-languageserver)
@@ -13,7 +13,7 @@ The JSON Language server provides language-specific smarts for editing, validati
 The JSON language server supports requests on documents of language id `json` and `jsonc`.
 
 - `json` documents are parsed and validated following the [JSON specification](https://tools.ietf.org/html/rfc7159).
-- `jsonc` documents additionally accept single line (`//`) and multi-line comments (`/* ... */`). JSONC is a VSCode specific file format, intended for VSCode configuration files, without any aspirations to define a new common file format.
+- `jsonc` documents additionally accept single line (`//`) and multi-line comments (`/* ... */`). JSONC is a format used by unigma configuration files, without any aspirations to define a new common file format.
 
 The server implements the following capabilities of the language server protocol:
 
@@ -206,7 +206,7 @@ If the setting `jsonFoldingLimit` or `jsoncFoldingLimit` is set, the JSON langua
 
 ## Try
 
-The JSON language server is shipped with [Visual Studio Code](https://code.visualstudio.com/) as part of the built-in VSCode extension `json-language-features`. The server is started when the first JSON file is opened. The [VSCode JSON documentation](https://code.visualstudio.com/docs/languages/json) for detailed information on the user experience and has more information on how to configure the language support.
+The JSON language server is shipped with [unigma](https://code.visualstudio.com/) as part of the built-in extension `json-language-features`. The server is started when the first JSON file is opened. See the [JSON documentation](https://code.visualstudio.com/docs/languages/json) for detailed information on the user experience and language support configuration.
 
 ## Integrate
 

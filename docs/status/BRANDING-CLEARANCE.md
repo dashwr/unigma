@@ -15,6 +15,16 @@ usados ou alterados nesta revisao.
 
 ## Fatos tecnicos confirmados
 
+- Em 2026-09-03, os fluxos Linux passaram a consumir o asset versionado
+  `resources/unigma/unigma-icon-512.png`; a saída continua usando os nomes
+  técnicos exigidos pelo empacotador. Os templates Debian não registram mais
+  repositório ou chave Microsoft.
+- A auditoria de distribuição verifica identidade upstream em `package.json`,
+  `package.nls*.json`, desktops, AppStream e metadados de pacotes, ignorando
+  comentários de tradução, notices legais e conteúdo gerado/dependências. O
+  teste focal e `npm run test-build-scripts` passaram; isso prova apenas o gate
+  técnico local, não clearance legal nem validação de artefato real.
+
 - A fonte externa atualmente acessivel e
   `/home/dasher/Projects/unigma/unigma-branding/lockup-com-icone.png`.
   Seu SHA-256 e

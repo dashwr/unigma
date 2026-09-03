@@ -1,6 +1,6 @@
 {
 	"displayName": "Default Themes",
-	"description": "The default Visual Studio light and dark themes",
+	"description": "The default unigma light and dark themes",
 	"vesperVioletThemeLabel": "Vesper Violet",
 	"light2026ThemeLabel": "Light 2026",
 	"dark2026ThemeLabel": "Dark 2026",
@@ -8,9 +8,9 @@
 	"darkModernThemeLabel": "Dark Modern",
 	"lightPlusColorThemeLabel": "Light+",
 	"lightModernThemeLabel": "Light Modern",
-	"darkColorThemeLabel": "Dark (Visual Studio)",
-	"lightColorThemeLabel": "Light (Visual Studio)",
+	"darkColorThemeLabel": "Dark",
+	"lightColorThemeLabel": "Light",
 	"hcColorThemeLabel": "Dark High Contrast",
 	"lightHcColorThemeLabel": "Light High Contrast",
-	"minimalIconThemeLabel": "Minimal (Visual Studio Code)"
+	"minimalIconThemeLabel": "Minimal"
 }

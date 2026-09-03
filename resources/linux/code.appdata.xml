@@ -5,7 +5,7 @@
 	<project_license>@@LICENSE@@</project_license>
 	<name>@@NAME_LONG@@</name>
 	<url type="homepage">https://github.com/dashwr/unigma</url>
-	<summary>unigma. Code editing. Redefined.</summary>
+	<summary>unigma. There's no secret.</summary>
 	<description>
 		<p>unigma is a code editor focused on local development and automation.</p>
 	</description>

@@ -6,6 +6,13 @@
 
 **última atualização:** 2026-09-03
 
+**feito nesta rodada:** superfícies de distribuição Linux/Windows e textos
+exibidos pelas extensões foram remarcados para `unigma`; o Debian deixou de
+registrar o repositório/chave Microsoft; o auditor agora verifica identidade
+exibida em metadados do pacote. `npm run test-build-scripts` passou com 270
+testes, além do teste focal do auditor e ESLint dos arquivos TypeScript alterados.
+Isso ainda não é clearance legal nem validação de artefato empacotado.
+
 ## onde estamos, em uma leitura
 
 O caminho remoto por SSH está construído e validado no runner de ponta a ponta,

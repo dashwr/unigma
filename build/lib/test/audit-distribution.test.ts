@@ -15,6 +15,7 @@ const script = resolve(import.meta.dirname, '../../unigma/audit-distribution.ts'
 interface FixtureOptions {
 	readonly extensionsGallery?: unknown;
 	readonly extension?: { readonly name: string; readonly packageJson?: Record<string, unknown> };
+	readonly noticeText?: string;
 	readonly omitNode?: boolean;
 }
 
@@ -56,6 +57,9 @@ function createServerFixture(options: FixtureOptions = {}) {
 	writeFileSync(join(root, 'bin', 'unigma-server'), '#!/bin/sh\n', { mode: 0o755 });
 	writeFileSync(join(root, 'node'), '', { mode: 0o755 });
 	writeFileSync(join(root, 'LICENSE'), 'MIT\n');
+	if (options.noticeText) {
+		writeFileSync(join(root, 'ThirdPartyNotices.txt'), options.noticeText);
+	}
 	writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'unigma', type: 'module' }));
 	writeFileSync(join(root, 'product.json'), JSON.stringify({
 		nameShort: 'unigma',
@@ -169,5 +173,28 @@ test('rejects an incomplete server package layout', () => {
 		assert.match(result.stdout, /audit=fail/);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test('rejects upstream identity in package metadata but not notices', () => {
+	const invalidRoot = createServerFixture({
+		extension: { name: 'metadata', packageJson: { description: 'Visual Studio Code' } },
+	});
+	try {
+		const result = audit(invalidRoot);
+		assert.equal(result.status, 1);
+		assert.match(result.stdout, /package\.displayedIdentity=fail/);
+		assert.match(result.stdout, /package\.displayedIdentity\.paths=.*extensions\/metadata\/package\.json/);
+	} finally {
+		rmSync(invalidRoot, { recursive: true, force: true });
+	}
+
+	const noticeRoot = createServerFixture({ noticeText: 'This notice refers to Visual Studio Code and Code - OSS.\n' });
+	try {
+		const result = audit(noticeRoot);
+		assert.equal(result.status, 0, result.stdout + result.stderr);
+		assert.match(result.stdout, /package\.displayedIdentity=pass/);
+	} finally {
+		rmSync(noticeRoot, { recursive: true, force: true });
 	}
 });

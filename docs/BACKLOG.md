@@ -8,6 +8,12 @@
 > As demais tarefas além dos recortes 2A/2B continuam futuras. Este arquivo não
 > autoriza distribuição ou publicação.
 
+> feito: 2026-09-03 — superfícies distribuídas Linux/Windows e textos exibidos
+> pelas extensões foram remarcados para `unigma`; templates Debian não registram
+> mais repositório ou chave Microsoft; `audit-distribution.ts` verifica identidade
+> upstream em metadados textuais do pacote e sua suíte passou com 270 testes.
+> Clearance legal, direitos dos assets, pacote real e smoke continuam pendentes.
+
 > feito: 2026-09-03 — extensão embarcada `theme-unigma` adiciona `unigma Dark` e
 > `unigma Light` como defaults, com tokens próprios, sem alteração dos defaults
 > de alto contraste. O guard `test-theme-contrast` mede WCAG AA para editor e
