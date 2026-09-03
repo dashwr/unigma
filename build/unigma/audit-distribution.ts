@@ -131,7 +131,12 @@ function auditExtensionEntryPoints(extensionsDirectory) {
 		if (isFile(resolved) || isFile(`${resolved}.js`) || isFile(join(resolved, 'index.js'))) {
 			continue;
 		}
-		missing.push(`${name}:${entry}`);
+		// The directory listing is what makes this actionable: an entry point can
+		// be absent because the sources were never compiled, because the manifest
+		// points somewhere wrong, or because packaging filtered the output away,
+		// and only the contents tell those apart.
+		const present = existsSync(extensionDirectory) ? readdirSync(extensionDirectory).sort().join(',') : 'absent';
+		missing.push(`${name}:${entry}:[${present}]`);
 	}
 	check('extensionEntryPoints', missing.length === 0);
 	console.log(`extensionEntryPoints.missing=${missing.join(' ') || 'none'}`);
