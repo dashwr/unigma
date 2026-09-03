@@ -1,5 +1,12 @@
 # unigma — backlog implementável
 
+> feito: 2026-09-03 — a limpeza remota guardada passou a ser executada de fato:
+> o comando de cleanup é citado para sobreviver à reanálise do shell remoto, a
+> sessão de manutenção usa `ssh -M -N` verificado por `-O check` em vez do
+> bootstrap do servidor, e o relatório afirma a pós-condição observada em vez do
+> estado anterior. Validado na VPS (`33779729888`): `present` →
+> `cleanup-complete` → `absent`.
+
 > feito: 2026-09-03 — ação `unigma-remote-vps-cleanup` adicionada para remover
 > uma versão por commit na VPS pelo script de staging guardado, com relatório de
 > status do host e pós-condição somente-leitura; o smoke de staging agora limpa a
