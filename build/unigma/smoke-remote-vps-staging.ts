@@ -155,7 +155,13 @@ async function main(): Promise<void> {
 		await finalSession.dispose(); finalSession = undefined;
 		const delivery = await runCommand(runner, buildRemoteStagingScriptDeliveryArguments({ destination, controlPath: stagingSession!.controlPath, commit: payload.commit }), generated.script);
 		const result = await runCommand(runner, buildRemoteStagingCleanupArguments({ destination, controlPath: stagingSession!.controlPath, commit: payload.commit }));
-		check('cleanup', delivery.code === 0 && result.code === 0 && result.output.includes('"status":"cleanup-complete"'));
+		// The maintainer asked for nothing to be left on that host, so a failed
+		// cleanup has to say which half failed and what the host answered.
+		checks.push([`cleanup.delivery-exit.${delivery.code}`, delivery.code === 0 ? 'pass' : 'fail']);
+		checks.push([`cleanup.exit.${result.code}`, result.code === 0 ? 'pass' : 'fail']);
+		const status = /"status":"([a-z-]+)"/.exec(result.output)?.[1] ?? 'none';
+		checks.push([`cleanup.status.${status}`, status === 'cleanup-complete' ? 'pass' : 'fail']);
+		check('cleanup', delivery.code === 0 && result.code === 0 && status === 'cleanup-complete');
 		await stagingSession.dispose();
 		stagingSession = undefined;
 		cleaned = true;
