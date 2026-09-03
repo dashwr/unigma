@@ -290,7 +290,12 @@ async function main(): Promise<void> {
 		writeFileSync(config, [
 			`HostKey ${hostKey}`, `AuthorizedKeysFile ${authorizedKeys}`, 'ListenAddress 127.0.0.1', 'StrictModes no',
 			'UsePAM no', 'PasswordAuthentication no', 'KbdInteractiveAuthentication no', 'ChallengeResponseAuthentication no',
-			'PermitRootLogin no', 'AllowTcpForwarding yes', 'GatewayPorts no', 'PermitTTY no', 'PermitUserEnvironment no',
+			// A root rehearsal logs in as root, so a flat refusal makes the smoke
+			// unable to test the privileged path at all. `prohibit-password` keeps
+			// the property that matters here — only the disposable key is accepted —
+			// while still allowing the rehearsal the maintainer asked for.
+			username === 'root' ? 'PermitRootLogin prohibit-password' : 'PermitRootLogin no',
+			'AllowTcpForwarding yes', 'GatewayPorts no', 'PermitTTY no', 'PermitUserEnvironment no',
 			`ForceCommand ${forceCommand} ${remoteHome}`, 'PrintMotd no', 'UseDNS no', 'LogLevel ERROR', `AllowUsers ${username}`
 		].join('\n') + '\n', { mode: 0o600 });
 		execFileSync(sshd, ['-t', '-f', config]);
@@ -318,6 +323,10 @@ async function main(): Promise<void> {
 			spawn: runner
 		});
 		if ((opened as { readonly ok?: boolean }).ok === false) {
+			// Without the phase and code the report says only that the connection
+			// failed, which is not actionable from a runner log.
+			const failure = opened as { readonly code: string; readonly phase: string };
+			checks.push([`control-master.${failure.phase}.${failure.code}`, 'fail']);
 			check('control-master', false);
 			return;
 		}
