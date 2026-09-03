@@ -115,8 +115,19 @@ async function main(): Promise<void> {
 		const rejected = await stageRemotePayload({ ...common, confirm: () => false }, { spawn: runner, spawnPayloadTar: createRemotePayloadTarRunner() });
 		check('confirmation-rejected', !rejected.ok && rejected.code === 'ssh.provisioning-denied' && rejected.phase === 'confirmation');
 		const staged = await stageRemotePayload({ ...common, confirm: summary => summary.host === destination && summary.version === payload.commit && summary.totalSizeBytes === manifest.totalSizeBytes && /^[a-f0-9]{64}$/.test(summary.manifestHash) }, { spawn: runner, spawnPayloadTar: createRemotePayloadTarRunner() });
-		check('activated', staged.ok && staged.status === 'activated');
-		if (!staged.ok) { return; }
+		if (!staged.ok) {
+			// Reporting only that staging failed has now cost four runner cycles
+			// across these smokes. The phase and code are contract categories and
+			// carry no destination, command or environment, so they are safe to keep.
+			checks.push([`activated.${staged.phase}.${staged.code}`, 'fail']);
+			check('activated', false);
+			return;
+		}
+		check('activated', staged.status === 'activated');
+		if (staged.status !== 'activated') {
+			checks.push([`activated.status.${staged.status}`, 'fail']);
+			return;
+		}
 		const repeated = await stageRemotePayload({ ...common, confirm: () => true }, { spawn: runner, spawnPayloadTar: createRemotePayloadTarRunner() });
 		check('idempotent', repeated.ok && repeated.status === 'already-activated');
 		const served = await openRemoteServer({ destination, commit: payload.commit, timeoutMs: 30_000 }, { allocateLocalPort: () => 49153, spawn: runner });
