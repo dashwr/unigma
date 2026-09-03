@@ -131,7 +131,10 @@ test('does not put the script body in argv and sends the payload as one stdin st
 
 test('builds the guarded cleanup command without putting a removal in argv', () => {
 	const arguments_ = buildRemoteStagingCleanupArguments(input());
-	assert.deepEqual(arguments_.slice(-4), ['/bin/sh', '-c', 'UNIGMA_STAGING_CLEANUP=1 exec /bin/sh "$0"', '"$HOME/.unigma-staging-0123456789abcdef0123456789abcdef01234567.sh"']);
+	// The command stays quoted: OpenSSH rejoins argv and the remote shell parses
+	// it again, so an unquoted string made that shell assign a variable and exit
+	// zero without ever running the guarded script.
+	assert.deepEqual(arguments_.slice(-4), ['/bin/sh', '-c', '\'UNIGMA_STAGING_CLEANUP=1 exec /bin/sh "$0"\'', '"$HOME/.unigma-staging-0123456789abcdef0123456789abcdef01234567.sh"']);
 	assert.equal(arguments_.some(argument => argument.includes('rm -rf')), false);
 });
 

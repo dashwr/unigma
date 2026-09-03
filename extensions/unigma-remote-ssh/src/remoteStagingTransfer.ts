@@ -174,7 +174,12 @@ export function buildRemoteStagingCleanupArguments(input: Pick<RemoteStagingTran
 		|| !/^[0-9a-f]{40}$/.test(input.commit)) {
 		throw new TypeError('Invalid remote staging input');
 	}
-	return [...commonSshArguments(input as RemoteStagingTransferInput), '/bin/sh', '-c', 'UNIGMA_STAGING_CLEANUP=1 exec /bin/sh "$0"', remoteScriptPath(input.commit)] as const;
+	// OpenSSH joins argv into one string that the remote shell parses again. Left
+	// unquoted, that shell read `UNIGMA_STAGING_CLEANUP=1` as the whole command
+	// string and exited zero having only assigned a variable, so cleanup reported
+	// success while the guarded script never ran. The delivery builder quotes its
+	// command for the same reason.
+	return [...commonSshArguments(input as RemoteStagingTransferInput), '/bin/sh', '-c', '\'UNIGMA_STAGING_CLEANUP=1 exec /bin/sh "$0"\'', remoteScriptPath(input.commit)] as const;
 }
 
 function failure(code: RemoteStagingFailureCode, phase: RemoteStagingFailurePhase, exitCode?: number, remoteStatus?: RemoteStagingHandshake['kind']): RemoteStagingFailure {

@@ -180,7 +180,10 @@ async function main(): Promise<boolean> {
 		report('after.exit', String(after.code));
 		report('after.status', afterStatus === 'present' || afterStatus === 'absent' ? afterStatus : 'query-failed');
 		const absentAfter = afterStatus === 'absent';
-		report('result', beforeStatus === 'absent' ? 'already-absent' : 'removed');
+		// The outcome is what the host shows afterwards, not what was intended.
+		// Deriving it from the state before cleanup reported `removed` for a run
+		// that removed nothing, which is the one claim this action must not make.
+		report('result', absentAfter ? (beforeStatus === 'absent' ? 'already-absent' : 'removed') : 'still-present');
 		passed = delivery.code === 0 && cleanup.code === 0 && hostStatus === 'cleanup-complete' && absentAfter;
 		return passed;
 	} finally {
