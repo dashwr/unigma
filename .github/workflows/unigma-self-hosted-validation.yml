@@ -60,10 +60,15 @@ jobs:
       - name: install dependencies
         run: npm ci --no-audit --no-fund
 
-      - name: compile unigma agent runtime
+      - name: compile unigma extensions
         run: |
           npm run gulp compile-extension:unigma-agent-runtime
           npm --prefix extensions/unigma-agent-runtime test
+          # Without this the extension is packaged from its sources and ships
+          # without the entry point its manifest names, so the remote SSH resolver
+          # cannot load. The Windows package had the same gap as the Linux one.
+          npm run gulp compile-extension:unigma-remote-ssh
+          npm --prefix extensions/unigma-remote-ssh test
 
       - name: run focused upstream checks
         run: |
