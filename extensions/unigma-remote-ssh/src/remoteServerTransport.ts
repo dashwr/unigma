@@ -386,8 +386,16 @@ export async function openRemoteServer(input: RemoteServerTransportInput, deps: 
 		});
 		stderrReader = createInterface({ input: child.stderr });
 		stderrReader.on('line', (line: string) => {
-			stderrFailureCategory = stderrCategory(line);
-			notify(deps, { category: stderrFailureCategory, phase: stage === 'forward' ? 'forward' : 'connect' });
+			const category = stderrCategory(line);
+			// A specific diagnosis is kept. OpenSSH prints its reason and then keeps
+			// talking, and overwriting on every line let an unrelated trailing line
+			// replace `host key untrusted` with the generic fallback — which is how
+			// this behaved differently on Windows, where one extra line arrived.
+			// The generic category still applies when nothing specific was seen.
+			if (stderrFailureCategory === undefined || stderrFailureCategory === 'ssh.transport-failed') {
+				stderrFailureCategory = category;
+			}
+			notify(deps, { category, phase: stage === 'forward' ? 'forward' : 'connect' });
 		});
 		child.on('error', (error: unknown) => {
 			const errorCode = (error as NodeJS.ErrnoException).code;

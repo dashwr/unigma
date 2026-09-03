@@ -161,3 +161,18 @@ test('categorizes SSH stderr without forwarding its contents', async () => {
 	assert.deepEqual(result, { ok: false, code: 'ssh.host-key-untrusted', phase: 'connect', exitCode: 255 });
 	assert.equal(diagnostics.every(diagnostic => !JSON.stringify(diagnostic).includes('build-vps')), true);
 });
+
+
+test('keeps the specific stderr diagnosis when unrelated output follows it', async () => {
+	// OpenSSH states its reason and then keeps talking. The category used to be
+	// overwritten on every line, so a trailing line replaced `host key untrusted`
+	// with the generic fallback. The same input therefore classified differently on
+	// Windows, where one extra line arrived, and the transport reported a transport
+	// failure for something only a person can fix.
+	const process = new FakeProcess(child => {
+		child.stderr.end('Host key verification failed for build-vps\nTransferred: sent 1234, received 5678 bytes\n');
+		child.emit('close', 255, null);
+	});
+	const result = await openRemoteServer(input, deps([process], []));
+	assert.deepEqual(result, { ok: false, code: 'ssh.host-key-untrusted', phase: 'connect', exitCode: 255 });
+});
