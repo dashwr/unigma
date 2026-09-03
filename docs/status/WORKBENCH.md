@@ -8,16 +8,23 @@
 
 ## onde estamos, em uma leitura
 
-**A primeira build utilizável existe.** O pacote Linux x64 sai do runner com o
-OpenCode `1.18.23` embarcado e resolvido a partir do próprio pacote, com os temas
-`unigma Dark`/`unigma Light` como padrão e contraste verificado por script, e com
-o branding técnico fechado. Isso é build, auditoria e smoke no runner, não
-opinião: `33716478896`, `33713474988` e `33714886992`.
+**A primeira build utilizável existe, e o OpenCode roda nela.** O pacote Linux
+x64 sai do runner com o OpenCode `1.18.23` embarcado; o smoke sobe `opencode
+serve` a partir do pacote, conecta com o `OpenCodeHttpClient` do próprio produto,
+confere a versão pela saúde e lista sessões, depois encerra o processo e fecha a
+porta (`33721970575`). Os temas `unigma Dark`/`unigma Light` são padrão, com
+contraste verificado por script, e o branding técnico está fechado. Tudo isso é
+build, auditoria e smoke no runner, não opinião.
+
+**Aviso que essa rodada deixou:** por muito tempo build, auditoria e smoke
+estiveram verdes enquanto o pacote distribuía duas extensões próprias **sem
+código**. Verde só vale pelo que a asserção realmente toca.
 
 O caminho remoto por SSH está construído inteiro — par versionado, transporte,
 staging, ativação atômica, resolver devolvendo `ResolvedAuthority` — e validado
 no runner, inclusive num ensaio como root. **Mas nenhuma janela remota jamais
-abriu**, então o remoto continua implementado, não suportado.
+abriu**, e até esta rodada a extensão do resolver nem sequer chegava ao pacote.
+O remoto continua implementado, não suportado.
 
 **próximo passo:** a matriz oficial `T-053`/`AC-007`, abrindo a janela de verdade.
 Depois dela, o smoke contra a VPS, que hoje para em pré-requisito: não existe um
@@ -148,6 +155,9 @@ adiciona uma asserção negativa. `compile-client`, `typecheck-client`, 60 teste
 
 | data | id | transição | evidência |
 | --- | --- | --- | --- |
+| 2026-09-03 | `E-02` / OpenCode em execução | o serviço sobe a partir do pacote e o cliente do produto conversa com ele | run `33721970575`. `build/unigma/smoke-opencode-service.ts` resolve o binário pelo módulo de resolução do próprio produto, sobe `opencode serve` como o `ProcessManager` sobe, e usa o `OpenCodeHttpClient` real: `health-version` bate `1.18.23`, `session-list` responde, o processo criado é encerrado, a porta fecha e o estado temporário é removido. Nenhum provider, modelo ou credencial foi configurado — `AGENTS.md` proíbe presumir provedor —, então a prova para em saúde e listagem de sessão |
+| 2026-09-03 | empacotamento | duas extensões próprias eram distribuídas sem código | `5c9cc32f` e `a24012f6`. O `.vscodeignore` do `unigma-agent-runtime` excluía `out/**`, o que só é seguro para extensão empacotada por `esbuild` em `dist/`, e ela não tem bundler: o pacote levava um `package.json` sozinho. Pior, o workflow compilava **apenas** o agent runtime, então o `unigma-remote-ssh` era listado a partir do fonte e ia sem `out/` — ou seja, **o resolver de SSH remoto nunca esteve em pacote nenhum**, e toda validação anterior exercitou os módulos da árvore de desenvolvimento. Build, auditoria e smoke ficaram verdes o tempo todo enquanto distribuíam extensão que não carregava |
+| 2026-09-03 | auditoria | guarda de ponto de entrada | a auditoria passou a exigir que toda extensão empacotada prove que o arquivo nomeado pelo próprio manifesto existe, listando o conteúdo do diretório quando falta, porque ausência de `out/` por não compilar, por manifesto errado e por filtro de empacotamento são coisas diferentes e só o conteúdo as distingue. Temas, gramáticas e language packs não declaram `main` e não são afetados. Foi essa guarda que revelou o defeito acima |
 | 2026-09-03 | `E-02` / OpenCode empacotado | o pacote Linux x64 passou a carregar o OpenCode | `7c0d30aa`. `ProcessManager` usava `command = 'opencode'` e dependia do `PATH`, então numa instalação real o runtime não subia. A resolução virou função pura com precedência embarcado → configuração → `PATH`, falhando fechado com código nomeado quando o embarcado existe mas está quebrado, em vez de cair em silêncio para o `PATH` e mascarar build ruim. O binário vem do artefato que o nosso próprio workflow constrói, nunca de download — o contrato recusa CDN e `updateUrl`. Verificado contra o pacote construído no run `33716478896`: `opencode.version=1.18.23` e `opencode.command=…/resources/app/opencode/bin/opencode`, com licença e proveniência presentes |
 | 2026-09-03 | smoke `opencode serve` | implementação → `review` | o smoke carrega os módulos compilados do pacote, inicia pelo `ChildProcessManager`, valida saúde/SSE/versão pelo `OpenCodeHttpClient`, lista sessões sem provider e encerra/valida a porta; execução no runner ainda pendente | pacote Linux x64 e workflow após auditoria |
 | 2026-09-03 | `AC-011` / tema | temas próprios do unigma, padrão e com contraste medido | `35fdf6cb`. `unigma Dark` e `unigma Light` substituem `Vesper Violet`/`Light 2026` como padrão. A paleta segue a direção já decidida — violeta dominante, magenta reservado a realce, fundos escuro/claro/lilás. Contraste não ficou no olho: `build/unigma/verify-theme-contrast.ts` calcula os pares que importam e reprova abaixo de `4.5:1`, e roda no `test-build-scripts`. Medidos, entre outros, editor `16,38:1` e `16,84:1`, aba inativa `8,06:1` e `6,47:1`. Matriz Linux `33713474988` verde. Alto contraste ficou pendente |
