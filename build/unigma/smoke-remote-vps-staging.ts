@@ -9,16 +9,16 @@ import { homedir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
-import type { RemoteSshProcess, createRemoteSshProcessRunner as CreateRemoteSshProcessRunner, openRemoteServer as OpenRemoteServer } from '../../extensions/unigma-remote-ssh/out/remoteServerTransport.js';
+import type { RemoteSshProcess, createRemoteSshProcessRunner as CreateRemoteSshProcessRunner, openRemoteControlMaster as OpenRemoteControlMaster, openRemoteServer as OpenRemoteServer } from '../../extensions/unigma-remote-ssh/out/remoteServerTransport.js';
 import type { BootstrapManifest } from '../../extensions/unigma-remote-ssh/out/bootstrapManifest.js';
 import type { buildRemoteStagingCleanupArguments as BuildCleanupArguments, buildRemoteStagingScriptDeliveryArguments as BuildDeliveryArguments, createRemotePayloadTarRunner as CreatePayloadTarRunner, stageRemotePayload as StageRemotePayload } from '../../extensions/unigma-remote-ssh/out/remoteStagingTransfer.js';
 import type { buildRemoteStagingScript as BuildStagingScript } from '../../extensions/unigma-remote-ssh/out/remoteStagingScript.js';
 
 const require = createRequire(import.meta.url);
-const transport = require('../../extensions/unigma-remote-ssh/out/remoteServerTransport.js') as { createRemoteSshProcessRunner: typeof CreateRemoteSshProcessRunner; openRemoteServer: typeof OpenRemoteServer };
+const transport = require('../../extensions/unigma-remote-ssh/out/remoteServerTransport.js') as { createRemoteSshProcessRunner: typeof CreateRemoteSshProcessRunner; openRemoteControlMaster: typeof OpenRemoteControlMaster; openRemoteServer: typeof OpenRemoteServer };
 const staging = require('../../extensions/unigma-remote-ssh/out/remoteStagingTransfer.js') as { buildRemoteStagingCleanupArguments: typeof BuildCleanupArguments; buildRemoteStagingScriptDeliveryArguments: typeof BuildDeliveryArguments; createRemotePayloadTarRunner: typeof CreatePayloadTarRunner; stageRemotePayload: typeof StageRemotePayload };
 const script = require('../../extensions/unigma-remote-ssh/out/remoteStagingScript.js') as { buildRemoteStagingScript: typeof BuildStagingScript };
-const { createRemoteSshProcessRunner, openRemoteServer } = transport;
+const { createRemoteSshProcessRunner, openRemoteControlMaster, openRemoteServer } = transport;
 const { buildRemoteStagingCleanupArguments, buildRemoteStagingScriptDeliveryArguments, createRemotePayloadTarRunner, stageRemotePayload } = staging;
 const { buildRemoteStagingScript } = script;
 
@@ -121,22 +121,16 @@ async function main(): Promise<void> {
 	const manifest = JSON.parse(readFileSync(join(payloadDirectory, 'manifest.json'), 'utf8')) as BootstrapManifest;
 	const generated = buildRemoteStagingScript({ commit: payload.commit, manifest, retention: 1 });
 	if (!generated.valid) { throw new Error('staging script generation failed'); }
-	// The transport correctly treats an existing executable as a server to start,
-	// so a second smoke run gets a ready session instead of the staging session it
-	// expects. Remove that version first through the same guarded staging script.
-	const initiallyOpened = await openRemoteServer({ destination, commit: payload.commit, retainControlMasterOnServerUnavailable: true, timeoutMs: 30_000 }, { allocateLocalPort: () => 49152, spawn: runner });
-	let initialCleanupSession: { readonly controlPath: string; dispose(): Promise<void> } | undefined;
+	// Cleanup must work whether a prior version starts, is broken, or is absent;
+	// the bare master makes no server-path writes before the guarded script runs.
+	const initiallyOpened = await openRemoteControlMaster({ destination, timeoutMs: 30_000 }, { allocateLocalPort: () => 49152, spawn: runner });
 	if ((initiallyOpened as { readonly ok?: boolean }).ok === false) {
-		initialCleanupSession = (initiallyOpened as { readonly stagingSession?: typeof initialCleanupSession }).stagingSession;
-	} else {
-		initialCleanupSession = initiallyOpened as { readonly controlPath: string; dispose(): Promise<void> };
-	}
-	if (!initialCleanupSession) {
 		const failure = initiallyOpened as { readonly code?: string; readonly phase?: string };
 		checks.push([`cleanup-initial.session.${failure.phase ?? 'unknown'}.${failure.code ?? 'unknown'}`, 'fail']);
 		check('cleanup-initial', false);
 		return;
 	}
+	const initialCleanupSession = initiallyOpened as { readonly controlPath: string; dispose(): Promise<void> };
 	let initialCleanupPassed = false;
 	try {
 		const initialCleanup = await cleanupRemoteVersion(runner, destination, initialCleanupSession.controlPath, payload.commit, generated.script);

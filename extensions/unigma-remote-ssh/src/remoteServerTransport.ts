@@ -41,6 +41,13 @@ export interface RemoteServerTransportInput extends RemoteBootstrapScriptInput {
 	readonly knownHostsFile?: string;
 }
 
+/** Opens an owned SSH master without running a command on the remote host. */
+export interface RemoteControlMasterInput {
+	readonly destination: string;
+	readonly timeoutMs?: number;
+	readonly knownHostsFile?: string;
+}
+
 export interface RemoteServerEndpoint {
 	readonly host: '127.0.0.1';
 	readonly port: number;
@@ -55,6 +62,12 @@ export interface RemoteServerSession {
 
 /** An owned ControlMaster kept alive only so an explicit staging command can use it. */
 export interface RemoteServerStagingSession {
+	readonly controlPath: string;
+	dispose(): Promise<void>;
+}
+
+/** A private master for explicit, guarded maintenance commands. */
+export interface RemoteControlMasterSession {
 	readonly controlPath: string;
 	dispose(): Promise<void>;
 }
@@ -152,6 +165,34 @@ export function buildSshTransportArguments(input: SshTransportArgumentInput): re
 	] as const;
 }
 
+/** Builds an SSH ControlMaster that performs no remote command or write. */
+export function buildSshControlMasterArguments(input: SshTransportArgumentInput): readonly string[] {
+	validateCommonInput(input?.destination, input?.controlPath, input?.knownHostsFile);
+	return [
+		'-M',
+		'-o', `ControlPath=${input.controlPath}`,
+		'-o', 'ControlPersist=no',
+		'-o', 'BatchMode=yes',
+		'-o', 'StrictHostKeyChecking=yes',
+		...knownHostsArguments(input.knownHostsFile),
+		'-N',
+		input.destination
+	] as const;
+}
+
+/** Checks a private master locally; OpenSSH does not execute a remote command. */
+export function buildSshControlCheckArguments(input: SshTransportArgumentInput): readonly string[] {
+	validateCommonInput(input?.destination, input?.controlPath, input?.knownHostsFile);
+	return [
+		'-o', `ControlPath=${input.controlPath}`,
+		'-o', 'BatchMode=yes',
+		'-o', 'StrictHostKeyChecking=yes',
+		...knownHostsArguments(input.knownHostsFile),
+		'-O', 'check',
+		input.destination
+	] as const;
+}
+
 /** Builds the pure control operation that adds the UNIX-socket forward. */
 export function buildSshForwardArguments(input: SshForwardArgumentInput): readonly string[] {
 	validateCommonInput(input?.destination, input?.controlPath, input?.knownHostsFile);
@@ -209,6 +250,157 @@ function createControlPath(): { readonly directory: string; readonly path: strin
 		throw new RangeError('ControlPath exceeds UNIX socket address limit');
 	}
 	return { directory, path };
+}
+
+/**
+ * Opens a private master for an explicit maintenance operation.
+ *
+ * This deliberately does not use the server bootstrap: cleanup must be able to
+ * inspect an absent or broken server, and bootstrap itself owns server paths.
+ */
+export async function openRemoteControlMaster(input: RemoteControlMasterInput, deps: RemoteServerTransportDependencies): Promise<RemoteControlMasterSession | RemoteServerFailure> {
+	if (typeof input?.destination !== 'string' || input.destination.length === 0
+		|| (input.knownHostsFile !== undefined && (typeof input.knownHostsFile !== 'string' || input.knownHostsFile.length === 0))
+		|| (input.timeoutMs !== undefined && (!Number.isFinite(input.timeoutMs) || input.timeoutMs <= 0))) {
+		return failure('invalid-input', 'connect');
+	}
+
+	let control: { readonly directory: string; readonly path: string };
+	try {
+		control = createControlPath();
+	} catch {
+		notify(deps, { category: 'ssh.transport-failed', phase: 'connect' });
+		return failure('ssh.transport-failed', 'connect');
+	}
+
+	let master: RemoteSshProcess;
+	try {
+		master = deps.spawn(buildSshControlMasterArguments({
+			destination: input.destination,
+			controlPath: control.path,
+			knownHostsFile: input.knownHostsFile
+		}));
+	} catch {
+		rmSync(control.directory, { recursive: true, force: true });
+		notify(deps, { category: 'ssh.client-unavailable', phase: 'connect' });
+		return failure('ssh.client-unavailable', 'connect');
+	}
+
+	const setTimer = deps.setTimeout ?? globalThis.setTimeout;
+	const clearTimer = deps.clearTimeout ?? globalThis.clearTimeout;
+	const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+	return await new Promise<RemoteControlMasterSession | RemoteServerFailure>(resolve => {
+		let settled = false;
+		let disposed = false;
+		let check: RemoteSshProcess | undefined;
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		let stderrFailureCategory: RemoteServerDiagnosticCategory | undefined;
+		const removeControlPath = (): void => {
+			try {
+				rmSync(control.directory, { recursive: true, force: true });
+			} catch {
+				// The directory is private and remains best-effort cleanup.
+			}
+		};
+		const dispose = async (): Promise<void> => {
+			if (disposed) {
+				return;
+			}
+			disposed = true;
+			if (timer !== undefined) {
+				clearTimer(timer);
+				timer = undefined;
+			}
+			if (check && !check.kill('SIGTERM')) {
+				check.kill('SIGKILL');
+			}
+			if (!master.kill('SIGTERM')) {
+				master.kill('SIGKILL');
+			}
+			removeControlPath();
+		};
+		const complete = (result: RemoteControlMasterSession | RemoteServerFailure): void => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			if (timer !== undefined) {
+				clearTimer(timer);
+				timer = undefined;
+			}
+			resolve(result);
+		};
+		const fail = (result: RemoteServerFailure): void => {
+			void dispose().finally(() => complete(result));
+		};
+		const poll = (): void => {
+			if (settled || disposed) {
+				return;
+			}
+			try {
+				check = deps.spawn(buildSshControlCheckArguments({
+					destination: input.destination,
+					controlPath: control.path,
+					knownHostsFile: input.knownHostsFile
+				}));
+			} catch {
+				fail(failure('ssh.client-unavailable', 'connect'));
+				return;
+			}
+			check.on('error', () => fail(failure('ssh.transport-failed', 'connect')));
+			check.on('close', code => {
+				check = undefined;
+				if (settled || disposed) {
+					return;
+				}
+				if (code === 0) {
+					complete({ controlPath: control.path, dispose });
+					return;
+				}
+				setTimer(poll, 50);
+			});
+			try {
+				check.stdin.end();
+			} catch {
+				fail(failure('ssh.transport-failed', 'connect'));
+			}
+		};
+		master.stderr.on('data', chunk => {
+			const category = stderrCategory(String(chunk));
+			if (stderrFailureCategory === undefined || stderrFailureCategory === 'ssh.transport-failed') {
+				stderrFailureCategory = category;
+			}
+		});
+		master.on('error', (error: unknown) => {
+			const errorCode = (error as NodeJS.ErrnoException).code;
+			const category = errorCode === 'ENOENT' || errorCode === 'EACCES' || errorCode === 'EPERM' ? 'ssh.client-unavailable' : 'ssh.transport-failed';
+			notify(deps, { category, phase: 'connect' });
+			fail(failure(category, 'connect'));
+		});
+		master.on('close', code => {
+			if (disposed) {
+				return;
+			}
+			const category = stderrFailureCategory ?? 'ssh.transport-failed';
+			notify(deps, { category, phase: settled ? 'lifecycle' : 'connect', exitCode: code ?? undefined });
+			if (settled) {
+				void dispose().finally(() => deps.onConnectionLost?.());
+				return;
+			}
+			fail(failure(category, 'connect', code ?? undefined));
+		});
+		try {
+			master.stdin.end();
+		} catch {
+			fail(failure('ssh.transport-failed', 'connect'));
+			return;
+		}
+		timer = setTimer(() => {
+			notify(deps, { category: 'ssh.transport-failed', phase: 'connect' });
+			fail(failure('ssh.transport-failed', 'connect'));
+		}, timeoutMs);
+		poll();
+	});
 }
 
 /** Opens one ControlMaster, reads its host-derived handshake, then adds its tunnel. */

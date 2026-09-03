@@ -9,8 +9,11 @@ import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import test from 'node:test';
 import {
+	buildSshControlCheckArguments,
+	buildSshControlMasterArguments,
 	buildSshForwardArguments,
 	buildSshTransportArguments,
+	openRemoteControlMaster,
 	openRemoteServer,
 	type RemoteServerDiagnostic,
 	type RemoteServerSession,
@@ -80,6 +83,25 @@ test('builds the SSH ControlMaster command without a forward', () => {
 	]);
 });
 
+test('builds a bare ControlMaster without a remote command', () => {
+	assert.deepEqual(buildSshControlMasterArguments({ destination: 'build-vps', controlPath: '/tmp/ug-control/c' }), [
+		'-M',
+		'-o', 'ControlPath=/tmp/ug-control/c',
+		'-o', 'ControlPersist=no',
+		'-o', 'BatchMode=yes',
+		'-o', 'StrictHostKeyChecking=yes',
+		'-N',
+		'build-vps'
+	]);
+	assert.deepEqual(buildSshControlCheckArguments({ destination: 'build-vps', controlPath: '/tmp/ug-control/c' }), [
+		'-o', 'ControlPath=/tmp/ug-control/c',
+		'-o', 'BatchMode=yes',
+		'-o', 'StrictHostKeyChecking=yes',
+		'-O', 'check',
+		'build-vps'
+	]);
+});
+
 test('builds the pure -O forward command', () => {
 	assert.deepEqual(buildSshForwardArguments({ destination: 'build-vps', controlPath: '/tmp/ug-control/c', localPort: 43123, remoteSocketPath: socketPath }), [
 		'-o', 'ControlPath=/tmp/ug-control/c',
@@ -126,6 +148,17 @@ test('opens the master, adds one forward after the ready handshake, and cleans C
 	await successfulSession.dispose();
 	assert.deepEqual(master.killed, ['SIGTERM']);
 	assert.equal(existsSync(controlDirectory), false);
+});
+
+test('opens a bare master without requiring a staged server', async () => {
+	const master = new FakeProcess();
+	const check = new FakeProcess(child => child.emit('close', 0, null));
+	const session = await openRemoteControlMaster({ destination: 'build-vps' }, deps([master, check]));
+	assert.equal((session as { readonly ok?: boolean }).ok, undefined);
+	const successfulSession = session as { readonly controlPath: string; dispose(): Promise<void> };
+	assert.equal(Buffer.concat(master.scriptChunks).byteLength, 0);
+	await successfulSession.dispose();
+	assert.deepEqual(master.killed, ['SIGTERM']);
 });
 
 test('fails with its own code when adding the forward fails', async () => {

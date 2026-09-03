@@ -7,16 +7,16 @@ import { accessSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
-import type { RemoteSshProcess, createRemoteSshProcessRunner as CreateRemoteSshProcessRunner, openRemoteServer as OpenRemoteServer } from '../../extensions/unigma-remote-ssh/out/remoteServerTransport.js';
+import type { RemoteSshProcess, createRemoteSshProcessRunner as CreateRemoteSshProcessRunner, openRemoteControlMaster as OpenRemoteControlMaster } from '../../extensions/unigma-remote-ssh/out/remoteServerTransport.js';
 import type { BootstrapManifest } from '../../extensions/unigma-remote-ssh/out/bootstrapManifest.js';
 import type { buildRemoteStagingCleanupArguments as BuildCleanupArguments, buildRemoteStagingScriptDeliveryArguments as BuildDeliveryArguments } from '../../extensions/unigma-remote-ssh/out/remoteStagingTransfer.js';
 import type { buildRemoteStagingScript as BuildStagingScript } from '../../extensions/unigma-remote-ssh/out/remoteStagingScript.js';
 
 const require = createRequire(import.meta.url);
-const transport = require('../../extensions/unigma-remote-ssh/out/remoteServerTransport.js') as { createRemoteSshProcessRunner: typeof CreateRemoteSshProcessRunner; openRemoteServer: typeof OpenRemoteServer };
+const transport = require('../../extensions/unigma-remote-ssh/out/remoteServerTransport.js') as { createRemoteSshProcessRunner: typeof CreateRemoteSshProcessRunner; openRemoteControlMaster: typeof OpenRemoteControlMaster };
 const stagingTransfer = require('../../extensions/unigma-remote-ssh/out/remoteStagingTransfer.js') as { buildRemoteStagingCleanupArguments: typeof BuildCleanupArguments; buildRemoteStagingScriptDeliveryArguments: typeof BuildDeliveryArguments };
 const stagingScript = require('../../extensions/unigma-remote-ssh/out/remoteStagingScript.js') as { buildRemoteStagingScript: typeof BuildStagingScript };
-const { createRemoteSshProcessRunner, openRemoteServer } = transport;
+const { createRemoteSshProcessRunner, openRemoteControlMaster } = transport;
 const { buildRemoteStagingCleanupArguments, buildRemoteStagingScriptDeliveryArguments } = stagingTransfer;
 const { buildRemoteStagingScript } = stagingScript;
 
@@ -147,17 +147,12 @@ async function main(): Promise<boolean> {
 		report('error', `script-${generated.code}`);
 		return false;
 	}
-	const opened = await openRemoteServer({ destination, commit, retainControlMasterOnServerUnavailable: true, timeoutMs: 30_000 }, { allocateLocalPort: () => 49152, spawn: runner });
-	let session: { readonly controlPath: string; dispose(): Promise<void> } | undefined;
+	const opened = await openRemoteControlMaster({ destination, timeoutMs: 30_000 }, { allocateLocalPort: () => 49152, spawn: runner });
 	if ((opened as { readonly ok?: boolean }).ok === false) {
-		session = (opened as { readonly stagingSession?: typeof session }).stagingSession;
-	} else {
-		session = opened as { readonly controlPath: string; dispose(): Promise<void> };
-	}
-	if (!session) {
 		report('session.status', (opened as { readonly code?: string }).code ?? 'failed');
 		return false;
 	}
+	const session = opened as { readonly controlPath: string; dispose(): Promise<void> };
 
 	let passed = false;
 	try {
