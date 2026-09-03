@@ -9,6 +9,7 @@ import { PassThrough } from 'node:stream';
 import test from 'node:test';
 import {
 	buildRemoteStagingExecutionArguments,
+	buildRemoteStagingCleanupArguments,
 	buildRemoteStagingScriptDeliveryArguments,
 	stageRemotePayload,
 	type RemotePayloadTarProcess,
@@ -126,6 +127,12 @@ test('does not put the script body in argv and sends the payload as one stdin st
 	const deliveryArguments = buildRemoteStagingScriptDeliveryArguments(input());
 	assert.equal(deliveryArguments.some(argument => argument.includes('#!/bin/sh')), false);
 	assert.deepEqual(buildRemoteStagingExecutionArguments(input()).slice(-2), ['/bin/sh', '"$HOME/.unigma-staging-0123456789abcdef0123456789abcdef01234567.sh"']);
+});
+
+test('builds the guarded cleanup command without putting a removal in argv', () => {
+	const arguments_ = buildRemoteStagingCleanupArguments(input());
+	assert.deepEqual(arguments_.slice(-4), ['/bin/sh', '-c', 'UNIGMA_STAGING_CLEANUP=1 exec /bin/sh "$0"', '"$HOME/.unigma-staging-0123456789abcdef0123456789abcdef01234567.sh"']);
+	assert.equal(arguments_.some(argument => argument.includes('rm -rf')), false);
 });
 
 test('refuses before spawning when confirmation is absent or negative', async () => {

@@ -1,5 +1,11 @@
 # unigma — backlog implementável
 
+> feito: 2026-09-03 — ação `unigma-remote-vps-cleanup` adicionada para remover
+> uma versão por commit na VPS pelo script de staging guardado, com relatório de
+> status do host e pós-condição somente-leitura; o smoke de staging agora limpa a
+> versão antes de abrir o cenário, tornando execuções repetidas idempotentes.
+> Validação remota no runner permanece pendente.
+
 > feito: 2026-09-03 — staging remoto passou a reter 2 versões por padrão, com
 > poda segura pós-ativação e smoke dedicado da VPS usando retenção 1, confirmação,
 > idempotência, `/version` e limpeza guardada; validação no runner permanece pendente.

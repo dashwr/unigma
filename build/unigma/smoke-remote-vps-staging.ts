@@ -96,6 +96,12 @@ function runCommand(runner: (arguments_: readonly string[]) => RemoteSshProcess,
 		try { process_.stdin.end(input); } catch { finish(null); }
 	});
 }
+async function cleanupRemoteVersion(runner: (arguments_: readonly string[]) => RemoteSshProcess, destination: string, controlPath: string, commit: string, generatedScript: string): Promise<{ readonly delivery: CommandResult; readonly cleanup: CommandResult; readonly status: string }> {
+	const input = { destination, controlPath, commit };
+	const delivery = await runCommand(runner, buildRemoteStagingScriptDeliveryArguments(input), generatedScript);
+	const cleanup = await runCommand(runner, buildRemoteStagingCleanupArguments(input));
+	return { delivery, cleanup, status: /"status":"([a-z-]+)"/.exec(cleanup.output)?.[1] ?? 'none' };
+}
 async function main(): Promise<void> {
 	const destination = process.env['UNIGMA_VPS_ALIAS'];
 	check('destination-required', typeof destination === 'string' && destination.length > 0);
@@ -115,6 +121,36 @@ async function main(): Promise<void> {
 	const manifest = JSON.parse(readFileSync(join(payloadDirectory, 'manifest.json'), 'utf8')) as BootstrapManifest;
 	const generated = buildRemoteStagingScript({ commit: payload.commit, manifest, retention: 1 });
 	if (!generated.valid) { throw new Error('staging script generation failed'); }
+	// The transport correctly treats an existing executable as a server to start,
+	// so a second smoke run gets a ready session instead of the staging session it
+	// expects. Remove that version first through the same guarded staging script.
+	const initiallyOpened = await openRemoteServer({ destination, commit: payload.commit, retainControlMasterOnServerUnavailable: true, timeoutMs: 30_000 }, { allocateLocalPort: () => 49152, spawn: runner });
+	let initialCleanupSession: { readonly controlPath: string; dispose(): Promise<void> } | undefined;
+	if ((initiallyOpened as { readonly ok?: boolean }).ok === false) {
+		initialCleanupSession = (initiallyOpened as { readonly stagingSession?: typeof initialCleanupSession }).stagingSession;
+	} else {
+		initialCleanupSession = initiallyOpened as { readonly controlPath: string; dispose(): Promise<void> };
+	}
+	if (!initialCleanupSession) {
+		const failure = initiallyOpened as { readonly code?: string; readonly phase?: string };
+		checks.push([`cleanup-initial.session.${failure.phase ?? 'unknown'}.${failure.code ?? 'unknown'}`, 'fail']);
+		check('cleanup-initial', false);
+		return;
+	}
+	let initialCleanupPassed = false;
+	try {
+		const initialCleanup = await cleanupRemoteVersion(runner, destination, initialCleanupSession.controlPath, payload.commit, generated.script);
+		checks.push([`cleanup-initial.delivery-exit.${initialCleanup.delivery.code}`, initialCleanup.delivery.code === 0 ? 'pass' : 'fail']);
+		checks.push([`cleanup-initial.exit.${initialCleanup.cleanup.code}`, initialCleanup.cleanup.code === 0 ? 'pass' : 'fail']);
+		checks.push([`cleanup-initial.status.${initialCleanup.status}`, initialCleanup.status === 'cleanup-complete' ? 'pass' : 'fail']);
+		initialCleanupPassed = initialCleanup.delivery.code === 0 && initialCleanup.cleanup.code === 0 && initialCleanup.status === 'cleanup-complete';
+		check('cleanup-initial', initialCleanupPassed);
+	} finally {
+		await initialCleanupSession.dispose().catch(() => undefined);
+	}
+	if (!initialCleanupPassed) {
+		return;
+	}
 	const opened = await openRemoteServer({ destination, commit: payload.commit, retainControlMasterOnServerUnavailable: true, timeoutMs: 30_000 }, { allocateLocalPort: () => 49152, spawn: runner });
 	const opening = opened as { readonly ok?: boolean; readonly code?: string; readonly phase?: string; readonly stagingSession?: { readonly controlPath: string; dispose(): Promise<void> } };
 	check('staging-session', opening.ok === false && opening.code === 'ssh.remote-server-unavailable' && opening.stagingSession !== undefined);
@@ -153,13 +189,14 @@ async function main(): Promise<void> {
 		});
 		check('version', version.code === 200 && version.body === payload.commit);
 		await finalSession.dispose(); finalSession = undefined;
-		const delivery = await runCommand(runner, buildRemoteStagingScriptDeliveryArguments({ destination, controlPath: stagingSession!.controlPath, commit: payload.commit }), generated.script);
-		const result = await runCommand(runner, buildRemoteStagingCleanupArguments({ destination, controlPath: stagingSession!.controlPath, commit: payload.commit }));
+		const finalCleanup = await cleanupRemoteVersion(runner, destination, stagingSession!.controlPath, payload.commit, generated.script);
+		const delivery = finalCleanup.delivery;
+		const result = finalCleanup.cleanup;
 		// The maintainer asked for nothing to be left on that host, so a failed
 		// cleanup has to say which half failed and what the host answered.
 		checks.push([`cleanup.delivery-exit.${delivery.code}`, delivery.code === 0 ? 'pass' : 'fail']);
 		checks.push([`cleanup.exit.${result.code}`, result.code === 0 ? 'pass' : 'fail']);
-		const status = /"status":"([a-z-]+)"/.exec(result.output)?.[1] ?? 'none';
+		const status = finalCleanup.status;
 		checks.push([`cleanup.status.${status}`, status === 'cleanup-complete' ? 'pass' : 'fail']);
 		check('cleanup', delivery.code === 0 && result.code === 0 && status === 'cleanup-complete');
 		await stagingSession.dispose();
@@ -168,9 +205,8 @@ async function main(): Promise<void> {
 	} finally {
 		if (finalSession) { await finalSession.dispose().catch(() => undefined); }
 		if (!cleaned && stagingSession) {
-			const delivery = await runCommand(runner, buildRemoteStagingScriptDeliveryArguments({ destination, controlPath: stagingSession.controlPath, commit: payload.commit }), generated.script).catch(() => ({ code: null, output: '' }));
-			const cleanup = await runCommand(runner, buildRemoteStagingCleanupArguments({ destination, controlPath: stagingSession.controlPath, commit: payload.commit })).catch(() => ({ code: null, output: '' }));
-			check('cleanup-on-error', delivery.code === 0 && cleanup.code === 0 && cleanup.output.includes('"status":"cleanup-complete"'));
+			const cleanup = await cleanupRemoteVersion(runner, destination, stagingSession.controlPath, payload.commit, generated.script).catch(() => ({ delivery: { code: null, output: '' }, cleanup: { code: null, output: '' }, status: 'none' }));
+			check('cleanup-on-error', cleanup.delivery.code === 0 && cleanup.cleanup.code === 0 && cleanup.status === 'cleanup-complete');
 		}
 		if (stagingSession) { await stagingSession.dispose().catch(() => undefined); }
 		rmSync(workDirectory, { recursive: true, force: true });

@@ -168,7 +168,7 @@ export function buildRemoteStagingExecutionArguments(input: Pick<RemoteStagingTr
 	return [...commonSshArguments(input as RemoteStagingTransferInput), '/bin/sh', remoteScriptPath(input.commit)] as const;
 }
 
-/** Builds the guarded cleanup invocation used only by the VPS smoke teardown. */
+/** Builds the guarded cleanup invocation used by VPS maintenance and smoke teardown. */
 export function buildRemoteStagingCleanupArguments(input: Pick<RemoteStagingTransferInput, 'destination' | 'controlPath' | 'knownHostsFile' | 'commit'>): readonly string[] {
 	if (typeof input.destination !== 'string' || input.destination.length === 0 || !isValidRemoteUnixSocketPath(input.controlPath)
 		|| !/^[0-9a-f]{40}$/.test(input.commit)) {

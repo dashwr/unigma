@@ -49,6 +49,8 @@ test('parses only the redacted staging handshake statuses', () => {
 	assert.deepEqual(parseRemoteStagingHandshake('unigma-remote:{"status":"already-activated"}'), { kind: 'already-activated' });
 	assert.deepEqual(parseRemoteStagingHandshake('unigma-remote:{"status":"file-hash-mismatch"}'), { kind: 'file-hash-mismatch' });
 	assert.deepEqual(parseRemoteStagingHandshake('unigma-remote:{"status":"prune-failed"}'), { kind: 'prune-failed' });
+	assert.deepEqual(parseRemoteStagingHandshake('unigma-remote:{"status":"cleanup-complete"}'), { kind: 'cleanup-complete' });
+	assert.deepEqual(parseRemoteStagingHandshake('unigma-remote:{"status":"cleanup-failed"}'), { kind: 'cleanup-failed' });
 	assert.equal(parseRemoteStagingHandshake('unigma-remote:{"status":"activated","hash":"secret"}'), undefined);
 });
 
