@@ -41,11 +41,12 @@ type RemoteServerPathSegment =
 	| { readonly type: 'commit-prefix-socket' };
 
 const COMMIT_SEGMENT: RemoteServerPathSegment = { type: 'commit' };
-type RemoteServerPathTemplateKey = keyof RemoteServerPaths | 'stagingDirectory' | 'activationPath';
+type RemoteServerPathTemplateKey = keyof RemoteServerPaths | 'stagingDirectory' | 'activationPath' | 'versionsDirectory';
 const REMOTE_SERVER_PATH_TEMPLATES: Readonly<Record<RemoteServerPathTemplateKey, readonly RemoteServerPathSegment[]>> = {
 	dataDirectory: [{ type: 'literal', value: REMOTE_SERVER_DATA_FOLDER }],
 	stagingDirectory: [{ type: 'literal', value: REMOTE_SERVER_DATA_FOLDER }, { type: 'literal', value: 'staging' }, COMMIT_SEGMENT],
 	activationPath: [{ type: 'literal', value: REMOTE_SERVER_DATA_FOLDER }, { type: 'literal', value: 'bin' }, COMMIT_SEGMENT],
+	versionsDirectory: [{ type: 'literal', value: REMOTE_SERVER_DATA_FOLDER }, { type: 'literal', value: 'bin' }],
 	versionedDirectory: [{ type: 'literal', value: REMOTE_SERVER_DATA_FOLDER }, { type: 'literal', value: 'bin' }, COMMIT_SEGMENT],
 	executablePath: [{ type: 'literal', value: REMOTE_SERVER_DATA_FOLDER }, { type: 'literal', value: 'bin' }, COMMIT_SEGMENT, { type: 'literal', value: 'bin' }, { type: 'literal', value: 'unigma-server' }],
 	serverDataDirectory: [{ type: 'literal', value: REMOTE_SERVER_DATA_FOLDER }, { type: 'literal', value: 'bin' }, COMMIT_SEGMENT, { type: 'literal', value: 'data' }],
@@ -192,6 +193,7 @@ export function buildRemoteServerPathShellFragments(): RemoteServerPathShellFrag
 export interface RemoteStagingPathShellFragments {
 	readonly stagingDirectory: string;
 	readonly activationPath: string;
+	readonly versionsDirectory: string;
 }
 
 /** Generates staging expressions from the same path templates as the pure plan. */
@@ -209,7 +211,8 @@ export function buildRemoteStagingPathShellFragments(): RemoteStagingPathShellFr
 	};
 	return {
 		stagingDirectory: shellPath(REMOTE_SERVER_PATH_TEMPLATES.stagingDirectory),
-		activationPath: shellPath(REMOTE_SERVER_PATH_TEMPLATES.activationPath)
+		activationPath: shellPath(REMOTE_SERVER_PATH_TEMPLATES.activationPath),
+		versionsDirectory: shellPath(REMOTE_SERVER_PATH_TEMPLATES.versionsDirectory)
 	};
 }
 

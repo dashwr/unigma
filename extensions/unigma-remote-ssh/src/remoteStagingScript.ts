@@ -22,11 +22,14 @@ const COMMIT = /^[0-9a-f]{40}$/;
 export interface RemoteStagingScriptInput {
 	readonly commit: string;
 	readonly manifest: BootstrapManifest;
+	/** Number of version directories to retain, including the active one. */
+	readonly retention?: number;
 }
 
 export type RemoteStagingScriptError =
 	| 'staging-invalid-input'
 	| 'staging-invalid-commit'
+	| 'staging-invalid-retention'
 	| 'staging-invalid-target'
 	| 'staging-invalid-manifest'
 	| 'staging-missing-file';
@@ -38,6 +41,9 @@ export type RemoteStagingScriptResult =
 export type RemoteStagingHandshake =
 	| { readonly kind: 'activated' }
 	| { readonly kind: 'already-activated' }
+	| { readonly kind: 'prune-failed' }
+	| { readonly kind: 'cleanup-complete' }
+	| { readonly kind: 'cleanup-failed' }
 	| {
 		readonly kind:
 		| 'home-invalid'
@@ -84,6 +90,10 @@ function mapPlanError(code: string): RemoteStagingScriptError {
 	}
 }
 
+function validRetention(value: unknown): value is number {
+	return value === undefined || (typeof value === 'number' && Number.isSafeInteger(value) && value >= 1);
+}
+
 function fileAssignment(name: string, file: BootstrapManifestFile): string {
 	return `${name}="$STAGING"/${shellQuote(file.relativePath)}`;
 }
@@ -97,6 +107,9 @@ function expectedPathPredicate(files: readonly BootstrapManifestFile[]): string[
 export function buildRemoteStagingScript(input: unknown): RemoteStagingScriptResult {
 	if (!isRecord(input) || typeof input.commit !== 'string' || !COMMIT.test(input.commit)) {
 		return { valid: false, code: 'staging-invalid-commit' };
+	}
+	if (!validRetention(input.retention)) {
+		return { valid: false, code: 'staging-invalid-retention' };
 	}
 	const manifestValidation = validateBootstrapManifest(input.manifest);
 	if (!manifestValidation.valid) {
@@ -121,6 +134,7 @@ export function buildRemoteStagingScript(input: unknown): RemoteStagingScriptRes
 	const opencodeFile = manifest.files.find(file => file.id === 'unigma+opencode')!;
 	const expected = manifestJson(manifest).trimEnd();
 	const expectedPathLines = expectedPathPredicate(manifest.files);
+	const retention = input.retention ?? 2;
 	const script = [
 		'#!/bin/sh',
 		'set -eu',
@@ -166,9 +180,17 @@ export function buildRemoteStagingScript(input: unknown): RemoteStagingScriptRes
 		`VERSIONED=${shellPaths.versionedDirectory}`,
 		`SERVER=${shellPaths.executablePath}`,
 		`ACTIVATION=${stagingPaths.activationPath}`,
+		`RETENTION=${retention}`,
 		fileAssignment('SERVER_ARCHIVE', serverFile),
 		fileAssignment('OPENCODE', opencodeFile),
 		'',
+		// The VPS smoke uses the same generated script for teardown, so its final
+		// removal remains subject to the section 5 safe_rm ownership boundary.
+		'if [ "${UNIGMA_STAGING_CLEANUP:-0}" = 1 ]; then',
+		'\tsafe_rm "$VERSIONED"',
+		'\tif [ -e "$VERSIONED" ] || [ -L "$VERSIONED" ]; then emit \'{"status":"cleanup-failed"}\'; else emit \'{"status":"cleanup-complete"}\'; fi',
+		'\texit 0',
+		'fi',
 		'if [ -e "$VERSIONED" ] || [ -L "$VERSIONED" ]; then',
 		'\tif [ -x "$VERSIONED/bin/unigma-server" ]; then emit \'{"status":"already-activated"}\'; exit 0; fi',
 		'\tfail activation-invalid 49',
@@ -209,6 +231,37 @@ export function buildRemoteStagingScript(input: unknown): RemoteStagingScriptRes
 		'if [ -e "$VERSIONED" ] || [ -L "$VERSIONED" ]; then fail activation-invalid 49; fi',
 		'if ! mv -T "$STAGING" "$VERSIONED"; then fail activation-failed 55; fi',
 		'emit \'{"status":"activated"}\'',
+		// SSH-CONTRACT.md section 5 preserves rollback through activation first; a
+		// failed cleanup must not turn a usable activation into a failed deploy.
+		'prune_failed=0',
+		'version_entries=',
+		'ordered_versions=',
+		`if ! version_entries=$(find ${stagingPaths.versionsDirectory} -mindepth 1 -maxdepth 1 -type d -printf '%T@ %f\\n'); then prune_failed=1; fi`,
+		'if [ "$prune_failed" -eq 0 ] && ! ordered_versions=$(printf \'%s\\n\' "$version_entries" | sort -rn); then prune_failed=1; fi',
+		'if [ "$prune_failed" -eq 0 ]; then',
+		'\tkept=1',
+		'\twhile IFS= read -r version_entry; do',
+		'\t\t[ -n "$version_entry" ] || continue',
+		'\t\tversion=${version_entry#* }',
+		'\t\tcase "$version" in',
+		'\t\t\t????????????????????????????????????????) ;;',
+		'\t\t\t*) continue ;;',
+		'\t\tesac',
+		'\t\tcase "$version" in',
+		'\t\t\t*[!0-9a-f]*) continue ;;',
+		'\t\tesac',
+		'\t\t[ "$version" = "$COMMIT" ] && continue',
+		'\t\tkept=$((kept + 1))',
+		'\t\tif [ "$kept" -gt "$RETENTION" ]; then',
+		'\t\t\ttarget="$DATA_DIRECTORY/bin/$version"',
+		'\t\t\tsafe_rm "$target"',
+		'\t\t\tif [ -e "$target" ] || [ -L "$target" ]; then prune_failed=1; fi',
+		'\t\tfi',
+		'\tdone <<EOF',
+		'${ordered_versions}',
+		'EOF',
+		'fi',
+		'if [ "$prune_failed" -ne 0 ]; then emit \'{"status":"prune-failed"}\'; fi',
 		'exit 0',
 		''
 	].join('\n');
@@ -226,7 +279,7 @@ export function parseRemoteStagingHandshake(line: string): RemoteStagingHandshak
 		if (!isRecord(payload) || Object.keys(payload).length !== 1 || typeof payload.status !== 'string') {
 			return undefined;
 		}
-		if (payload.status === 'activated' || payload.status === 'already-activated') {
+		if (payload.status === 'activated' || payload.status === 'already-activated' || payload.status === 'prune-failed' || payload.status === 'cleanup-complete' || payload.status === 'cleanup-failed') {
 			return { kind: payload.status };
 		}
 		const statuses = new Set<RemoteStagingHandshake['kind']>([

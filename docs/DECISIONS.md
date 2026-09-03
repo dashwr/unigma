@@ -40,6 +40,7 @@ trabalho.
 | D-031 | A primeira entrega de `CLI-002` assume `unigma-server` pré-instalado no host remoto. O cliente não provisiona, copia ou atualiza o servidor nesta etapa; push/tarball ficam para uma fase posterior com contrato próprio. | confirmado em 2026-08-30 | resposta do responsável nesta rodada |
 | D-032 | Substitui D-031 para a entrega SSH: após gates OpenSSH/trust e confirmação explícita por host, o cliente envia pela própria sessão SSH o par versionado `unigma-server` + `unigma+opencode`, validado por manifesto/hashes e instalado atomicamente na área do usuário remoto. Não há download/CDN, elevação, instalação global, cópia de workspace ou automação de OAuth/plugins. | confirmado em 2026-09-01 | resposta do responsável nesta rodada |
 | D-032 | A distribuição unigma desativa somente a superfície `workbench.panel.chat`; serviços compartilhados necessários a MCP, inline chat, terminal/notebook e `unigmaAgent` permanecem. Comandos e smoke devem declarar essa capability indisponível sem fallback ou skip genérico. | confirmado em 2026-08-30 | resposta do responsável nesta rodada |
+| D-035 | O staging remoto retém por padrão 2 versões (ativa + anterior) e poda versões mais antigas, por mtime, somente após ativação; a VPS usa retenção 1 e falha de poda não invalida ativação. | confirmado em 2026-09-03 | resposta do responsável nesta rodada |
 
 ### D-016 — direção confirmada e limites
 
@@ -191,6 +192,17 @@ Este registro confirma direção, não implementação ou suporte funcional.
   uma sessão de sondagem extra só para ler o home.
 - A convenção de caminho vive numa tabela de templates única, consumida pelo
   TypeScript e pelo shell, para que as duas metades não possam divergir.
+
+### D-035 — retenção limitada do staging remoto
+
+- `stageRemotePayload` aceita retenção inteira maior ou igual a 1 e usa 2 por
+  padrão: a versão ativa e a anterior ficam disponíveis para rollback.
+- Depois da ativação atômica, somente diretórios cujo nome é exatamente um
+  commit de 40 caracteres hexadecimais são candidatos; a ordem é o tempo de
+  modificação, nunca o nome do hash.
+- A VPS usa retenção 1 para não acumular builds. Toda remoção recursiva passa
+  pela guarda `safe_rm`; a versão recém-ativada é explicitamente excluída. Uma
+  falha de poda emite status próprio, mas não desfaz nem invalida a ativação.
 
 ### detalhes de D-016 ainda abertos
 

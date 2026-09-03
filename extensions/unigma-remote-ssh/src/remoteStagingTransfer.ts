@@ -54,6 +54,7 @@ export interface RemoteStagingSuccess {
 	readonly ok: true;
 	readonly status: 'activated' | 'already-activated';
 	readonly version: string;
+	readonly retentionWarning?: 'prune-failed';
 }
 
 export type RemoteStagingResult = RemoteStagingSuccess | RemoteStagingFailure;
@@ -151,6 +152,15 @@ export function buildRemoteStagingExecutionArguments(input: Pick<RemoteStagingTr
 		throw new TypeError('Invalid remote staging input');
 	}
 	return [...commonSshArguments(input as RemoteStagingTransferInput), '/bin/sh', remoteScriptPath(input.commit)] as const;
+}
+
+/** Builds the guarded cleanup invocation used only by the VPS smoke teardown. */
+export function buildRemoteStagingCleanupArguments(input: Pick<RemoteStagingTransferInput, 'destination' | 'controlPath' | 'knownHostsFile' | 'commit'>): readonly string[] {
+	if (typeof input.destination !== 'string' || input.destination.length === 0 || !isValidRemoteUnixSocketPath(input.controlPath)
+		|| !/^[0-9a-f]{40}$/.test(input.commit)) {
+		throw new TypeError('Invalid remote staging input');
+	}
+	return [...commonSshArguments(input as RemoteStagingTransferInput), '/bin/sh', '-c', 'UNIGMA_STAGING_CLEANUP=1 exec /bin/sh "$0"', remoteScriptPath(input.commit)] as const;
 }
 
 function failure(code: RemoteStagingFailureCode, phase: RemoteStagingFailurePhase, exitCode?: number, remoteStatus?: RemoteStagingHandshake['kind']): RemoteStagingFailure {
@@ -286,6 +296,8 @@ async function executePayload(
 		let settled = false;
 		let payloadEnded = false;
 		let remoteStatus: RemoteStagingHandshake | undefined;
+		let activationSucceeded = false;
+		let retentionWarning: 'prune-failed' | undefined;
 		let timer: ReturnType<typeof setTimeout> | undefined;
 		let outputBuffer = '';
 		let stderrCategorySeen: RemoteStagingDiagnostic['category'] | undefined;
@@ -331,7 +343,14 @@ async function executePayload(
 				const parsed = parseRemoteStagingHandshake(line);
 				if (parsed !== undefined) {
 					remoteStatus = parsed;
-					if (parsed.kind !== 'activated' && parsed.kind !== 'already-activated') {
+					if (parsed.kind === 'activated') {
+						activationSucceeded = true;
+					} else if (parsed.kind === 'prune-failed') {
+						// Activation was already acknowledged. Cleanup is best effort and
+						// must remain visible without making the usable version fail.
+						retentionWarning = parsed.kind;
+					}
+					if (parsed.kind !== 'activated' && parsed.kind !== 'already-activated' && parsed.kind !== 'prune-failed') {
 						notify(deps, { category: 'ssh.provisioning-denied', phase: 'remote-execution' });
 						finish(failure('ssh.provisioning-denied', 'remote-execution', undefined, parsed.kind));
 					}
@@ -361,8 +380,10 @@ async function executePayload(
 			if (settled) {
 				return;
 			}
-			if (code === 0 && remoteStatus?.kind === 'activated') {
-				finish({ ok: true, status: 'activated', version: input.commit });
+			if (code === 0 && activationSucceeded) {
+				finish(retentionWarning === undefined
+					? { ok: true, status: 'activated', version: input.commit }
+					: { ok: true, status: 'activated', version: input.commit, retentionWarning });
 				return;
 			}
 			if (code === 0 && remoteStatus?.kind === 'already-activated') {
@@ -408,7 +429,7 @@ async function executePayload(
 			terminate(payload);
 		});
 		payload.on('close', code => {
-			if (!settled && code !== 0 && remoteStatus?.kind !== 'already-activated') {
+			if (!settled && code !== 0 && !activationSucceeded && remoteStatus?.kind !== 'already-activated') {
 				notify(deps, { category: 'ssh.transport-failed', phase: 'payload-transfer', exitCode: code ?? undefined });
 				finish(failure('ssh.transport-failed', 'payload-transfer', code ?? undefined));
 			}

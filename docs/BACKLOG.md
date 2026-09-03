@@ -1,5 +1,9 @@
 # unigma — backlog implementável
 
+> feito: 2026-09-03 — staging remoto passou a reter 2 versões por padrão, com
+> poda segura pós-ativação e smoke dedicado da VPS usando retenção 1, confirmação,
+> idempotência, `/version` e limpeza guardada; validação no runner permanece pendente.
+
 > **status:** backlog derivado da arquitetura aprovada em 2026-08-22. A E-00 tem
 > build, artefato, auditoria técnica e smoke de núcleo Windows x64 e Linux x64
 > reproduzidos no head `838ca94e`; a revisão legal/third-party e os direitos de

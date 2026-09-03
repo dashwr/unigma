@@ -48,6 +48,7 @@ test('parses only the redacted staging handshake statuses', () => {
 	assert.deepEqual(parseRemoteStagingHandshake('unigma-remote:{"status":"activated"}'), { kind: 'activated' });
 	assert.deepEqual(parseRemoteStagingHandshake('unigma-remote:{"status":"already-activated"}'), { kind: 'already-activated' });
 	assert.deepEqual(parseRemoteStagingHandshake('unigma-remote:{"status":"file-hash-mismatch"}'), { kind: 'file-hash-mismatch' });
+	assert.deepEqual(parseRemoteStagingHandshake('unigma-remote:{"status":"prune-failed"}'), { kind: 'prune-failed' });
 	assert.equal(parseRemoteStagingHandshake('unigma-remote:{"status":"activated","hash":"secret"}'), undefined);
 });
 
@@ -66,8 +67,17 @@ test('routes every recursive removal through the guard, with no path sentinel', 
 	assert.match(result.script, /^STAGING=$/m);
 
 	const recursive = result.script.split('\n').filter(line => /\brm\s+-[a-z]*r/.test(line));
-	assert.equal(recursive.length, 1, `expected one recursive removal, found ${recursive.length}`);
-	assert.match(recursive[0], /rm -rf -- "\$target"/);
+	// Retention adds another guarded cleanup operation; the security property is
+	// that every recursive removal is inside safe_rm, not a brittle count.
+	assert.ok(recursive.length > 0, 'expected at least one recursive removal');
+	const safeRmStart = result.script.indexOf('safe_rm() {');
+	const safeRmEnd = result.script.indexOf('\n}', safeRmStart);
+	assert.ok(safeRmStart >= 0 && safeRmEnd > safeRmStart, 'safe_rm guard must exist');
+	for (const line of recursive) {
+		const offset = result.script.indexOf(line);
+		assert.ok(offset >= safeRmStart && offset < safeRmEnd, `recursive removal escaped safe_rm: ${line}`);
+	}
+	assert.match(result.script, /rm -rf -- "\$target"/);
 
 	// The guard must refuse an empty target, an unset root and anything outside
 	// the directory the script owns, and must not be reachable by traversal.
@@ -78,6 +88,25 @@ test('routes every recursive removal through the guard, with no path sentinel', 
 
 	// The guard refuses silently, so the caller has to assert the post-condition.
 	assert.match(result.script, /if \[ -e "\$STAGING" \] \|\| \[ -L "\$STAGING" \]; then fail staging-failed/);
+	assert.match(result.script, /\[ "\$version" = "\$COMMIT" \] && continue/);
+	assert.match(result.script, /find "\$BASE\/\.unigma-server\/bin"/);
+	assert.match(result.script, /sort -rn/);
+});
+
+test('defaults to retaining two versions and rejects invalid retention', () => {
+	const defaultResult = buildRemoteStagingScript({ commit, manifest });
+	assert.equal(defaultResult.valid, true);
+	if (defaultResult.valid) {
+		assert.match(defaultResult.script, /^RETENTION=2$/m);
+	}
+	const one = buildRemoteStagingScript({ commit, manifest, retention: 1 });
+	assert.equal(one.valid, true);
+	if (one.valid) {
+		assert.match(one.script, /^RETENTION=1$/m);
+	}
+	for (const retention of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, '1']) {
+		assert.deepEqual(buildRemoteStagingScript({ commit, manifest, retention: retention as number }), { valid: false, code: 'staging-invalid-retention' });
+	}
 });
 
 test('never lets an archive choose ownership or mode on the remote host', () => {

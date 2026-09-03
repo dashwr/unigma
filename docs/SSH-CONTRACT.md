@@ -169,7 +169,9 @@ O mecanismo aprovado por `D-032` é enviar pela sessão OpenSSH já validada o p
 de qualquer escrita, a UI mostra host, versão, tamanho total e hash do manifesto
 e exige confirmação explícita para aquele host. O payload entra em diretório
 versionado pertencente ao usuário remoto; somente após validar o manifesto ocorre
-a ativação atômica. A versão anterior não é apagada por este fluxo.
+a ativação atômica. A versão anterior é preservada dentro do limite de retenção
+configurado; versões além desse limite são podadas somente após ativação
+bem-sucedida.
 
 Exibir o hash aqui é uma exceção deliberada à regra geral do projeto de não
 mostrar hashes, autorizada pelo mantenedor em 2026-09-02: esta confirmação é o
@@ -194,6 +196,13 @@ nunca em argv, que é visível no `ps` do host remoto, e o payload chega como um
 declarado no manifesto por tamanho e SHA-256, apaga o staging em qualquer
 divergência, e só então ativa com `mv -T`, atômico no mesmo filesystem. Um
 commit já ativado é deixado intacto, de modo que a operação é idempotente.
+
+A versão anterior é preservada dentro do limite de retenção configurado (por
+padrão, 2 versões: a ativa e a anterior). Depois de uma ativação bem-sucedida,
+versões além desse limite são podadas por tempo de modificação. A poda não pode
+remover a versão recém-ativada; se a poda falhar, a ativação continua válida e a
+falha é reportada separadamente. O smoke da VPS usa retenção 1 para não deixar
+builds acumuladas naquele host.
 
 Os caminhos remotos são derivados de `$HOME` **no próprio host**: o cliente não
 sabe o home do host remoto, e o host é a fonte de verdade sobre si mesmo. O

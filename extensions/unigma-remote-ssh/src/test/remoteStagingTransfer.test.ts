@@ -104,6 +104,13 @@ function executionWithStatus(status: string): FakeSshProcess {
 	});
 }
 
+function executionWithPruneFailure(): FakeSshProcess {
+	return new FakeSshProcess(process_ => {
+		process_.stdout.end('unigma-remote:{"status":"activated"}\nunigma-remote:{"status":"prune-failed"}\n');
+		process_.emit('close', 0, null);
+	});
+}
+
 test('does not put the script body in argv and sends the payload as one stdin stream', async () => {
 	const master = successfulMaster();
 	const execution = executionWithStatus('activated');
@@ -143,6 +150,11 @@ test('returns already-activated without rewriting the version', async () => {
 	assert.deepEqual(result, { ok: true, status: 'already-activated', version: commit });
 });
 
+test('reports prune failure without invalidating an activated version', async () => {
+	const result = await stageRemotePayload({ ...input(), retention: 1 }, dependencies(successfulMaster(), executionWithPruneFailure()));
+	assert.deepEqual(result, { ok: true, status: 'activated', version: commit, retentionWarning: 'prune-failed' });
+});
+
 test('accepts already-activated when the remote closes stdin before consuming the tar', async () => {
 	const execution = new FakeSshProcess(process_ => {
 		process_.stdin.emit('error', Object.assign(new Error('closed'), { code: 'EPIPE' }));
@@ -163,6 +175,13 @@ test('times out a delivery stage and terminates the SSH child', async () => {
 test('fails closed for an invalid local manifest before confirmation', async () => {
 	let confirmed = false;
 	const result = await stageRemotePayload({ ...input(() => { confirmed = true; return true; }), manifest: { ...manifest, totalSizeBytes: 4 } }, dependencies(successfulMaster(), executionWithStatus('activated')));
+	assert.deepEqual(result, { ok: false, code: 'invalid-input', phase: 'validation' });
+	assert.equal(confirmed, false);
+});
+
+test('fails closed for invalid retention before confirmation', async () => {
+	let confirmed = false;
+	const result = await stageRemotePayload({ ...input(() => { confirmed = true; return true; }), retention: 0 }, dependencies(successfulMaster(), executionWithStatus('activated')));
 	assert.deepEqual(result, { ok: false, code: 'invalid-input', phase: 'validation' });
 	assert.equal(confirmed, false);
 });
