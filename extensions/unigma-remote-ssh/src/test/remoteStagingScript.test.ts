@@ -88,7 +88,7 @@ test('routes every recursive removal through the guard, with no path sentinel', 
 
 	// The guard refuses silently, so the caller has to assert the post-condition.
 	assert.match(result.script, /if \[ -e "\$STAGING" \] \|\| \[ -L "\$STAGING" \]; then fail staging-failed/);
-	assert.match(result.script, /\[ "\$version" = "\$COMMIT" \] && continue/);
+	assert.match(result.script, /if \[ "\$version" = "\$COMMIT" \]; then continue; fi/);
 	assert.match(result.script, /find "\$BASE\/\.unigma-server\/bin"/);
 	assert.match(result.script, /sort -rn/);
 });
