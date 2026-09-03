@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { accessSync, constants as fsConstants, existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { accessSync, constants as fsConstants, existsSync, mkdirSync, readdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { createConnection } from 'node:net';
 import { createRequire } from 'node:module';
@@ -201,7 +201,22 @@ async function main(): Promise<void> {
 		let modules: ReturnType<typeof loadPackageModules>;
 		try {
 			modules = loadPackageModules(appDirectory);
-		} catch {
+		} catch (error) {
+			// A silent catch here already cost a runner cycle: the report said the
+			// modules failed to load and nothing about why or from where. The
+			// packaged layout is the thing under test, so it is what gets reported.
+			const directory = join(appDirectory, 'extensions', 'unigma-agent-runtime', 'out', 'infrastructure');
+			checks.push(['runtime-modules.directory-exists', String(existsSync(directory))]);
+			if (existsSync(directory)) {
+				checks.push(['runtime-modules.entries', readdirSync(directory).filter(entry => entry.endsWith('.js')).sort().join(' ') || 'none']);
+			} else {
+				const extensionRoot = join(appDirectory, 'extensions', 'unigma-agent-runtime');
+				checks.push(['runtime-modules.extension-exists', String(existsSync(extensionRoot))]);
+				if (existsSync(extensionRoot)) {
+					checks.push(['runtime-modules.extension-entries', readdirSync(extensionRoot).sort().join(' ')]);
+				}
+			}
+			checks.push(['runtime-modules.reason', error instanceof Error ? error.message.split('\n')[0] : 'unknown']);
 			check('runtime-modules', false);
 			return;
 		}
