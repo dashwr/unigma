@@ -119,3 +119,23 @@ export async function resolveRemoteSsh(
 	}
 	return { ok: true, target: preflight.target, destination, commit: clientCommit.commit, session: transport };
 }
+
+/**
+ * Failures worth another attempt, as opposed to ones a retry cannot fix.
+ *
+ * The distinction is not cosmetic. During reconnection the workbench treats
+ * `NotAvailable` as permanent and stops, so a dropped SSH channel — the most
+ * ordinary thing that happens to a remote session — ended the window instead of
+ * reconnecting. Only failures whose cause can clear on its own belong here: a
+ * missing server, an untrusted host key or an unsupported platform all need a
+ * person, and retrying them just hides the message that says so.
+ */
+export function isTransientRemoteSshFailure(code: RemoteSshResolverFailureCode): boolean {
+	switch (code) {
+		case 'ssh.connection-lost':
+		case 'ssh.transport-failed':
+			return true;
+		default:
+			return false;
+	}
+}

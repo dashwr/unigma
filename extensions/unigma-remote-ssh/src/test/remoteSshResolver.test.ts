@@ -5,7 +5,7 @@
 
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { isRemoteStagingConfirmed, resolveClientCommitFromProduct, mapRemoteServerFailure, resolveRemoteSsh, CLIENT_COMMIT_UNAVAILABLE } from '../remoteSshResolver.js';
+import { isTransientRemoteSshFailure, isRemoteStagingConfirmed, resolveClientCommitFromProduct, mapRemoteServerFailure, resolveRemoteSsh, CLIENT_COMMIT_UNAVAILABLE } from '../remoteSshResolver.js';
 import type { RemoteServerSession } from '../remoteServerTransport.js';
 import type { RemoteSshLocalObservation } from '../remoteSshPreflight.js';
 
@@ -51,4 +51,27 @@ test('runs gates, commit resolution and transport in order, failing closed', asy
 		openRemoteServer: async () => { throw new Error('must not open'); }
 	});
 	assert.deepEqual(unavailable, { ok: false, code: CLIENT_COMMIT_UNAVAILABLE, phase: 'commit' });
+});
+
+test('classifies only recoverable failures as transient', () => {
+	// During reconnection the workbench treats NotAvailable as final, so a dropped
+	// channel reported that way ends the window instead of coming back.
+	assert.equal(isTransientRemoteSshFailure('ssh.connection-lost'), true);
+	assert.equal(isTransientRemoteSshFailure('ssh.transport-failed'), true);
+
+	// These need a person. Retrying them only hides the message that says so.
+	for (const code of [
+		'ssh.remote-server-unavailable',
+		'ssh.remote-server-incompatible',
+		'ssh.host-key-untrusted',
+		'ssh.authentication-unavailable',
+		'ssh.client-unavailable',
+		'ssh.target-unresolved',
+		'ssh.workspace-blocked',
+		'ssh.remote-platform-unsupported',
+		'ssh.provisioning-denied',
+		'ssh.client-commit-unavailable'
+	] as const) {
+		assert.equal(isTransientRemoteSshFailure(code), false, code);
+	}
 });

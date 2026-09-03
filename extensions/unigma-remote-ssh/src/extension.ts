@@ -12,7 +12,7 @@ import { createOpenSshVersionRunner, probeOpenSshClient } from './openSshClient.
 import { stageRemotePayload, createRemotePayloadTarRunner, type RemoteStagingResult } from './remoteStagingTransfer.js';
 import { createRemoteSshProcessRunner, openRemoteServer, type RemoteServerStagingSession, type RemoteServerSession } from './remoteServerTransport.js';
 import { REMOTE_SSH_AUTHORITY_PREFIX } from './remoteSshAuthority.js';
-import { CLIENT_COMMIT_UNAVAILABLE, isRemoteStagingConfirmed, REMOTE_SSH_STAGE_COMMAND_TITLE, resolveClientCommitFromProduct, resolveRemoteSsh, type RemoteSshResolverFailureCode, type RemoteSshResolverPhase } from './remoteSshResolver.js';
+import { CLIENT_COMMIT_UNAVAILABLE, isRemoteStagingConfirmed, isTransientRemoteSshFailure, REMOTE_SSH_STAGE_COMMAND_TITLE, resolveClientCommitFromProduct, resolveRemoteSsh, type RemoteSshResolverFailureCode, type RemoteSshResolverPhase } from './remoteSshResolver.js';
 import { describeRemoteSshFailure, detectClientPlatform, type RemoteSshLocalObservation } from './remoteSshPreflight.js';
 
 const STAGING_AVAILABLE_CONTEXT = 'unigma.remoteSsh.stagingAvailable';
@@ -203,7 +203,15 @@ export function activate(context: vscode.ExtensionContext): void {
 					replaceStagingLease(authority, { authority, destination: result.destination, commit: result.commit, session: result.stagingSession });
 				}
 				reportFailure(result.code, result.phase);
-				throw vscode.RemoteAuthorityResolverError.NotAvailable(failureMessage(result.code, result.phase));
+				const message = failureMessage(result.code, result.phase);
+				// The extension already showed the message, so `handled` keeps the
+				// workbench from stacking a second notification saying the same thing.
+				// The classification matters more: during reconnection the workbench
+				// treats `NotAvailable` as final, so reporting a dropped channel that
+				// way ended the window instead of letting it come back.
+				throw isTransientRemoteSshFailure(result.code)
+					? vscode.RemoteAuthorityResolverError.TemporarilyNotAvailable(message)
+					: vscode.RemoteAuthorityResolverError.NotAvailable(message, true);
 			}
 			created.value = { authority, destination: result.destination, commit: result.commit, session: result.session };
 			activeSessions.add(created.value);
