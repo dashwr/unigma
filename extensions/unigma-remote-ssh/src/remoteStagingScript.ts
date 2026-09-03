@@ -250,7 +250,11 @@ export function buildRemoteStagingScript(input: unknown): RemoteStagingScriptRes
 		'\t\tcase "$version" in',
 		'\t\t\t*[!0-9a-f]*) continue ;;',
 		'\t\tesac',
-		'\t\t[ "$version" = "$COMMIT" ] && continue',
+		// Written as an explicit branch rather than `[ ... ] && continue`: the
+		// AND-OR form is exempt from `set -e` only because of where it sits in
+		// the loop, and a reader of a script that removes directories as root
+		// should not have to know that rule to trust it.
+		'\t\tif [ "$version" = "$COMMIT" ]; then continue; fi',
 		'\t\tkept=$((kept + 1))',
 		'\t\tif [ "$kept" -gt "$RETENTION" ]; then',
 		'\t\t\ttarget="$DATA_DIRECTORY/bin/$version"',
