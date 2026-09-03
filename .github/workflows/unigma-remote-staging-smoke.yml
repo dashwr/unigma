@@ -2,13 +2,25 @@ name: unigma remote SSH staging smoke
 
 on:
   workflow_dispatch:
+    inputs:
+      run_as:
+        description: >-
+          WSL user that runs the smoke. Use root only as a rehearsal of the
+          privileged path before touching a real host: the script restores
+          ownership and modes differently as root, and no unprivileged run can
+          expose that.
+        type: choice
+        options:
+          - dasher
+          - root
+        default: dasher
 
 permissions:
   contents: read
 
 jobs:
   remote-staging-smoke:
-    name: remote SSH staging smoke in Ubuntu WSL2
+    name: remote SSH staging smoke in Ubuntu WSL2 (${{ inputs.run_as || 'dasher' }})
     runs-on: self-hosted
     timeout-minutes: 30
     defaults:
@@ -19,6 +31,8 @@ jobs:
         uses: actions/checkout@v4
 
       - name: prepare WSL paths
+        env:
+          RUN_AS: ${{ inputs.run_as }}
         run: |
           $workspace = $env:GITHUB_WORKSPACE -replace '\\', '/'
           if ($workspace -notmatch '^([A-Za-z]):/(.+)$') {
@@ -27,7 +41,13 @@ jobs:
           $drive = $matches[1].ToLowerInvariant()
           $path = $matches[2]
           [System.IO.File]::AppendAllText($env:GITHUB_ENV, "WSL_SOURCE=/mnt/$drive/$path`n")
-          [System.IO.File]::AppendAllText($env:GITHUB_ENV, "WSL_BUILD=/home/dasher/unigma-remote-staging-smoke-build`n")
+          $runAs = if ($env:RUN_AS) { $env:RUN_AS } else { 'dasher' }
+          if ($runAs -notin @('dasher', 'root')) { throw "Unsupported WSL user: $runAs" }
+          [System.IO.File]::AppendAllText($env:GITHUB_ENV, "WSL_RUN_AS=$runAs`n")
+          # Each user builds in its own home, so a root rehearsal never leaves
+          # root-owned files in the dasher home that later runs would trip over.
+          $buildHome = if ($runAs -eq 'root') { '/root' } else { '/home/dasher' }
+          [System.IO.File]::AppendAllText($env:GITHUB_ENV, "WSL_BUILD=$buildHome/unigma-remote-staging-smoke-build`n")
 
       # The smoke owns an ephemeral loopback sshd and never changes the product's
       # remote host. The server binary must already be available on the runner,
@@ -40,9 +60,12 @@ jobs:
 
           source="$1"
           build="$2"
+          # The published artifacts live in the dasher home. A root rehearsal has a
+          # different HOME, so the store is named explicitly instead of guessed.
+          export UNIGMA_ARTIFACT_ROOT=/home/dasher/.local/share/unigma-artifacts
           report="$source/.build/unigma-remote-staging-smoke.txt"
           node_version="$(tr -d '[:space:]' < "$source/.nvmrc")"
-          toolchain="$HOME/.local/share/unigma-toolchains/node-$node_version"
+          toolchain="/home/dasher/.local/share/unigma-toolchains/node-$node_version"
           if [ ! -x "$toolchain/bin/node" ]; then
             echo "missing Node $node_version toolchain" >&2
             mkdir -p "$(dirname "$report")"
@@ -67,7 +90,7 @@ jobs:
           $script = $script -replace "`r`n?", "`n"
           [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))
           $scriptPathWsl = "/mnt/$($scriptPath.Substring(0, 1).ToLowerInvariant())/$($scriptPath.Substring(3).Replace('\', '/'))"
-          & wsl.exe -d Ubuntu --user dasher -- bash $scriptPathWsl $env:WSL_SOURCE $env:WSL_BUILD
+          & wsl.exe -d Ubuntu --user $env:WSL_RUN_AS -- bash $scriptPathWsl $env:WSL_SOURCE $env:WSL_BUILD
           $exitCode = $LASTEXITCODE
           Remove-Item -Force $scriptPath -ErrorAction SilentlyContinue
           if ($exitCode -ne 0) { exit $exitCode }
