@@ -101,6 +101,20 @@ export type RemoteStagingSshProcessRunner = (arguments_: readonly string[]) => R
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 
+/**
+ * Transfer and remote work need their own budgets.
+ *
+ * Fifteen seconds is right for delivering a small script and wrong for
+ * everything else: the payload is a few hundred megabytes, so the transfer is
+ * bounded by the link and the remote side still has to extract it and hash every
+ * declared file. A local runner finished in about three seconds and an ordinary
+ * VPS across the internet did not, which is not a fault to report as a transport
+ * failure. These remain overridable, and a caller that wants a snappier failure
+ * can still ask for one.
+ */
+const DEFAULT_PAYLOAD_TRANSFER_TIMEOUT_MS = 600_000;
+const DEFAULT_REMOTE_EXECUTION_TIMEOUT_MS = 600_000;
+
 function knownHostsArguments(knownHostsFile: string | undefined): readonly string[] {
 	return knownHostsFile === undefined ? [] : [
 		'-o', `UserKnownHostsFile=${knownHostsFile}`,
@@ -472,7 +486,7 @@ export async function stageRemotePayload(input: RemoteStagingTransferInput, deps
 	if (deliveryFailure !== undefined) {
 		return deliveryFailure;
 	}
-	return executePayload(input, deps, input.payloadTransferTimeoutMs ?? DEFAULT_TIMEOUT_MS, input.remoteExecutionTimeoutMs ?? DEFAULT_TIMEOUT_MS);
+	return executePayload(input, deps, input.payloadTransferTimeoutMs ?? DEFAULT_PAYLOAD_TRANSFER_TIMEOUT_MS, input.remoteExecutionTimeoutMs ?? DEFAULT_REMOTE_EXECUTION_TIMEOUT_MS);
 }
 
 /** Factory for the local tar stream; tests inject a fake and never spawn it. */
