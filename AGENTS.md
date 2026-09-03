@@ -57,6 +57,11 @@
   sem esses flags o payload decide o que aparece no disco e com qual privilégio.
   Os flags forçam o comportamento que um usuário comum já teria. Há teste que
   exige os dois em cada extração.
+- Isso **não é só do script remoto**. Qualquer `tar -x` que possa rodar como root
+  precisa de `--no-same-owner`, inclusive em workflow. O ensaio privilegiado
+  tropeçou nisso: o checkout vem de um mount Windows, onde tudo aparece como
+  `dasher`, e extrair como root reproduziu essa titularidade dentro de `/root`,
+  levando o git a recusar o repositório por `dubious ownership`.
 - Prefira operação limitada por natureza: `rm -f` em arquivo único, `rmdir` que
   falha em diretório não vazio, `mkdir` como lock atômico, `mv -T` para ativar.
   É por isso que o script de conexão não precisa de guarda.
