@@ -197,7 +197,14 @@ function createControlPath(): { readonly directory: string; readonly path: strin
 	const directory = mkdtempSync(join(tmpdir(), 'ug-'));
 	chmodSync(directory, 0o700);
 	const path = join(directory, 'c');
-	if (!isValidRemoteUnixSocketPath(path) || Buffer.byteLength(path, 'utf8') > REMOTE_UNIX_SOCKET_PATH_MAX_BYTES) {
+	// The ControlPath is a local path, and it was being validated with the rule
+	// written for the remote UNIX socket. On Windows a temporary path is not
+	// POSIX absolute, so the check rejected every path and no connection could
+	// ever be opened — the failure surfaced as a generic transport error with no
+	// exit code, which says nothing about the cause. The address limit is a real
+	// constraint only where the ControlPath is itself a UNIX socket.
+	if (process.platform !== 'win32'
+		&& (!isValidRemoteUnixSocketPath(path) || Buffer.byteLength(path, 'utf8') > REMOTE_UNIX_SOCKET_PATH_MAX_BYTES)) {
 		rmSync(directory, { recursive: true, force: true });
 		throw new RangeError('ControlPath exceeds UNIX socket address limit');
 	}
