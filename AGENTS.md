@@ -57,6 +57,15 @@
   sem esses flags o payload decide o que aparece no disco e com qual privilégio.
   Os flags forçam o comportamento que um usuário comum já teria. Há teste que
   exige os dois em cada extração.
+- **O payload do servidor tem baseline de símbolos, e ele é do produto, não do
+  build.** `D-036` fixa `glibc 2.28`/`GLIBCXX 3.4.25`, que o próprio pacote já
+  declarava em `check-requirements-linux.sh` e em `remoteAgentEnvironmentImpl.ts`.
+  O workflow do servidor compila os addons contra o sysroot
+  `glibc-2.28-gcc-8.5.0` e `build/unigma/verify-server-symbol-baseline.sh`
+  reprova `GLIBC`, `GLIBCXX` ou `CXXABI` acima disso antes da publicação —
+  divergindo de propósito do upstream, que só avisa. Não compile addon remoto com
+  o compilador da máquina: foi assim que seis dos oito módulos nativos deixaram
+  de carregar num host comum enquanto `GET /version` seguia verde.
 - Isso **não é só do script remoto**. Qualquer `tar -x` que possa rodar como root
   precisa de `--no-same-owner`, inclusive em workflow. O ensaio privilegiado
   tropeçou nisso: o checkout vem de um mount Windows, onde tudo aparece como
@@ -201,8 +210,14 @@ npm run test-build-scripts
 - Os demais workflows executáveis, todos `workflow_dispatch` e self-hosted:
   `unigma-server-linux-artifact.yml` (pacote REH, auditado com `--server` antes
   de publicar), `opencode-linux-artifact.yml` (OpenCode fixado em `1.18.23`),
-  `unigma-remote-ssh-smoke.yml` (conexão remota) e
-  `unigma-remote-staging-smoke.yml` (push do payload, ativação e idempotência).
+  `unigma-remote-ssh-smoke.yml` (conexão remota),
+  `unigma-remote-staging-smoke.yml` (push do payload, ativação e idempotência),
+  `unigma-remote-vps-smoke.yml` (conexão somente-leitura contra a VPS externa),
+  `unigma-remote-vps-staging-smoke.yml` (staging real na VPS, incluindo a carga
+  dos módulos nativos no host), `unigma-remote-vps-cleanup.yml` (remoção guardada
+  de uma versão por commit), `unigma-wsl-ssh-alias.yml` (manutenção do alias) e
+  `unigma-windows-ssh-capabilities.yml` (mede o cliente OpenSSH do Windows sem
+  conectar a host algum).
 - Os workflows herdados que agendavam em pools `1ES.Pool` da Microsoft foram
   removidos: nunca puderam ser escalonados neste fork e só produziam check
   vermelho sem sinal.

@@ -41,7 +41,7 @@ trabalho.
 | D-032 | Substitui D-031 para a entrega SSH: após gates OpenSSH/trust e confirmação explícita por host, o cliente envia pela própria sessão SSH o par versionado `unigma-server` + `unigma+opencode`, validado por manifesto/hashes e instalado atomicamente na área do usuário remoto. Não há download/CDN, elevação, instalação global, cópia de workspace ou automação de OAuth/plugins. | confirmado em 2026-09-01 | resposta do responsável nesta rodada |
 | D-032 | A distribuição unigma desativa somente a superfície `workbench.panel.chat`; serviços compartilhados necessários a MCP, inline chat, terminal/notebook e `unigmaAgent` permanecem. Comandos e smoke devem declarar essa capability indisponível sem fallback ou skip genérico. | confirmado em 2026-08-30 | resposta do responsável nesta rodada |
 | D-035 | O staging remoto retém por padrão 2 versões (ativa + anterior) e poda versões mais antigas, por mtime, somente após ativação; a VPS usa retenção 1 e falha de poda não invalida ativação. | confirmado em 2026-09-03 | resposta do responsável nesta rodada |
-| D-036 | A baseline de compatibilidade do `unigma-server` Linux é GLIBC 2.28 / GLIBCXX 3.4.25, já declarada pelo produto; o build passa a obedecê-la compilando os addons nativos contra o sysroot vendorizado. O gate de símbolos falha também em GLIBCXX e CXXABI, divergindo deliberadamente do upstream. | confirmado em 2026-09-03 | execução de runner `33784052687` |
+| D-036 | A baseline de compatibilidade do `unigma-server` Linux é GLIBC 2.28 / GLIBCXX 3.4.25, já declarada pelo produto; o build passa a obedecê-la compilando os addons nativos contra o sysroot vendorizado. O gate de símbolos falha também em GLIBCXX e CXXABI, divergindo deliberadamente do upstream. | confirmado em 2026-09-03 | defeito em `33784052687`; correção em `33796510313` e `33797399848` |
 
 ### D-016 — direção confirmada e limites
 
@@ -236,6 +236,12 @@ Este registro confirma direção, não implementação ou suporte funcional.
   `audit-distribution.ts --server` e antes do tar e da publicação, para que um
   artefato em violação não chegue ao depósito de onde os smokes remotos montam o
   par.
+- Efeito medido, no mesmo host que expôs o defeito: artefato `33796510313` com 9
+  objetos ELF inspecionados e todos dentro da baseline, e smoke `33797399848` com
+  `native.modules.loaded=7`, `rejected=0`. O único módulo que segue sem carregar é
+  `@vscode/deviceid/build/Release/windows.node`, binário de Windows que não deve
+  carregar em Linux. O risco antecipado — gcc 8.5 recusar fontes modernas — não se
+  materializou.
 
 ### detalhes de D-016 ainda abertos
 

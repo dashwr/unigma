@@ -1,5 +1,24 @@
 # unigma — backlog implementável
 
+> feito: 2026-09-03 — o payload do servidor remoto voltou a ser utilizável. O
+> workflow do servidor passou a compilar os addons contra o sysroot
+> `glibc-2.28-gcc-8.5.0` já vendorizado, exportando os `VSCODE_REMOTE_*` e o
+> `include.gypi` do upstream, sem Docker e sem privilégio; um gate novo
+> (`build/unigma/verify-server-symbol-baseline.sh`) reprova `GLIBC`, `GLIBCXX` e
+> `CXXABI` acima do baseline entre a auditoria e a publicação. Artefato
+> `33796510313` com 9 objetos ELF dentro do baseline; na VPS (`33797399848`)
+> `native.modules.rejected` caiu de 6 para 0. `D-036`.
+
+> feito: 2026-09-03 — o smoke de staging da VPS passou a carregar, no host e com
+> o Node empacotado da versão ativada, todo `.node` do servidor, reportando ABI,
+> arquitetura, glibc de runtime e de compilação e o motivo por módulo. Foi ele
+> que expôs o payload quebrado que `GET /version` escondia (`33784052687`).
+
+> feito: 2026-09-03 — a premissa da matriz Windows virou medida
+> (`unigma-windows-ssh-capabilities`, run `33785474120`): OpenSSH 9.5p2 não tem
+> multiplexação utilizável, mas aceita `-L` para socket UNIX e `-W`, o que mantém
+> viva a alternativa de segunda sessão com um só caminho de código.
+
 > feito: 2026-09-03 — a limpeza remota guardada passou a ser executada de fato:
 > o comando de cleanup é citado para sobreviver à reanálise do shell remoto, a
 > sessão de manutenção usa `ssh -M -N` verificado por `-O check` em vez do

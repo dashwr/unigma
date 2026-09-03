@@ -22,13 +22,25 @@ código**. Verde só vale pelo que a asserção realmente toca.
 
 O caminho remoto por SSH está construído inteiro — par versionado, transporte,
 staging, ativação atômica, resolver devolvendo `ResolvedAuthority` — e validado
-no runner, inclusive num ensaio como root. **Mas nenhuma janela remota jamais
-abriu**, e até esta rodada a extensão do resolver nem sequer chegava ao pacote.
-O remoto continua implementado, não suportado.
+no runner, inclusive num ensaio como root e contra uma VPS externa de verdade,
+com staging real, ativação, idempotência e limpeza guardada. **Mas nenhuma janela
+remota jamais abriu**, e até esta rodada a extensão do resolver nem sequer
+chegava ao pacote. O remoto continua implementado, não suportado.
 
-**próximo passo:** a matriz oficial `T-053`/`AC-007`, abrindo a janela de verdade.
-Depois dela, o smoke contra a VPS, que hoje para em pré-requisito: não existe um
-bloco `Host unigma-vps` no `ssh_config` do usuário da WSL.
+**A rodada da VPS custou caro e valeu:** o servidor subia, respondia `/version` e
+estava funcionalmente quebrado. Seis dos oito módulos nativos não carregavam no
+host — terminal, estado, file watching, log e kerberos — porque o build compilava
+os addons com o gcc da própria WSL, ignorando o baseline `glibc 2.28` que o
+produto **já declarava** em três lugares, um deles dentro do próprio pacote.
+`/version` não precisa de nenhum deles, então o verde não tocava o defeito.
+Corrigido pelo sysroot já vendorizado e trancado por um gate de símbolos antes da
+publicação (`D-036`).
+
+**próximo passo:** a matriz oficial `T-053`/`AC-007`, abrindo a janela de verdade
+— agora contra um servidor que tem terminal e file watching do outro lado, o que
+antes não seria verdade. O primeiro passo dela é conferir que desktop e servidor
+saem do **mesmo commit**: divergência faz o resolver recusar corretamente, e essa
+recusa passaria por defeito.
 
 **logo depois:** colher no runner o smoke de `opencode serve` subindo a partir do
 pacote; o script agora cobre resolução compilada, saúde, sessão mínima e teardown.
@@ -40,8 +52,11 @@ as decisões que são tuas e não minhas — titularidade, notices e clearance l
 
 **dívidas conhecidas:** o smoke de conexão pré-popula o servidor em vez de
 exercitar o push, por decisão explícita; `remote/LICENSE` ainda carrega copyright
-herdado; o auditor cobre desktop e servidor, não o payload montado; e o pacote
-não tem tema de alto contraste próprio.
+herdado; o auditor cobre desktop e servidor, não o payload montado; o pacote
+não tem tema de alto contraste próprio; `src/vs/platform/log/node/spdlogLog.ts`
+devolve `null` sem logger alternativo e nunca drena o buffer de `log()`, ou seja
+perde log em silêncio mesmo com o addon são; e a linha cliente Windows da matriz
+continua sem caminho, porque o transporte depende de `ControlMaster`.
 
 **foco atual:** implementação incremental de `E02/E03` no runtime OpenCode e
 workbench nativo, mantendo os gates `E00/E01` em review/partial
