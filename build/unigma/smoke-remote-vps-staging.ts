@@ -49,6 +49,20 @@ function tracedRunner(): (arguments_: readonly string[]) => RemoteSshProcess {
 		return process_;
 	};
 }
+/**
+ * Traces the payload stream spawner as well.
+ *
+ * Only the ssh runner was traced, and the failure landed in the phase that uses
+ * this one, so the trace file was empty exactly when it was needed.
+ */
+function tracedPayloadTarRunner(): ReturnType<typeof createRemotePayloadTarRunner> {
+	const realRunner = createRemotePayloadTarRunner();
+	return ((arguments_: readonly string[]) => {
+		const process_ = realRunner(arguments_ as never) as RemoteSshProcess;
+		process_.stderr.on('data', chunk => { try { appendFileSync(tracePath, chunk as Buffer); } catch { /* trace is best effort */ } });
+		return process_;
+	}) as ReturnType<typeof createRemotePayloadTarRunner>;
+}
 function payloadFromStore(workDirectory: string): { readonly server: string; readonly opencode: string; readonly license: string; readonly commit: string } {
 	const store = process.env['UNIGMA_ARTIFACT_ROOT'] ?? join(homedir(), '.local', 'share', 'unigma-artifacts');
 	const serverTree = join(store, 'unigma-server-latest');
@@ -110,11 +124,11 @@ async function main(): Promise<void> {
 	let cleaned = false;
 	try {
 		const common = { destination, controlPath: stagingSession!.controlPath, commit: payload.commit, manifest, payloadDirectory, retention: 1, confirm: undefined as unknown as (summary: unknown) => boolean };
-		const refused = await stageRemotePayload(common, { spawn: runner, spawnPayloadTar: createRemotePayloadTarRunner() });
+		const refused = await stageRemotePayload(common, { spawn: runner, spawnPayloadTar: tracedPayloadTarRunner() });
 		check('confirmation-required', !refused.ok && refused.code === 'invalid-input');
-		const rejected = await stageRemotePayload({ ...common, confirm: () => false }, { spawn: runner, spawnPayloadTar: createRemotePayloadTarRunner() });
+		const rejected = await stageRemotePayload({ ...common, confirm: () => false }, { spawn: runner, spawnPayloadTar: tracedPayloadTarRunner() });
 		check('confirmation-rejected', !rejected.ok && rejected.code === 'ssh.provisioning-denied' && rejected.phase === 'confirmation');
-		const staged = await stageRemotePayload({ ...common, confirm: summary => summary.host === destination && summary.version === payload.commit && summary.totalSizeBytes === manifest.totalSizeBytes && /^[a-f0-9]{64}$/.test(summary.manifestHash) }, { spawn: runner, spawnPayloadTar: createRemotePayloadTarRunner() });
+		const staged = await stageRemotePayload({ ...common, confirm: summary => summary.host === destination && summary.version === payload.commit && summary.totalSizeBytes === manifest.totalSizeBytes && /^[a-f0-9]{64}$/.test(summary.manifestHash) }, { spawn: runner, spawnPayloadTar: tracedPayloadTarRunner() });
 		if (!staged.ok) {
 			// Reporting only that staging failed has now cost four runner cycles
 			// across these smokes. The phase and code are contract categories and
@@ -128,7 +142,7 @@ async function main(): Promise<void> {
 			checks.push([`activated.status.${staged.status}`, 'fail']);
 			return;
 		}
-		const repeated = await stageRemotePayload({ ...common, confirm: () => true }, { spawn: runner, spawnPayloadTar: createRemotePayloadTarRunner() });
+		const repeated = await stageRemotePayload({ ...common, confirm: () => true }, { spawn: runner, spawnPayloadTar: tracedPayloadTarRunner() });
 		check('idempotent', repeated.ok && repeated.status === 'already-activated');
 		const served = await openRemoteServer({ destination, commit: payload.commit, timeoutMs: 30_000 }, { allocateLocalPort: () => 49153, spawn: runner });
 		if ((served as { readonly ok?: boolean }).ok === false) { check('activated-transport', false); return; }
