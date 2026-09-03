@@ -159,6 +159,7 @@ async function main(): Promise<boolean> {
 		const sessionCleanupArguments = buildRemoteStagingCleanupArguments({ destination, controlPath: session.controlPath, commit });
 		const before = await runCommand(runner, presenceArguments(sessionCleanupArguments, commit));
 		const beforeStatus = before.code === 0 ? before.output.trim() : 'query-failed';
+		report('before.exit', String(before.code));
 		report('before.status', beforeStatus === 'present' || beforeStatus === 'absent' ? beforeStatus : 'query-failed');
 		if (beforeStatus === 'query-failed') {
 			return false;
@@ -171,6 +172,7 @@ async function main(): Promise<boolean> {
 		report('cleanup.host-status', hostStatus);
 		const after = await runCommand(runner, presenceArguments(sessionCleanupArguments, commit));
 		const afterStatus = after.code === 0 ? after.output.trim() : 'query-failed';
+		report('after.exit', String(after.code));
 		report('after.status', afterStatus === 'present' || afterStatus === 'absent' ? afterStatus : 'query-failed');
 		const absentAfter = afterStatus === 'absent';
 		report('result', beforeStatus === 'absent' ? 'already-absent' : 'removed');
