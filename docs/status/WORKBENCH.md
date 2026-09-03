@@ -6,51 +6,34 @@
 
 **última atualização:** 2026-09-03
 
-**feito nesta rodada:** o runtime resolve primeiro o OpenCode Linux x64 embarcado
-em `resources/app/opencode/bin/opencode`, com licença e proveniência ao lado;
-empacotamento, auditoria condicional e smoke focado foram ligados ao workflow.
-Compile/testes locais são o limite desta rodada; runner e artefato ainda pendentes.
-
-**feito nesta rodada:** superfícies de distribuição Linux/Windows e textos
-exibidos pelas extensões foram remarcados para `unigma`; o Debian deixou de
-registrar o repositório/chave Microsoft; o auditor agora verifica identidade
-exibida em metadados do pacote. `npm run test-build-scripts` passou com 270
-testes, além do teste focal do auditor e ESLint dos arquivos TypeScript alterados.
-Isso ainda não é clearance legal nem validação de artefato empacotado.
-
 ## onde estamos, em uma leitura
 
-O caminho remoto por SSH está construído e validado no runner de ponta a ponta,
-**menos a matriz oficial e o workbench real**. Existe um par versionado, um
-transporte OpenSSH, um staging com ativação atômica e dois smokes que provam os
-dois lados contra um `sshd` real e um servidor real. O resolver agora devolve
-`ResolvedAuthority`; o comando explícito de staging cobre a ausência do servidor
-sem provisionar por omissão.
+**A primeira build utilizável existe.** O pacote Linux x64 sai do runner com o
+OpenCode `1.18.23` embarcado e resolvido a partir do próprio pacote, com os temas
+`unigma Dark`/`unigma Light` como padrão e contraste verificado por script, e com
+o branding técnico fechado. Isso é build, auditoria e smoke no runner, não
+opinião: `33716478896`, `33713474988` e `33714886992`.
 
-**o limite honesto desta rodada:** nenhuma evidência atual exercita o resolver.
-Os três runs verdes na ref dele — matriz Linux `33692190082`, smoke de conexão
-`33693339241` e smoke de staging `33693927993` — provam transporte, staging e
-ativação, que o resolver *consome*. Abrir uma janela remota de verdade exige um
-workbench real e continua sem cobertura. Por isso o remoto está implementado, não
-suportado.
+O caminho remoto por SSH está construído inteiro — par versionado, transporte,
+staging, ativação atômica, resolver devolvendo `ResolvedAuthority` — e validado
+no runner, inclusive num ensaio como root. **Mas nenhuma janela remota jamais
+abriu**, então o remoto continua implementado, não suportado.
 
-**próximo passo:** a matriz oficial `T-053`/`AC-007` — abrir a janela, sessão,
-queda de conexão e reconexão contra um host real. É o que converte implementado
-em suportado.
+**próximo passo:** a matriz oficial `T-053`/`AC-007`, abrindo a janela de verdade.
+Depois dela, o smoke contra a VPS, que hoje para em pré-requisito: não existe um
+bloco `Host unigma-vps` no `ssh_config` do usuário da WSL.
 
-**logo depois:** o passo de Welcome que sugere configurar uma identidade SSH sem
-gerar nem guardar chave, visível só em sessão SSH.
+**logo depois:** `opencode serve` de fato subindo a partir do pacote — hoje o
+smoke prova versão e resolução, não serviço em execução; tema de alto contraste;
+e o passo de Welcome que sugere identidade SSH sem gerar chave.
 
-**depois disso**, por natureza do bloqueio: notices, titularidade e branding
-(`E00-A`/`E00-B`) dependem de decisão humana; os épicos de produto
-(`AC-003`, `AC-004`, `AC-006`, `AC-010`, `AC-011`, `T-043`) vêm quando o remoto
-estiver fechado.
+**depois disso:** os épicos de agente (`AC-003`, `AC-004`, `AC-006`, `T-043`), e
+as decisões que são tuas e não minhas — titularidade, notices e clearance legal.
 
-**dívidas conhecidas**, registradas para não virarem surpresa: o smoke de
-conexão pré-popula o servidor em vez de exercitar o push do payload, por decisão
-explícita, e quem cobre o push é o smoke de staging; `remote/LICENSE` ainda
-carrega copyright herdado; e o auditor de distribuição, embora agora cubra o
-pacote do servidor, não cobre o payload montado.
+**dívidas conhecidas:** o smoke de conexão pré-popula o servidor em vez de
+exercitar o push, por decisão explícita; `remote/LICENSE` ainda carrega copyright
+herdado; o auditor cobre desktop e servidor, não o payload montado; e o pacote
+não tem tema de alto contraste próprio.
 
 **foco atual:** implementação incremental de `E02/E03` no runtime OpenCode e
 workbench nativo, mantendo os gates `E00/E01` em review/partial
@@ -164,6 +147,12 @@ adiciona uma asserção negativa. `compile-client`, `typecheck-client`, 60 teste
 
 | data | id | transição | evidência |
 | --- | --- | --- | --- |
+| 2026-09-03 | `E-02` / OpenCode empacotado | o pacote Linux x64 passou a carregar o OpenCode | `7c0d30aa`. `ProcessManager` usava `command = 'opencode'` e dependia do `PATH`, então numa instalação real o runtime não subia. A resolução virou função pura com precedência embarcado → configuração → `PATH`, falhando fechado com código nomeado quando o embarcado existe mas está quebrado, em vez de cair em silêncio para o `PATH` e mascarar build ruim. O binário vem do artefato que o nosso próprio workflow constrói, nunca de download — o contrato recusa CDN e `updateUrl`. Verificado contra o pacote construído no run `33716478896`: `opencode.version=1.18.23` e `opencode.command=…/resources/app/opencode/bin/opencode`, com licença e proveniência presentes |
+| 2026-09-03 | `AC-011` / tema | temas próprios do unigma, padrão e com contraste medido | `35fdf6cb`. `unigma Dark` e `unigma Light` substituem `Vesper Violet`/`Light 2026` como padrão. A paleta segue a direção já decidida — violeta dominante, magenta reservado a realce, fundos escuro/claro/lilás. Contraste não ficou no olho: `build/unigma/verify-theme-contrast.ts` calcula os pares que importam e reprova abaixo de `4.5:1`, e roda no `test-build-scripts`. Medidos, entre outros, editor `16,38:1` e `16,84:1`, aba inativa `8,06:1` e `6,47:1`. Matriz Linux `33713474988` verde. Alto contraste ficou pendente |
+| 2026-09-03 | `E00-B` / branding | branding técnico fechado, com uma remoção que importa | `3f49115d`, matriz `33714886992` verde. Saiu identidade upstream de strings exibidas, metadados, templates Linux, mensagens de instalador e descrições de extensão, e os ícones Linux passaram a vir de `resources/unigma/`. O achado sério: o `postinst` do `.deb` **registrava o repositório apt e instalava a chave GPG da Microsoft** na máquina de quem instalasse, com template debconf perguntando sobre isso. Um fork que não publica por aquele repositório não tem o que fazer adicionando-o ao sistema alheio; registro e template foram removidos. Deliberadamente intocados por serem questão legal e não de branding: copyright em metadados de executável, publisher do AppX, `LICENSE.txt` e `ThirdPartyNotices.txt`. Nomes técnicos — binários, arquivos, símbolos, o namespace `vscode` — também intocados, porque renomeá-los quebra o build sem mudar o que o usuário vê |
+| 2026-09-03 | resolver / reconexão | queda de canal deixou de encerrar a janela | `691287b1`. Toda falha do resolver era `NotAvailable`, que o workbench trata como definitiva durante reconexão — então um canal SSH caindo, a coisa mais ordinária numa sessão remota, matava a janela em vez de deixá-la voltar. Só o que pode se resolver sozinho é transitório: conexão perdida e transporte falho. Servidor ausente, host key não confiável, plataforma não suportada e build stamp inutilizável precisam de uma pessoa, e repetir esconde a mensagem que diz isso. As permanentes passaram a ser lançadas como `handled`, porque a extensão já mostrou o erro |
+| 2026-09-03 | staging / ensaio privilegiado | caminho de root exercitado antes de tocar host real | run `33710801752` com `run_as=root`: transporte, extração, validação de manifesto, ativação atômica, idempotência e o servidor ativado respondendo, tudo sob privilégio, numa máquina descartável. O ensaio existe porque a revisão de diff falhou duas vezes seguidas em ver defeitos que só mordem como root |
+| 2026-09-03 | scripts remotos | três defeitos que só existiam sob privilégio | `e20736b3` e `f7afd7ee`. O sentinela do diretório de staging era `/dev/null`, então um `trap` disparando antes da atribuição executava `rm -rf /dev/null` — inofensivo para usuário comum, remoção do device node como root. A única remoção recursiva do script não tinha guarda alguma. E `tar -x` como root restaura titularidade e bits do arquivo, setuid incluído, **antes** de o manifesto ser conferido, o que deixava o payload decidir o que aparece no disco e com qual privilégio. Todos travados por teste. O terceiro reapareceu no nosso próprio workflow, onde extrair como root reproduziu titularidade `dasher` dentro de `/root` e o git recusou o repositório por `dubious ownership` (`cb3ab760`) |
 | 2026-09-03 | `THEME-001` | tema próprio implementado → `review` | `theme-unigma` com dark/light, defaults do workbench e onboarding atualizados; `npm run test-theme-contrast` passou com texto entre `6,47:1` e `19,16:1` e foco entre `6,34:1` e `7,19:1`, `npm run test-build-scripts` passou com 269 testes e ESLint focal passou. Runner/pacote e alto contraste próprio continuam pendentes |
 | 2026-09-02 | resolver / `AC-007` | `resolve()` deixou de recusar toda autoridade | `ac4e51ce`. Os gates continuam iguais; depois deles o resolver lê o commit do cliente de `appRoot/product.json` — mesmo mecanismo do `vscode-test-resolver`, injetado pelo build —, renderiza o destino preservando o alias byte a byte para não sobrescrever o `ssh_config` do usuário (§4.1/§4.3), chama `openRemoteServer` e devolve `ResolvedAuthority`. Commit ausente ou fora de SHA-1 recusa com `ssh.client-commit-unavailable`, sem adivinhar. Servidor não staged recusa com mensagem acionável que nomeia o comando `Stage Remote Server`, nunca provisionando sozinho (§5). `deactivate()` deixou de ser vazio e encerra sessões e leases. Lógica extraída para `remoteSshTarget.ts` e `remoteSshResolver.ts`, com `extension.ts` como fiação fina; 80 testes |
 | 2026-09-02 | staging / UI | comando de staging com confirmação modal | o comando escolhe o diretório de payload por diálogo — sem caminho oculto, download ou CDN, que §5 recusa —, valida o manifesto e mostra host, versão, tamanho e hash antes de qualquer escrita. O hash aparece **só** nessa confirmação, conforme `D-033`, e não vai para o canal de output nem para log |

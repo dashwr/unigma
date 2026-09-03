@@ -12,13 +12,16 @@
 > configuração explícita futura e do `PATH`, recusando binário embarcado quebrado;
 > Linux x64 copia o artefato WSL configurável para `resources/app/opencode`, com
 > licença/proveniência, auditoria condicional e smoke de versão contra o pacote.
-> Windows, REH e demais alvos não exigem esse artefato; validação no runner pendente.
+> Windows, REH e demais alvos não exigem esse artefato. Validado no runner
+> (`33716478896`): `opencode.version=1.18.23` contra o pacote construído, com
+> licença e proveniência presentes e a resolução escolhendo o binário embarcado.
 
 > feito: 2026-09-03 — superfícies distribuídas Linux/Windows e textos exibidos
 > pelas extensões foram remarcados para `unigma`; templates Debian não registram
 > mais repositório ou chave Microsoft; `audit-distribution.ts` verifica identidade
 > upstream em metadados textuais do pacote e sua suíte passou com 270 testes.
-> Clearance legal, direitos dos assets, pacote real e smoke continuam pendentes.
+> Validado no runner (`33714886992`). Clearance legal e direitos dos assets
+> continuam pendentes e são decisão humana.
 
 > feito: 2026-09-03 — extensão embarcada `theme-unigma` adiciona `unigma Dark` e
 > `unigma Light` como defaults, com tokens próprios, sem alteração dos defaults
