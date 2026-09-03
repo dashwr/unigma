@@ -79,6 +79,81 @@ jobs:
           export CMAKE_BUILD_PARALLEL_LEVEL=12
           export MAKEFLAGS=-j12
           node build/azure-pipelines/common/disableFoundryLocalInstall.ts
+
+          # Compile the server's native addons against the vendored glibc 2.28 /
+          # gcc 8.5 sysroot rather than the WSL distro toolchain.
+          #
+          # build/npm/postinstall.ts only honours a remote toolchain when the
+          # VSCODE_REMOTE_* variables exist; otherwise it deletes CC and CXX and
+          # node-gyp falls back to whatever compiler and headers the build host
+          # happens to have. Run 33784052687 measured the consequence on a real
+          # host: of eight packaged addons only one loaded, because the other
+          # seven demanded GLIBC_2.38, GLIBCXX_3.4.31, CXXABI_1.3.15 and, for
+          # node-pty, GLIBC_2.42. The baseline below is not a new policy: it is
+          # what the shipped resources/server/bin/helpers/check-requirements-linux.sh
+          # and src/vs/server/node/remoteAgentEnvironmentImpl.ts already promise.
+          #
+          # This mirrors the remote half of
+          # build/azure-pipelines/linux/setup-env.sh instead of sourcing it. That
+          # script keeps its VSCODE_REMOTE_* exports inside the same
+          # `npm_config_arch == x64` branch that downloads clang and the libcxx
+          # objects for the Electron client, so it cannot be sourced without also
+          # paying for a client toolchain this workflow never uses.
+          sysroot_root="$HOME/.local/share/unigma-toolchains/sysroots"
+          mkdir -p "$sysroot_root"
+          export VSCODE_REMOTE_SYSROOT_DIR="$sysroot_root/glibc-2.28-gcc-8.5.0"
+          # getVSCodeSysroot checks the tarball against
+          # build/checksums/vscode-sysroot.txt and writes a .stamp, so a repeated
+          # dispatch reuses the extracted tree instead of downloading it again.
+          VSCODE_SYSROOT_DIR="$VSCODE_REMOTE_SYSROOT_DIR" \
+            VSCODE_SYSROOT_PREFIX="-glibc-2.28-gcc-8.5.0" \
+            node -e 'import { getVSCodeSysroot } from "./build/linux/debian/install-sysroot.ts"; (async () => { await getVSCodeSysroot("amd64"); })()'
+
+          remote_triple=x86_64-linux-gnu
+          remote_sysroot="$VSCODE_REMOTE_SYSROOT_DIR/$remote_triple/$remote_triple/sysroot"
+          export VSCODE_REMOTE_CC="$VSCODE_REMOTE_SYSROOT_DIR/$remote_triple/bin/$remote_triple-gcc"
+          export VSCODE_REMOTE_CXX="$VSCODE_REMOTE_SYSROOT_DIR/$remote_triple/bin/$remote_triple-g++"
+          export VSCODE_REMOTE_CXXFLAGS="--sysroot=$remote_sysroot"
+          export VSCODE_REMOTE_LDFLAGS="--sysroot=$remote_sysroot -L$remote_sysroot/usr/lib/$remote_triple -L$remote_sysroot/lib/$remote_triple"
+          # Assert the layout now. A missing compiler here would otherwise be
+          # invisible: node-gyp would report success using the host toolchain and
+          # the defect would only surface on the remote host again.
+          test -x "$VSCODE_REMOTE_CC"
+          test -x "$VSCODE_REMOTE_CXX"
+          test -d "$remote_sysroot"
+
+          # gcc 8.5 predates the -std=gnu++20 spelling and only accepts gnu++2a
+          # for the same standard, so node-gyp needs the rewrite for every target
+          # including the dependencies' own binding.gyp files. node-gyp reads this
+          # path unconditionally, so restore whatever was there: the self-hosted
+          # runner is shared with the client and OpenCode workflows.
+          gyp_include="$HOME/.gyp/include.gypi"
+          gyp_backup=""
+          if [ -f "$gyp_include" ]; then
+            gyp_backup="$(mktemp)"
+            cp "$gyp_include" "$gyp_backup"
+          fi
+          restore_gyp_include() {
+            if [ -n "$gyp_backup" ]; then
+              mv -f "$gyp_backup" "$gyp_include"
+            else
+              rm -f "$gyp_include"
+            fi
+          }
+          trap 'rm -rf "$build"; restore_gyp_include' EXIT
+          mkdir -p "$HOME/.gyp"
+          printf '%s\n' \
+            "{" \
+            "  \"target_defaults\": {" \
+            "    \"conditions\": [" \
+            "      [\"OS=='linux'\", {" \
+            "        'cflags_cc!': [ '-std=gnu++20' ]," \
+            "        'cflags_cc': [ '-std=gnu++2a' ]," \
+            "      }]" \
+            "    ]" \
+            "  }" \
+            "}" > "$gyp_include"
+
           npm ci --no-audit --no-fund
           echo "--- WSL memory before build ---"
           free -m
@@ -118,6 +193,16 @@ jobs:
           test -x "$server_root/bin/unigma-server"
           test -f "$server_root/LICENSE"
           node --experimental-strip-types "$source/build/unigma/audit-distribution.ts" --server "$server_root"
+
+          # Refuse to package or publish a server whose native addons demand a
+          # newer runtime than the package itself tells the user it needs. This
+          # runs before the tarball and before the artifact store precisely
+          # because both are consumed by the remote smokes: an artifact that
+          # reaches the store has already been treated as usable. Invoked through
+          # bash because the checkout lives on a Windows mount, where the
+          # executable bit does not survive.
+          bash "$source/build/unigma/verify-server-symbol-baseline.sh" "$server_root"
+
           rm -rf "$output"
           mkdir -p "$output/server"
           tar --owner=0 --group=0 -czf "$output/server/unigma-server.tar.gz" -C "$(dirname "$server_root")" "$(basename "$server_root")"

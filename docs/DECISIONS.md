@@ -41,6 +41,7 @@ trabalho.
 | D-032 | Substitui D-031 para a entrega SSH: após gates OpenSSH/trust e confirmação explícita por host, o cliente envia pela própria sessão SSH o par versionado `unigma-server` + `unigma+opencode`, validado por manifesto/hashes e instalado atomicamente na área do usuário remoto. Não há download/CDN, elevação, instalação global, cópia de workspace ou automação de OAuth/plugins. | confirmado em 2026-09-01 | resposta do responsável nesta rodada |
 | D-032 | A distribuição unigma desativa somente a superfície `workbench.panel.chat`; serviços compartilhados necessários a MCP, inline chat, terminal/notebook e `unigmaAgent` permanecem. Comandos e smoke devem declarar essa capability indisponível sem fallback ou skip genérico. | confirmado em 2026-08-30 | resposta do responsável nesta rodada |
 | D-035 | O staging remoto retém por padrão 2 versões (ativa + anterior) e poda versões mais antigas, por mtime, somente após ativação; a VPS usa retenção 1 e falha de poda não invalida ativação. | confirmado em 2026-09-03 | resposta do responsável nesta rodada |
+| D-036 | A baseline de compatibilidade do `unigma-server` Linux é GLIBC 2.28 / GLIBCXX 3.4.25, já declarada pelo produto; o build passa a obedecê-la compilando os addons nativos contra o sysroot vendorizado. O gate de símbolos falha também em GLIBCXX e CXXABI, divergindo deliberadamente do upstream. | confirmado em 2026-09-03 | execução de runner `33784052687` |
 
 ### D-016 — direção confirmada e limites
 
@@ -203,6 +204,38 @@ Este registro confirma direção, não implementação ou suporte funcional.
 - A VPS usa retenção 1 para não acumular builds. Toda remoção recursiva passa
   pela guarda `safe_rm`; a versão recém-ativada é explicitamente excluída. Uma
   falha de poda emite status próprio, mas não desfaz nem invalida a ativação.
+
+### D-036 — a baseline glibc do servidor passa a valer no build
+
+- A baseline adotada é GLIBC 2.28 / GLIBCXX 3.4.25. Ela não é nova: já está em
+  `resources/server/bin/helpers/check-requirements-linux.sh`, empacotado dentro
+  do próprio servidor, e em `src/vs/server/node/remoteAgentEnvironmentImpl.ts`.
+  A decisão é que o build obedeça ao que o produto afirma.
+- O build ignorava essa baseline. `.github/workflows/unigma-server-linux-artifact.yml`
+  chamava `npm ci` sem nenhuma variável `VSCODE_REMOTE_*`, então o ramo remoto de
+  `build/npm/postinstall.ts` apagava `CC`/`CXX` e o node-gyp compilava com o
+  compilador e os headers da própria distro do runner.
+- A evidência é a execução `33784052687`, que carregou cada `.node` do servidor
+  já ativado numa VPS real, com o Node empacotado do próprio servidor:
+  `native.addons.checked=8`, `loaded=1`, `rejected=6`. Os addons exigiam
+  `GLIBC_2.38`, `GLIBCXX_3.4.31`, `CXXABI_1.3.15` e, no `node-pty`,
+  `GLIBC_2.42`. Ficavam mortos `node-pty`, `@vscode/sqlite3`,
+  `@parcel/watcher`, `@vscode/spdlog` e `kerberos`; `GET /version` seguia verde
+  porque não depende de nenhum deles.
+- O `native.glibc.compiler=2.28` do mesmo relatório não contradizia isso: é o
+  piso do único componente sadio, o Node baixado de nodejs.org por
+  `build/gulpfile.reh.ts`, enquanto os sete addons compilados localmente eram
+  silenciosamente mais novos.
+- Divergência deliberada do upstream:
+  `build/azure-pipelines/linux/verify-glibc-requirements.sh` encerra com erro
+  apenas em GLIBC, somente imprime aviso em GLIBCXX e nunca inspeciona CXXABI.
+  O gate deste fork falha nos três, porque `@vscode/spdlog` e `kerberos`
+  quebraram exatamente em GLIBCXX e CXXABI e passariam por um gate fiel ao
+  upstream.
+- O gate vive em `build/unigma/verify-server-symbol-baseline.sh` e roda depois de
+  `audit-distribution.ts --server` e antes do tar e da publicação, para que um
+  artefato em violação não chegue ao depósito de onde os smokes remotos montam o
+  par.
 
 ### detalhes de D-016 ainda abertos
 
