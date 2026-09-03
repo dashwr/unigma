@@ -82,6 +82,18 @@ jobs:
           tar --exclude=.git --exclude=node_modules --exclude=.build -C "$source" -cf - . | tar -C "$build" -xf -
           git -C "$build" init --quiet
           cd "$build"
+          # postinstall runs `git config` with no scope, which needs a repository
+          # in the current directory. As root the failure surfaced deep inside npm
+          # as `fatal: not in a git directory`, so the precondition is asserted
+          # here, with enough context to tell an ownership problem from a missing
+          # repository.
+          echo "diag.user=$(id -un) diag.uid=$(id -u) diag.git=$(git --version)"
+          echo "diag.build_owner=$(stat -c '%U:%G' "$build")"
+          if ! git rev-parse --git-dir >/dev/null 2>&1; then
+            echo "git repository missing or unusable in $build" >&2
+            git rev-parse --git-dir || true
+            exit 1
+          fi
           node build/azure-pipelines/common/disableFoundryLocalInstall.ts
           npm ci --no-audit --no-fund
           node --experimental-strip-types ./node_modules/gulp/bin/gulp.js compile-extension:unigma-remote-ssh
