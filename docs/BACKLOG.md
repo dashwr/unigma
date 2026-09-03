@@ -1,5 +1,13 @@
 # unigma — backlog implementável
 
+> feito: 2026-09-03 — implementados o smoke da primeira janela remota e o workflow
+> self-hosted WSL2: o par desktop/servidor é conferido por `PROVENANCE.txt` antes
+> de qualquer lançamento, o desktop publicado abre a URI SSH sob Xvfb, o log do
+> workbench prova resolver/ResolvedAuthority/extension host, trust bloqueado é
+> informativo e o handshake de token tem categoria própria. O workflow reaproveita
+> staging, executa cleanup guardado em `always()` e publica somente relatório/log
+> allowlisted. Runner e VPS permanecem pendentes.
+
 > feito: 2026-09-03 — o payload do servidor remoto voltou a ser utilizável. O
 > workflow do servidor passou a compilar os addons contra o sysroot
 > `glibc-2.28-gcc-8.5.0` já vendorizado, exportando os `VSCODE_REMOTE_*` e o

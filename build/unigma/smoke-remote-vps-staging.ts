@@ -36,6 +36,7 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const reportPath = resolve(process.argv[2] ?? join(repoRoot, '.build', 'unigma-remote-vps-staging-smoke.txt'));
 const tracePath = `${reportPath}.ssh-trace.log`;
 const checks: Array<readonly [string, 'pass' | 'fail']> = [];
+const keepStagedServer = process.env['UNIGMA_KEEP_STAGED'] === '1';
 const facts: Array<readonly [string, string]> = [];
 
 function check(name: string, passed: boolean): void { checks.push([name, passed ? 'pass' : 'fail']); }
@@ -420,19 +421,25 @@ async function main(): Promise<void> {
 		});
 		check('version', version.code === 200 && version.body === payload.commit);
 		await finalSession.dispose(); finalSession = undefined;
-		const finalCleanup = await cleanupRemoteVersion(runner, destination, stagingSession!.controlPath, payload.commit, generated.script);
-		const delivery = finalCleanup.delivery;
-		const result = finalCleanup.cleanup;
-		// The maintainer asked for nothing to be left on that host, so a failed
-		// cleanup has to say which half failed and what the host answered.
-		checks.push([`cleanup.delivery-exit.${delivery.code}`, delivery.code === 0 ? 'pass' : 'fail']);
-		checks.push([`cleanup.exit.${result.code}`, result.code === 0 ? 'pass' : 'fail']);
-		const status = finalCleanup.status;
-		checks.push([`cleanup.status.${status}`, status === 'cleanup-complete' ? 'pass' : 'fail']);
-		check('cleanup', delivery.code === 0 && result.code === 0 && status === 'cleanup-complete');
+		if (keepStagedServer) {
+			// The remote-window workflow consumes this activated version in its next
+			// step; its always-run cleanup step owns removal after that window closes.
+			check('staged-for-follow-up', true);
+		} else {
+			const finalCleanup = await cleanupRemoteVersion(runner, destination, stagingSession!.controlPath, payload.commit, generated.script);
+			const delivery = finalCleanup.delivery;
+			const result = finalCleanup.cleanup;
+			// The maintainer asked for nothing to be left on that host, so a failed
+			// cleanup has to say which half failed and what the host answered.
+			checks.push([`cleanup.delivery-exit.${delivery.code}`, delivery.code === 0 ? 'pass' : 'fail']);
+			checks.push([`cleanup.exit.${result.code}`, result.code === 0 ? 'pass' : 'fail']);
+			const status = finalCleanup.status;
+			checks.push([`cleanup.status.${status}`, status === 'cleanup-complete' ? 'pass' : 'fail']);
+			check('cleanup', delivery.code === 0 && result.code === 0 && status === 'cleanup-complete');
+		}
 		await stagingSession.dispose();
 		stagingSession = undefined;
-		cleaned = true;
+		cleaned = keepStagedServer;
 	} finally {
 		if (finalSession) { await finalSession.dispose().catch(() => undefined); }
 		if (!cleaned && stagingSession) {
