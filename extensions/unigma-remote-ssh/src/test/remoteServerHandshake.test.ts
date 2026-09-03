@@ -5,7 +5,7 @@
 
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -17,6 +17,15 @@ import {
 import { buildRemoteServerPathShellFragments } from '../remoteStagingPlan.js';
 
 const commit = '0123456789abcdef0123456789abcdef01234567';
+
+/**
+ * Some tests run the generated script to prove the host-side behaviour, which
+ * needs a POSIX shell. The script targets the remote host, and the remote host
+ * is Linux by contract, so the client platform running the suite says nothing
+ * about whether the script is correct. Skipping with a reason keeps a Windows
+ * run honest instead of pretending the behaviour was verified there.
+ */
+const posixShell = { skip: existsSync('/bin/sh') ? false : 'requires a POSIX shell to run the host-side script' };
 
 test('derives versioned server paths and emits a HOME-based POSIX bootstrap', () => {
 	const result = buildRemoteBootstrapScript({ commit, remoteUserBaseDirectory: '/home/remote user' });
@@ -74,7 +83,7 @@ test('refuses unsafe bootstrap input without generating a script', () => {
 	}
 });
 
-test('fails closed when the remote HOME is invalid', () => {
+test('fails closed when the remote HOME is invalid', posixShell, () => {
 	const result = buildRemoteBootstrapScript({ commit });
 	assert.equal(result.valid, true);
 	if (!result.valid) {
@@ -87,7 +96,7 @@ test('fails closed when the remote HOME is invalid', () => {
 	}
 });
 
-test('detects an overlong socket path on the remote host', () => {
+test('detects an overlong socket path on the remote host', posixShell, () => {
 	const root = mkdtempSync(join(tmpdir(), 'ug-'));
 	const home = join(root, 'nested/'.repeat(20), 'home');
 	mkdirSync(home, { recursive: true });
