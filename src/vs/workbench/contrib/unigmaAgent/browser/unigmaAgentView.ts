@@ -195,6 +195,7 @@ export class UnigmaAgentViewPane extends ViewPane {
 			} else {
 				try {
 					const installed = await this.mcpManagementService.getInstalled();
+					const inventory = await this.runtime.getLocalIntegrations(workspace.toString());
 					preflight = evaluateWorkbenchLocalIntegrationPreflight({
 						workspaceTrusted: this.workspaceTrustService.isWorkspaceTrusted(),
 						workspaceUri: workspace,
@@ -205,8 +206,8 @@ export class UnigmaAgentViewPane extends ViewPane {
 							location: server.location,
 							approved: this.allowedMcpServersService.isAllowed(server) === true,
 						})),
-						// Plugin and rule inventory is not connected; do not allow implicit startup.
-						sourceInventoryComplete: false,
+						sources: inventory.sources,
+						sourceInventoryComplete: inventory.complete,
 					});
 				} catch {
 					preflight = { accepted: false, code: 'configurationInvalid' };

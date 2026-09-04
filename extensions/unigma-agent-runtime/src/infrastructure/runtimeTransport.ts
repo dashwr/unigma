@@ -17,6 +17,7 @@ import {
 	type RuntimeTransport,
 	type TransportCommand,
 	type TransportCatalogEntry,
+	type TransportLocalIntegrationInventory,
 	type TransportModelEntry,
 	type TransportDiffFile,
 	type TransportEvent,
@@ -92,6 +93,8 @@ export class RuntimeTransportBridge implements RuntimeTransport {
 				return this.handleListCatalog(validCommand.requestId, validCommand.sessionId);
 			case TransportCommandType.ListModels:
 				return this.handleListModels(validCommand.requestId, validCommand.sessionId);
+			case TransportCommandType.ListLocalIntegrations:
+				return this.handleListLocalIntegrations(validCommand.requestId, validCommand.workspaceUri);
 			case TransportCommandType.ApplyConfiguration:
 				return this.handleApplyConfiguration(validCommand.requestId, validCommand.sessionId, validCommand.configuration);
 			default:
@@ -235,6 +238,20 @@ export class RuntimeTransportBridge implements RuntimeTransport {
 			});
 		} catch {
 			this.emitError(requestId, TransportErrorCode.Internal, 'The runtime could not create a session.', false);
+		}
+	}
+
+	private async handleListLocalIntegrations(requestId: string, workspaceUri: string): Promise<void> {
+		const workspace = this.workspaceFromUri(workspaceUri);
+		if (!workspace || !this.ports.workspaceTrust.isTrusted(workspace)) {
+			this.emitError(requestId, TransportErrorCode.WorkspaceUntrusted, 'The workspace is not trusted.', false);
+			return;
+		}
+		try {
+			const inventory: TransportLocalIntegrationInventory = await this.ports.enumerateLocalIntegrations(workspace);
+			this.emitEvent({ version: TRANSPORT_PROTOCOL_VERSION, type: TransportEventType.LocalIntegrations, requestId, inventory });
+		} catch {
+			this.emitEvent({ version: TRANSPORT_PROTOCOL_VERSION, type: TransportEventType.LocalIntegrations, requestId, inventory: { complete: false, sources: [] } });
 		}
 	}
 

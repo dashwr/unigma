@@ -40,6 +40,9 @@ export function reduceUnigmaAgentSessionEvent(model: UnigmaAgentSessionViewModel
 			? model
 			: { state: UNIGMA_AGENT_VIEW_STATES.Error, sessionId: event.sessionId ?? model.sessionId, errorMessage: event.error.message };
 	}
+	if (event.type === AgentEventType.LocalIntegrations) {
+		return model;
+	}
 
 	if (!model.sessionId && event.type !== AgentEventType.State) {
 		return model;

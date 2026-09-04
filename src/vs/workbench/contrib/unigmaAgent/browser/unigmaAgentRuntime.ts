@@ -15,6 +15,7 @@ import {
 	AgentCommandType,
 	AgentErrorCode,
 	type AgentErrorEvent,
+	type AgentLocalIntegrationInventory,
 	type AgentLocalIntegrationPreflight,
 	AgentEvent,
 	AgentEventType,
@@ -64,6 +65,7 @@ export interface IUnigmaAgentRuntime {
 	getCatalog(sessionId: string): Promise<AgentCatalogResult>;
 	requestModels(sessionId: string): Promise<void>;
 	applyModel(sessionId: string, providerId: string, modelId: string): Promise<AgentModelSelectionResult>;
+	getLocalIntegrations(workspaceUri: string): Promise<AgentLocalIntegrationInventory>;
 }
 
 /*
@@ -117,6 +119,8 @@ function serializeAgentCommand(command: AgentCommand): Record<string, unknown> {
 		case AgentCommandType.ListCatalog:
 		case AgentCommandType.ListModels:
 			return { ...envelope, sessionId: command.sessionId };
+		case AgentCommandType.ListLocalIntegrations:
+			return { ...envelope, workspaceUri: command.workspaceUri };
 		case AgentCommandType.SendInput:
 			return { ...envelope, sessionId: command.sessionId, text: command.text };
 		case AgentCommandType.RequestDiff:
@@ -165,6 +169,7 @@ export class UnigmaAgentRuntime extends Disposable implements IUnigmaAgentRuntim
 	private requestSequence = 0;
 	private readonly pendingCatalog = new Map<string, (result: AgentCatalogResult) => void>();
 	private readonly pendingModelSelection = new Map<string, (result: AgentModelSelectionResult) => void>();
+	private readonly pendingLocalIntegrations = new Map<string, (result: AgentLocalIntegrationInventory) => void>();
 
 	constructor();
 	constructor(commandService: ICommandService);
@@ -174,6 +179,7 @@ export class UnigmaAgentRuntime extends Disposable implements IUnigmaAgentRuntim
 			const translated = translateUnigmaAgentRpcEvent(event);
 			this.resolveCatalog(translated);
 			this.resolveModelSelection(translated);
+			this.resolveLocalIntegrations(translated);
 			this._onDidReceiveEvent.fire(translated);
 		}));
 		if (commandService) {
@@ -195,6 +201,7 @@ export class UnigmaAgentRuntime extends Disposable implements IUnigmaAgentRuntim
 			const translated = translateUnigmaAgentRpcEvent(event);
 			this.resolveCatalog(translated);
 			this.resolveModelSelection(translated);
+			this.resolveLocalIntegrations(translated);
 			this._onDidReceiveEvent.fire(translated);
 		});
 		this._onDidChangeConnectionState.fire(this.connectionState);
@@ -235,6 +242,18 @@ export class UnigmaAgentRuntime extends Disposable implements IUnigmaAgentRuntim
 
 	async requestModels(sessionId: string): Promise<void> {
 		await this.send({ version: AGENT_PROTOCOL_VERSION, requestId: this.nextRequestId(), type: AgentCommandType.ListModels, sessionId });
+	}
+
+	async getLocalIntegrations(workspaceUri: string): Promise<AgentLocalIntegrationInventory> {
+		const requestId = this.nextRequestId();
+		const result = new Promise<AgentLocalIntegrationInventory>(resolve => this.pendingLocalIntegrations.set(requestId, resolve));
+		try {
+			await this.send({ version: AGENT_PROTOCOL_VERSION, requestId, type: AgentCommandType.ListLocalIntegrations, workspaceUri });
+			return result;
+		} catch {
+			this.pendingLocalIntegrations.delete(requestId);
+			return { complete: false, sources: [] };
+		}
 	}
 
 	async applyModel(sessionId: string, providerId: string, modelId: string): Promise<AgentModelSelectionResult> {
@@ -334,6 +353,19 @@ export class UnigmaAgentRuntime extends Disposable implements IUnigmaAgentRuntim
 		}
 	}
 
+	private resolveLocalIntegrations(event: AgentEvent): void {
+		if (!event.requestId) {
+			return;
+		}
+		if (event.type === AgentEventType.LocalIntegrations) {
+			this.pendingLocalIntegrations.get(event.requestId)?.(event.inventory);
+			this.pendingLocalIntegrations.delete(event.requestId);
+		} else if (event.type === AgentEventType.Error) {
+			this.pendingLocalIntegrations.get(event.requestId)?.({ complete: false, sources: [] });
+			this.pendingLocalIntegrations.delete(event.requestId);
+		}
+	}
+
 	private async send(command: AgentCommand): Promise<void> {
 		if (!this.transport) {
 			this.fireError(command, {
@@ -374,6 +406,7 @@ export class UnigmaAgentRuntime extends Disposable implements IUnigmaAgentRuntim
 		this.transportSubscription?.dispose();
 		this.transportSubscription = undefined;
 		this.transport = undefined;
+		this.pendingLocalIntegrations.clear();
 		super.dispose();
 	}
 }

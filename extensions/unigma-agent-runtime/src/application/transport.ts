@@ -25,6 +25,15 @@ export type TransportLocalIntegrationPreflightCode =
 	| 'silentOAuth'
 	| 'permissionDenied';
 
+export type TransportLocalIntegrationKind = 'plugin' | 'rule';
+export type TransportLocalIntegrationOrigin = 'workspacePluginDirectory' | 'globalPluginDirectory' | 'workspaceRule' | 'globalRule' | 'unknown';
+export type TransportLocalIntegrationPath = 'insideWorkspace' | 'insideApprovedLocalPath' | 'outsideApprovedScope' | 'externalSymlink' | 'unavailable';
+export type TransportLocalIntegrationSchema = 'valid' | 'invalid';
+export type TransportLocalIntegrationCommand = 'none' | 'directExecutable' | 'installer';
+export type TransportLocalIntegrationDependency = 'none' | 'npmPackage' | 'startupInstall';
+export type TransportLocalIntegrationUrl = 'notApplicable' | 'loopbackHttp' | 'https' | 'insecure' | 'unknown';
+export type TransportLocalIntegrationOAuth = 'notApplicable' | 'none' | 'interactive' | 'silent';
+
 export type TransportLocalIntegrationPreflight =
 	| { readonly accepted: true }
 	| { readonly accepted: false; readonly code: TransportLocalIntegrationPreflightCode };
@@ -40,6 +49,7 @@ export const enum TransportCommandType {
 	ApplyConfiguration = 'configure',
 	ListCatalog = 'catalog',
 	ListModels = 'models',
+	ListLocalIntegrations = 'integrations',
 }
 
 export const enum TransportEventType {
@@ -54,6 +64,7 @@ export const enum TransportEventType {
 	Catalog = 'catalog',
 	Models = 'models',
 	Configuration = 'configuration',
+	LocalIntegrations = 'integrations',
 }
 
 export const enum TransportSessionState {
@@ -167,6 +178,11 @@ export interface TransportListCatalogCommand extends TransportSessionCommandBase
 }
 export interface TransportListModelsCommand extends TransportSessionCommandBase { readonly type: TransportCommandType.ListModels }
 
+export interface TransportListLocalIntegrationsCommand extends TransportCommandBase {
+	readonly type: TransportCommandType.ListLocalIntegrations;
+	readonly workspaceUri: string;
+}
+
 export interface TransportModelConfiguration {
 	readonly provider: string;
 	readonly model: string;
@@ -182,7 +198,26 @@ export type TransportCommand =
 	| TransportListWorktreesCommand
 	| TransportApplyConfigurationCommand
 	| TransportListCatalogCommand
-	| TransportListModelsCommand;
+	| TransportListModelsCommand
+	| TransportListLocalIntegrationsCommand;
+
+export interface TransportLocalIntegrationSource {
+	readonly kind: TransportLocalIntegrationKind;
+	readonly name: string;
+	readonly origin: TransportLocalIntegrationOrigin;
+	readonly path: TransportLocalIntegrationPath;
+	readonly schema: TransportLocalIntegrationSchema;
+	readonly command: TransportLocalIntegrationCommand;
+	readonly dependency: TransportLocalIntegrationDependency;
+	readonly url: TransportLocalIntegrationUrl;
+	readonly oauth: TransportLocalIntegrationOAuth;
+	readonly approved: boolean;
+}
+
+export interface TransportLocalIntegrationInventory {
+	readonly complete: boolean;
+	readonly sources: readonly TransportLocalIntegrationSource[];
+}
 
 export interface TransportCatalogEntry {
 	readonly id: string;
@@ -278,6 +313,7 @@ function isTransportCommandType(value: unknown): value is TransportCommandType {
 		case TransportCommandType.ApplyConfiguration:
 		case TransportCommandType.ListCatalog:
 		case TransportCommandType.ListModels:
+		case TransportCommandType.ListLocalIntegrations:
 			return true;
 		default:
 			return false;
@@ -330,6 +366,11 @@ function getTransportCommandError(value: unknown): TransportError | undefined {
 				&& isTransportLocalIntegrationPreflight(command.localIntegrationPreflight)
 				? undefined
 				: invalidPayload('Start command requires a workspace and local integration preflight.');
+		case TransportCommandType.ListLocalIntegrations:
+			return hasOnlyKeys(command, ['version', 'requestId', 'type', 'workspaceUri'])
+				&& isNonEmptyString(command.workspaceUri)
+				? undefined
+				: invalidPayload('Integration discovery requires a workspaceUri.');
 		case TransportCommandType.StopSession:
 		case TransportCommandType.ListWorktrees:
 		case TransportCommandType.ListCatalog:
@@ -433,6 +474,10 @@ export interface TransportCatalogEvent extends TransportSessionEventBase {
 }
 export interface TransportModelsEvent extends TransportSessionEventBase { readonly type: TransportEventType.Models; readonly entries: readonly TransportModelEntry[] }
 export interface TransportConfigurationEvent extends TransportSessionEventBase { readonly type: TransportEventType.Configuration; readonly selection: { readonly providerId: string; readonly modelId: string } }
+export interface TransportLocalIntegrationsEvent extends TransportEventBase {
+	readonly type: TransportEventType.LocalIntegrations;
+	readonly inventory: TransportLocalIntegrationInventory;
+}
 
 export interface TransportErrorEvent extends TransportEventBase {
 	readonly type: TransportEventType.Error;
@@ -451,6 +496,7 @@ export type TransportEvent =
 	| TransportCatalogEvent
 	| TransportModelsEvent
 	| TransportConfigurationEvent
+	| TransportLocalIntegrationsEvent
 	| TransportErrorEvent;
 
 function isTransportEventType(value: unknown): value is TransportEventType {
@@ -466,10 +512,34 @@ function isTransportEventType(value: unknown): value is TransportEventType {
 		case TransportEventType.Catalog:
 		case TransportEventType.Models:
 		case TransportEventType.Configuration:
+		case TransportEventType.LocalIntegrations:
 			return true;
 		default:
 			return false;
 	}
+}
+
+function isTransportLocalIntegrationSource(value: unknown): value is TransportLocalIntegrationSource {
+	return isTransportRecord(value)
+		&& hasOnlyKeys(value, ['kind', 'name', 'origin', 'path', 'schema', 'command', 'dependency', 'url', 'oauth', 'approved'])
+		&& (value.kind === 'plugin' || value.kind === 'rule')
+		&& isNonEmptyString(value.name)
+		&& (value.origin === 'workspacePluginDirectory' || value.origin === 'globalPluginDirectory' || value.origin === 'workspaceRule' || value.origin === 'globalRule' || value.origin === 'unknown')
+		&& (value.path === 'insideWorkspace' || value.path === 'insideApprovedLocalPath' || value.path === 'outsideApprovedScope' || value.path === 'externalSymlink' || value.path === 'unavailable')
+		&& (value.schema === 'valid' || value.schema === 'invalid')
+		&& (value.command === 'none' || value.command === 'directExecutable' || value.command === 'installer')
+		&& (value.dependency === 'none' || value.dependency === 'npmPackage' || value.dependency === 'startupInstall')
+		&& (value.url === 'notApplicable' || value.url === 'loopbackHttp' || value.url === 'https' || value.url === 'insecure' || value.url === 'unknown')
+		&& (value.oauth === 'notApplicable' || value.oauth === 'none' || value.oauth === 'interactive' || value.oauth === 'silent')
+		&& typeof value.approved === 'boolean';
+}
+
+function isTransportLocalIntegrationInventory(value: unknown): value is TransportLocalIntegrationInventory {
+	return isTransportRecord(value)
+		&& hasOnlyKeys(value, ['complete', 'sources'])
+		&& typeof value.complete === 'boolean'
+		&& Array.isArray(value.sources)
+		&& value.sources.every(isTransportLocalIntegrationSource);
 }
 
 function isTransportSessionState(value: unknown): value is TransportSessionState {
@@ -669,6 +739,10 @@ function getTransportEventError(value: unknown): TransportError | undefined {
 			return hasOnlyKeys(event, ['version', 'type', 'requestId', 'sessionId', 'selection']) && sessionIdIsValid
 				&& isTransportModelSelection(event.selection)
 				? undefined : invalidPayload('Configuration event requires a sanitized selection.');
+		case TransportEventType.LocalIntegrations:
+			return hasOnlyKeys(event, ['version', 'type', 'requestId', 'inventory'])
+				&& isTransportLocalIntegrationInventory(event.inventory)
+				? undefined : invalidPayload('Local integrations event requires a sanitized inventory.');
 		case TransportEventType.Error:
 			return hasOnlyKeys(event, ['version', 'type', 'requestId', 'sessionId', 'error'])
 				&& isOptionalString(event.sessionId)

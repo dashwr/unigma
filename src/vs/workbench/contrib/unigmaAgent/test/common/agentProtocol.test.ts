@@ -34,6 +34,7 @@ suite('AgentProtocol', () => {
 			{ version: AGENT_PROTOCOL_VERSION, requestId: 'reject-1', type: AgentCommandType.Reject, sessionId: 'session-1', approvalId: 'approval-1', reason: 'Not now.' },
 			{ version: AGENT_PROTOCOL_VERSION, requestId: 'worktrees-1', type: AgentCommandType.ListWorktrees, sessionId: 'session-1' },
 			{ version: AGENT_PROTOCOL_VERSION, requestId: 'config-1', type: AgentCommandType.ApplyConfiguration, sessionId: 'session-1', configuration: { provider: 'local', model: 'default' } },
+			{ version: AGENT_PROTOCOL_VERSION, requestId: 'integrations-1', type: AgentCommandType.ListLocalIntegrations, workspaceUri: 'file:///workspace' },
 		];
 
 		for (const command of commands) {
@@ -51,6 +52,7 @@ suite('AgentProtocol', () => {
 			{ version: AGENT_PROTOCOL_VERSION, type: AgentEventType.Worktrees, sessionId: 'session-1', worktrees: [{ id: 'main', label: 'Main', branch: 'main', isCurrent: true }] },
 			{ version: AGENT_PROTOCOL_VERSION, type: AgentEventType.Result, sessionId: 'session-1', result: { status: AgentResultStatus.Completed, content: 'Completed.' } },
 			{ version: AGENT_PROTOCOL_VERSION, type: AgentEventType.Error, error: { code: AgentErrorCode.SessionNotFound, message: 'Session was not found.', retryable: false } },
+			{ version: AGENT_PROTOCOL_VERSION, type: AgentEventType.LocalIntegrations, requestId: 'integrations-1', inventory: { complete: true, sources: [] } },
 		];
 
 		for (const event of events) {

@@ -44,6 +44,7 @@ function portsFor(options: {
 	readonly trusted?: boolean | (() => boolean);
 	readonly ensureStarted?: (workspace: WorkspaceReference) => Promise<OwnedProcessHandle>;
 	readonly preflight?: RuntimePorts['localIntegrationPreflight'];
+	readonly enumerateLocalIntegrations?: RuntimePorts['enumerateLocalIntegrations'];
 } = {}): RuntimePorts & { eventEmitter: FakeEventEmitter } {
 	const eventEmitter = new FakeEventEmitter();
 	return {
@@ -55,6 +56,7 @@ function portsFor(options: {
 			stopOwned: async () => { },
 		},
 		localIntegrationPreflight: options.preflight ?? ((_workspace, requested) => requested ?? ({ accepted: true })),
+		enumerateLocalIntegrations: options.enumerateLocalIntegrations ?? (async () => ({ complete: true, sources: [] })),
 		openCodeClient: {
 			connect: options.connect ?? (async () => { }),
 			disconnect: async () => { },
@@ -77,6 +79,37 @@ function portsFor(options: {
 }
 
 suite('RuntimeTransportBridge', () => {
+	test('enumerates local integrations before starting the process', async () => {
+		let starts = 0;
+		const ports = portsFor({
+			ensureStarted: async () => { starts++; return processHandle; },
+			enumerateLocalIntegrations: async () => ({
+				complete: true, sources: [{
+					kind: 'plugin', name: 'local', origin: 'workspacePluginDirectory', path: 'insideWorkspace', schema: 'valid', command: 'none', dependency: 'none', url: 'notApplicable', oauth: 'notApplicable', approved: true,
+				}]
+			}),
+		});
+		const bridge = new RuntimeTransportBridge(ports);
+		const events: TransportEvent[] = [];
+		bridge.onEvent(event => events.push(event));
+
+		await bridge.send({ version: TRANSPORT_PROTOCOL_VERSION, requestId: 'req-integrations', type: TransportCommandType.ListLocalIntegrations, workspaceUri: workspace.uri });
+
+		assert.strictEqual(starts, 0);
+		assert.deepStrictEqual(events[0], {
+			version: TRANSPORT_PROTOCOL_VERSION,
+			type: TransportEventType.LocalIntegrations,
+			requestId: 'req-integrations',
+			inventory: {
+				complete: true,
+				sources: [{
+					kind: 'plugin', name: 'local', origin: 'workspacePluginDirectory', path: 'insideWorkspace', schema: 'valid', command: 'none', dependency: 'none', url: 'notApplicable', oauth: 'notApplicable', approved: true,
+				}],
+			},
+		});
+		bridge.dispose();
+	});
+
 	test('creates a session via start command', async () => {
 		const requests: OpenCodeRequest[] = [];
 		const ports = portsFor({

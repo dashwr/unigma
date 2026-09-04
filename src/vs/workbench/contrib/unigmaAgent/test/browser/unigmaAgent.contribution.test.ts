@@ -174,6 +174,24 @@ suite('Unigma Agent contribution', () => {
 		runtime.dispose();
 	});
 
+	test('requests the sanitized local integration inventory before startup', async () => {
+		const received = new Emitter<unknown>();
+		const sent: unknown[] = [];
+		const runtime = new UnigmaAgentRuntime();
+		const registration = runtime.registerTransport({
+			onDidReceiveEvent: received.event,
+			send: async command => { sent.push(command); },
+		});
+		const inventoryPromise = runtime.getLocalIntegrations('file:///workspace');
+		received.fire({ version: AGENT_PROTOCOL_VERSION, type: AgentEventType.LocalIntegrations, requestId: 'unigma-agent-1', inventory: { complete: true, sources: [] } });
+
+		assert.deepStrictEqual(await inventoryPromise, { complete: true, sources: [] });
+		assert.deepStrictEqual(sent, [{ version: AGENT_PROTOCOL_VERSION, requestId: 'unigma-agent-1', type: AgentCommandType.ListLocalIntegrations, workspaceUri: 'file:///workspace' }]);
+		registration.dispose();
+		runtime.dispose();
+		received.dispose();
+	});
+
 	test('serializes diff and approval commands the runtime bridge already implements', async () => {
 		const calls: unknown[][] = [];
 		const commandService = {

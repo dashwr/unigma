@@ -11,6 +11,8 @@ import type {
 	WorkspaceReference,
 } from '../domain/runtime';
 
+import type { TransportLocalIntegrationInventory } from './transport';
+
 export interface OpenCodeRequest {
 	readonly method: 'GET' | 'POST';
 	readonly path: string;
@@ -47,6 +49,10 @@ export type LocalIntegrationPreflight = (
 	workspace: WorkspaceReference,
 	requested?: LocalIntegrationPreflightResult,
 ) => LocalIntegrationPreflightResult;
+
+export type LocalIntegrationInventory = (
+	workspace: WorkspaceReference,
+) => Promise<TransportLocalIntegrationInventory>;
 
 /** Owns the single OpenCode process associated with this extension host. */
 export interface ProcessManager {
@@ -89,6 +95,8 @@ export interface RuntimePorts {
 	readonly processManager: ProcessManager;
 	/** Runs after workspace trust and immediately before process startup. */
 	readonly localIntegrationPreflight: LocalIntegrationPreflight;
+	/** Enumerates local OpenCode sources without starting the process. */
+	readonly enumerateLocalIntegrations: LocalIntegrationInventory;
 	readonly openCodeClient: OpenCodeClient<OpenCodeRequest, OpenCodeEvent>;
 	readonly sessionReferenceStore: SessionReferenceStore;
 	readonly diagnostics: DiagnosticSink;

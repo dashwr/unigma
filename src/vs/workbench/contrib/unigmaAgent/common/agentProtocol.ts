@@ -18,6 +18,7 @@ export const enum AgentCommandType {
 	ApplyConfiguration = 'configure',
 	ListCatalog = 'catalog',
 	ListModels = 'models',
+	ListLocalIntegrations = 'integrations',
 }
 
 /** Sanitized result from the local integration preflight. */
@@ -52,6 +53,7 @@ export const enum AgentEventType {
 	Catalog = 'catalog',
 	Models = 'models',
 	Configuration = 'configuration',
+	LocalIntegrations = 'integrations',
 }
 
 export const enum AgentSessionState {
@@ -180,6 +182,11 @@ export interface AgentListCatalogCommand extends AgentSessionCommandBase {
 }
 export interface AgentListModelsCommand extends AgentSessionCommandBase { readonly type: AgentCommandType.ListModels }
 
+export interface AgentListLocalIntegrationsCommand extends AgentCommandBase {
+	readonly type: AgentCommandType.ListLocalIntegrations;
+	readonly workspaceUri: string;
+}
+
 export type AgentCommand =
 	| AgentStartSessionCommand
 	| AgentStopSessionCommand
@@ -190,11 +197,45 @@ export type AgentCommand =
 	| AgentListWorktreesCommand
 	| AgentApplyConfigurationCommand
 	| AgentListCatalogCommand
-	| AgentListModelsCommand;
+	| AgentListModelsCommand
+	| AgentListLocalIntegrationsCommand;
 
 export interface AgentModelEntry { readonly providerId: string; readonly modelId: string; readonly label: string; readonly providerLabel: string }
 export interface AgentModelsEvent extends AgentSessionEventBase { readonly type: AgentEventType.Models; readonly entries: readonly AgentModelEntry[] }
 export interface AgentConfigurationEvent extends AgentSessionEventBase { readonly type: AgentEventType.Configuration; readonly selection: { readonly providerId: string; readonly modelId: string } }
+
+export type AgentLocalIntegrationKind = 'plugin' | 'rule';
+export type AgentLocalIntegrationOrigin = 'workspacePluginDirectory' | 'globalPluginDirectory' | 'workspaceRule' | 'globalRule' | 'unknown';
+export type AgentLocalIntegrationPath = 'insideWorkspace' | 'insideApprovedLocalPath' | 'outsideApprovedScope' | 'externalSymlink' | 'unavailable';
+export type AgentLocalIntegrationSchema = 'valid' | 'invalid';
+export type AgentLocalIntegrationCommand = 'none' | 'directExecutable' | 'installer';
+export type AgentLocalIntegrationDependency = 'none' | 'npmPackage' | 'startupInstall';
+export type AgentLocalIntegrationUrl = 'notApplicable' | 'loopbackHttp' | 'https' | 'insecure' | 'unknown';
+export type AgentLocalIntegrationOAuth = 'notApplicable' | 'none' | 'interactive' | 'silent';
+
+/** Sanitized facts about OpenCode plugin/rule sources discovered by the runtime. */
+export interface AgentLocalIntegrationSource {
+	readonly kind: AgentLocalIntegrationKind;
+	readonly name: string;
+	readonly origin: AgentLocalIntegrationOrigin;
+	readonly path: AgentLocalIntegrationPath;
+	readonly schema: AgentLocalIntegrationSchema;
+	readonly command: AgentLocalIntegrationCommand;
+	readonly dependency: AgentLocalIntegrationDependency;
+	readonly url: AgentLocalIntegrationUrl;
+	readonly oauth: AgentLocalIntegrationOAuth;
+	readonly approved: boolean;
+}
+
+export interface AgentLocalIntegrationInventory {
+	readonly complete: boolean;
+	readonly sources: readonly AgentLocalIntegrationSource[];
+}
+
+export interface AgentLocalIntegrationsEvent extends AgentEventBase {
+	readonly type: AgentEventType.LocalIntegrations;
+	readonly inventory: AgentLocalIntegrationInventory;
+}
 
 export interface AgentCatalogEvent extends AgentSessionEventBase {
 	readonly type: AgentEventType.Catalog;
@@ -336,7 +377,8 @@ export type AgentEvent =
 	| AgentErrorEvent
 	| AgentCatalogEvent
 	| AgentModelsEvent
-	| AgentConfigurationEvent;
+	| AgentConfigurationEvent
+	| AgentLocalIntegrationsEvent;
 
 
 export interface AgentValidationSuccess<T> {
@@ -394,6 +436,29 @@ function isAgentLocalIntegrationPreflight(value: unknown): value is AgentLocalIn
 	return value.accepted === false
 		&& Object.keys(value).length === 2
 		&& isAgentLocalIntegrationPreflightCode(value.code);
+}
+
+function isAgentLocalIntegrationSource(value: unknown): value is AgentLocalIntegrationSource {
+	return isRecord(value)
+		&& hasOnlyKeys(value, ['kind', 'name', 'origin', 'path', 'schema', 'command', 'dependency', 'url', 'oauth', 'approved'])
+		&& (value.kind === 'plugin' || value.kind === 'rule')
+		&& isNonEmptyString(value.name)
+		&& (value.origin === 'workspacePluginDirectory' || value.origin === 'globalPluginDirectory' || value.origin === 'workspaceRule' || value.origin === 'globalRule' || value.origin === 'unknown')
+		&& (value.path === 'insideWorkspace' || value.path === 'insideApprovedLocalPath' || value.path === 'outsideApprovedScope' || value.path === 'externalSymlink' || value.path === 'unavailable')
+		&& (value.schema === 'valid' || value.schema === 'invalid')
+		&& (value.command === 'none' || value.command === 'directExecutable' || value.command === 'installer')
+		&& (value.dependency === 'none' || value.dependency === 'npmPackage' || value.dependency === 'startupInstall')
+		&& (value.url === 'notApplicable' || value.url === 'loopbackHttp' || value.url === 'https' || value.url === 'insecure' || value.url === 'unknown')
+		&& (value.oauth === 'notApplicable' || value.oauth === 'none' || value.oauth === 'interactive' || value.oauth === 'silent')
+		&& typeof value.approved === 'boolean';
+}
+
+function isAgentLocalIntegrationInventory(value: unknown): value is AgentLocalIntegrationInventory {
+	return isRecord(value)
+		&& hasOnlyKeys(value, ['complete', 'sources'])
+		&& typeof value.complete === 'boolean'
+		&& Array.isArray(value.sources)
+		&& value.sources.every(isAgentLocalIntegrationSource);
 }
 
 function hasOnlyKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
@@ -585,6 +650,11 @@ function getAgentCommandError(value: unknown): AgentError | undefined {
 				&& isAgentLocalIntegrationPreflight(command.localIntegrationPreflight)
 				? undefined
 				: invalidPayload('Start command has an invalid sessionId, workspaceUri, or local integration preflight.');
+		case AgentCommandType.ListLocalIntegrations:
+			return hasOnlyKeys(command, ['version', 'requestId', 'type', 'workspaceUri'])
+				&& isNonEmptyString(command.workspaceUri)
+				? undefined
+				: invalidPayload('Integration discovery requires a workspaceUri.');
 		case AgentCommandType.StopSession:
 		case AgentCommandType.ListWorktrees:
 		case AgentCommandType.ListCatalog:
@@ -695,6 +765,11 @@ function getAgentEventError(value: unknown): AgentError | undefined {
 				&& isRecord(event.selection) && hasOnlyKeys(event.selection, ['providerId', 'modelId'])
 				&& isNonEmptyString(event.selection.providerId) && isNonEmptyString(event.selection.modelId)
 				? undefined : invalidPayload('Configuration event requires a sanitized selection.');
+		case AgentEventType.LocalIntegrations:
+			return hasOnlyKeys(event, ['version', 'type', 'requestId', 'inventory'])
+				&& isAgentLocalIntegrationInventory(event.inventory)
+				? undefined
+				: invalidPayload('Local integrations event requires a sanitized inventory.');
 		case AgentEventType.Error:
 			return hasOnlyKeys(event, ['version', 'type', 'requestId', 'sessionId', 'error'])
 				&& isOptionalString(event.sessionId)

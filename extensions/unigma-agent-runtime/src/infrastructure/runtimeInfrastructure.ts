@@ -10,6 +10,8 @@ import { RedactedDiagnosticSink } from './diagnostics';
 import { OpenCodeHttpClient } from './openCodeHttpClient';
 import { ChildProcessManager } from './processManager';
 import { WorkspaceStateSessionReferenceStore } from './sessionReferenceStore';
+import { enumerateLocalIntegrations } from './localIntegrationInventory';
+import { evaluateRuntimeLocalIntegrationPreflight } from './localIntegrationPreflight';
 
 /**
  * Composes the local adapters while keeping process and transport access outside the UI.
@@ -29,6 +31,7 @@ export function createRuntimeInfrastructure(context: vscode.ExtensionContext): R
 	};
 	let disconnectPromise: Promise<void> | undefined;
 	let stopPromise: Promise<void> | undefined;
+	const inventories = new Map<string, Awaited<ReturnType<typeof enumerateLocalIntegrations>>>();
 	const disconnect = (): Promise<void> => disconnectPromise ??= openCodeClient.disconnect();
 	const stopOwned = (): Promise<void> => stopPromise ??= (async () => {
 		try {
@@ -45,12 +48,17 @@ export function createRuntimeInfrastructure(context: vscode.ExtensionContext): R
 				ensureStarted: workspace => processManager.ensureStarted(workspace),
 				stopOwned,
 			},
+			enumerateLocalIntegrations: async workspace => {
+				const inventory = await enumerateLocalIntegrations(workspace);
+				inventories.set(workspace.uri, inventory);
+				return inventory;
+			},
 			localIntegrationPreflight: (workspace, _requested): LocalIntegrationPreflightResult => {
 				if (!workspaceTrust.isTrusted(workspace)) {
 					return { accepted: false, code: 'workspaceUntrusted' };
 				}
-				// O extension host ainda nao enumera plugin/regra; ausencia de classificador proprio recusa.
-				return { accepted: false, code: 'unknownOrigin' };
+				const inventory = inventories.get(workspace.uri);
+				return inventory ? evaluateRuntimeLocalIntegrationPreflight(inventory) : { accepted: false, code: 'unknownOrigin' };
 			},
 			openCodeClient: {
 				connect: process => openCodeClient.connect(process),

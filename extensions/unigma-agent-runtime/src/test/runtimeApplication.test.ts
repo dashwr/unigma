@@ -46,6 +46,7 @@ function portsFor(options: {
 			},
 		},
 		localIntegrationPreflight: options.preflight ?? (() => ({ accepted: true })),
+		enumerateLocalIntegrations: async () => ({ complete: true, sources: [] }),
 		openCodeClient: {
 			connect: options.connect ?? (async () => {
 				order.push('connect');
@@ -179,10 +180,12 @@ suite('Unigma agent runtime application', () => {
 		const requests: OpenCodeRequest[] = [];
 		let connected = false;
 		let emitEvent!: (event: OpenCodeEvent) => void;
-		const ports = portsFor({ order, onEvent: listener => {
-			emitEvent = listener;
-			return { dispose: () => undefined };
-		} });
+		const ports = portsFor({
+			order, onEvent: listener => {
+				emitEvent = listener;
+				return { dispose: () => undefined };
+			}
+		});
 		ports.processManager.ensureStarted = async () => {
 			order.push('start');
 			return processHandle;
