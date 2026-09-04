@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $ } from '../../../../base/browser/dom.js';
-import { VSCODE_LOGO_PATH } from './vscodeLogoPath.js';
+import { UNIGMA_LOGO_PATH } from './unigmaLogoPath.js';
 
 /**
  * VS Code logo "fish" used by the Agents window aquarium. Each fish is a small
@@ -214,7 +214,7 @@ function ensureSharedDefs(targetDocument: Document): void {
 
 	// All strips reference this symbol via `<use href="#agents-aquarium-fish-logo">`,
 	// so the path data is parsed exactly ONCE per session instead of FISH_COUNT * NUM_STRIPS.
-	container.appendChild(createVSCodeLogoSymbol());
+	container.appendChild(createUnigmaLogoSymbol());
 
 	const defs = $.SVG<SVGDefsElement>('defs');
 	for (let i = 0; i < NUM_BODY_STRIPS; i++) {
@@ -236,14 +236,14 @@ function ensureSharedDefs(targetDocument: Document): void {
 	sharedDefsByDocument.set(targetDocument, container);
 }
 
-function createVSCodeLogoSymbol(): SVGSymbolElement {
+function createUnigmaLogoSymbol(): SVGSymbolElement {
 	const symbol = $.SVG<SVGSymbolElement>('symbol');
 	symbol.setAttribute('id', SHARED_LOGO_SYMBOL_ID);
-	symbol.setAttribute('viewBox', '0 0 96 96');
+	symbol.setAttribute('viewBox', '0 0 256 256');
 	symbol.setAttribute('overflow', 'visible');
 
 	const logoPath = $.SVG<SVGPathElement>('path');
-	logoPath.setAttribute('d', VSCODE_LOGO_PATH);
+	logoPath.setAttribute('d', UNIGMA_LOGO_PATH);
 	logoPath.setAttribute('fill', 'currentColor');
 	logoPath.setAttribute('fill-rule', 'evenodd');
 	symbol.appendChild(logoPath);
@@ -253,7 +253,7 @@ function createVSCodeLogoSymbol(): SVGSymbolElement {
 
 /**
  * Build the inline SVG element tree for a fish:
- *   - VS Code logo body, sliced into N vertical strips that each oscillate in
+ *   - unigma logo body, sliced into N vertical strips that each oscillate in
  *     Y with a phase-offset CSS animation (the "swimming" sine wave)
  *
  * Colors come from `currentColor` on the parent element. Built without

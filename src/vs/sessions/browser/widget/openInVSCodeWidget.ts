@@ -11,10 +11,9 @@ import { IAction } from '../../../base/common/actions.js';
 import { localize } from '../../../nls.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
-import { IProductService } from '../../../platform/product/common/productService.js';
 
 /**
- * Renders the "Open in VS Code" titlebar entry as an icon-only button that
+ * Renders the "Open in Editor" titlebar entry as an icon-only button that
  * expands to reveal a label on hover / keyboard focus.
  */
 export class OpenInVSCodeTitleBarWidget extends BaseActionViewItem {
@@ -23,7 +22,6 @@ export class OpenInVSCodeTitleBarWidget extends BaseActionViewItem {
 		action: IAction,
 		options: IBaseActionViewItemOptions | undefined,
 		private readonly keybindingCommandId: string,
-		@IProductService private readonly productService: IProductService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
@@ -36,15 +34,8 @@ export class OpenInVSCodeTitleBarWidget extends BaseActionViewItem {
 		container.classList.add('open-in-vscode-titlebar-widget');
 		container.setAttribute('role', 'button');
 
-		// Set quality attribute for distro icon selection. Only set when quality is
-		// known so that the CSS fallback icon is used in dev builds.
-		const quality = this.productService.quality;
-		if (quality) {
-			container.setAttribute('data-product-quality', quality);
-		}
-
 		const label = this.action.label;
-		const hoverText = this.keybindingService.appendKeybinding(localize('openInVSCodeHover', "Open in VS Code Editor Window"), this.keybindingCommandId);
+		const hoverText = this.keybindingService.appendKeybinding(localize('openInEditorHover', "Open in unigma Editor Window"), this.keybindingCommandId);
 		container.setAttribute('aria-label', hoverText);
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), container, hoverText));
 
