@@ -160,7 +160,7 @@ function walkLogs(directory: string, output: string[]): void {
 	}
 }
 
-function observeLogs(directory: string): Observations {
+function observeLogs(directory: string): Observations & { readonly rawText: string } {
 	const files: string[] = [];
 	walkLogs(directory, files);
 	const text = files.join('\n');
@@ -170,6 +170,7 @@ function observeLogs(directory: string): Observations {
 	const connectionTokenHandshake = CONNECTION_TOKEN_ACCEPTED.test(text);
 	const handshake = EXTENSION_HOST_HANDSHAKE.exec(text);
 	return {
+		rawText: text,
 		resolverSuccess: resolverSuccess !== null,
 		resolverError: resolverError !== null,
 		resolvedAuthorityConsumed,
@@ -184,8 +185,42 @@ function observeLogs(directory: string): Observations {
 	};
 }
 
-function writeSanitizedEvidence(observations: Observations, resolverAttempted = false): void {
+/**
+ * The closed set of failure categories the SSH contract defines.
+ *
+ * The evidence writer reported only whether fixed patterns were present, so a
+ * refusal arrived without saying which refusal it was. These are contract
+ * categories, not free text: they carry no host, path, user or environment, so
+ * naming the one that appeared is safe and is the difference between a
+ * diagnosis and another runner cycle.
+ */
+const CONTRACT_CATEGORIES = [
+	'ssh.authentication-unavailable',
+	'ssh.client-commit-unavailable',
+	'ssh.client-unavailable',
+	'ssh.connection-lost',
+	'ssh.forward-failed',
+	'ssh.host-key-untrusted',
+	'ssh.provisioning-denied',
+	'ssh.remote-home-invalid',
+	'ssh.remote-platform-unsupported',
+	'ssh.remote-server-incompatible',
+	'ssh.remote-server-unavailable',
+	'ssh.remote-socket-path-too-long',
+	'ssh.target-unresolved',
+	'ssh.transport-failed',
+	'ssh.workspace-blocked'
+] as const;
+
+function observedContractCategories(text: string): readonly string[] {
+	return CONTRACT_CATEGORIES.filter(category => text.includes(category));
+}
+
+function writeSanitizedEvidence(observations: Observations, resolverAttempted = false, rawText = ''): void {
 	const lines: string[] = [];
+	for (const category of observedContractCategories(rawText)) {
+		lines.push(`observed=${category}`);
+	}
 	if (observations.resolverSuccess) {
 		lines.push(`resolveAuthority(ssh-remote) returned after ${observations.resolverElapsed ?? 'unknown'} ms`);
 
@@ -421,7 +456,7 @@ async function main(): Promise<void> {
 	} finally {
 		await terminate(process_);
 		observations = stateRoot ? observeLogs(join(stateRoot, 'logs')) : observations;
-		writeSanitizedEvidence(observations, process_ !== undefined);
+		writeSanitizedEvidence(observations, process_ !== undefined, (observations as { readonly rawText?: string }).rawText ?? '');
 		if (stateRoot) {
 			rmSync(stateRoot, { recursive: true, force: true });
 			check('state-cleanup', !existsSync(stateRoot));
