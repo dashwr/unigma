@@ -148,12 +148,13 @@ function auditUnigmaThemeExtension(appDirectory, product) {
 	const manifest = readJson(join(extensionDirectory, 'package.json'));
 	const darkTheme = join(extensionDirectory, 'themes', 'unigma-dark.json');
 	const lightTheme = join(extensionDirectory, 'themes', 'unigma-light.json');
+	const highContrastTheme = join(extensionDirectory, 'themes', 'unigma-high-contrast.json');
 	const themes = manifest?.contributes?.themes;
 	check('themeUnigma.present', isDirectory(extensionDirectory));
 	check('themeUnigma.identity', manifest?.name === 'theme-unigma' && manifest?.publisher === 'unigma');
-	check('themeUnigma.files', isFile(darkTheme) && isFile(lightTheme));
-	check('themeUnigma.defaults', product?.onboardingThemes?.some(theme => theme.themeId === 'unigma Dark' && theme.type === 'dark') === true && product?.onboardingThemes?.some(theme => theme.themeId === 'unigma Light' && theme.type === 'light') === true);
-	check('themeUnigma.contributes', Array.isArray(themes) && themes.some(theme => theme.id === 'unigma Dark' && theme.path === './themes/unigma-dark.json') && themes.some(theme => theme.id === 'unigma Light' && theme.path === './themes/unigma-light.json'));
+	check('themeUnigma.files', isFile(darkTheme) && isFile(lightTheme) && isFile(highContrastTheme));
+	check('themeUnigma.defaults', product?.onboardingThemes?.some(theme => theme.themeId === 'unigma Dark' && theme.type === 'dark') === true && product?.onboardingThemes?.some(theme => theme.themeId === 'unigma Light' && theme.type === 'light') === true && product?.onboardingThemes?.some(theme => theme.themeId === 'unigma High Contrast' && theme.type === 'hcDark') === true);
+	check('themeUnigma.contributes', Array.isArray(themes) && themes.some(theme => theme.id === 'unigma Dark' && theme.path === './themes/unigma-dark.json') && themes.some(theme => theme.id === 'unigma Light' && theme.path === './themes/unigma-light.json') && themes.some(theme => theme.id === 'unigma High Contrast' && theme.path === './themes/unigma-high-contrast.json'));
 }
 
 function packagePaths(packageDirectory) {

@@ -85,7 +85,7 @@ function color(theme: Record<string, any>, key: string): Rgb {
 	return parsed;
 }
 
-const pairs = [
+const textPairs = [
 	['editor.foreground', 'editor.background'],
 	['sideBar.foreground', 'sideBar.background'],
 	['statusBar.foreground', 'statusBar.background'],
@@ -100,10 +100,23 @@ const pairs = [
 	['list.inactiveSelectionForeground', 'list.inactiveSelectionBackground'],
 ] as const;
 
+const highContrastPairs = [
+	['editor.foreground', 'editor.background'],
+	['sideBar.foreground', 'sideBar.background'],
+	['statusBar.foreground', 'statusBar.background'],
+	['tab.activeForeground', 'tab.activeBackground'],
+	['tab.inactiveForeground', 'tab.inactiveBackground'],
+	['terminal.foreground', 'terminal.background'],
+	['list.activeSelectionForeground', 'list.activeSelectionBackground'],
+	['list.inactiveSelectionForeground', 'list.inactiveSelectionBackground'],
+	['button.foreground', 'button.background'],
+] as const;
+
 let failed = false;
-for (const fileName of ['unigma-dark.json', 'unigma-light.json']) {
+for (const fileName of ['unigma-dark.json', 'unigma-light.json', 'unigma-high-contrast.json']) {
 	const theme = loadTheme(join(root, 'extensions/theme-unigma/themes', fileName));
 	console.log(`theme=${theme.name}`);
+	const pairs = fileName === 'unigma-high-contrast.json' ? highContrastPairs : textPairs;
 	for (const [foregroundKey, backgroundKey] of pairs) {
 		const ratio = contrast(color(theme, foregroundKey), color(theme, backgroundKey));
 		const result = ratio >= minimumTextContrast ? 'pass' : 'fail';

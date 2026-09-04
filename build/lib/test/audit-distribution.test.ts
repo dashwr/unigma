@@ -37,7 +37,7 @@ function createDesktopFixture(targetName?: string) {
 	writeFileSync(join(app, 'product.json'), JSON.stringify({
 		nameShort: 'unigma', nameLong: 'unigma', applicationName: 'unigma', licenseName: 'MIT', licenseFileName: 'LICENSE.txt',
 		licenseUrl: 'https://github.com/dashwr/unigma/blob/main/LICENSE.txt',
-		onboardingThemes: [{ themeId: 'unigma Dark', type: 'dark' }, { themeId: 'unigma Light', type: 'light' }],
+		onboardingThemes: [{ themeId: 'unigma Dark', type: 'dark' }, { themeId: 'unigma Light', type: 'light' }, { themeId: 'unigma High Contrast', type: 'hcDark' }],
 		builtInExtensions: [], builtInExtensionsEnabledWithAutoUpdates: [],
 		nodejsArtifactFeed: '', electronArtifactFeed: '', reportIssueUrl: '', voiceWsUrl: '',
 	}));
@@ -46,11 +46,13 @@ function createDesktopFixture(targetName?: string) {
 			themes: [
 				{ id: 'unigma Dark', path: './themes/unigma-dark.json' },
 				{ id: 'unigma Light', path: './themes/unigma-light.json' },
+				{ id: 'unigma High Contrast', path: './themes/unigma-high-contrast.json' },
 			]
 		},
 	}));
 	writeFileSync(join(app, 'extensions', 'theme-unigma', 'themes', 'unigma-dark.json'), '{}');
 	writeFileSync(join(app, 'extensions', 'theme-unigma', 'themes', 'unigma-light.json'), '{}');
+	writeFileSync(join(app, 'extensions', 'theme-unigma', 'themes', 'unigma-high-contrast.json'), '{}');
 	return root;
 }
 

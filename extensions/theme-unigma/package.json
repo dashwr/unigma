@@ -24,6 +24,12 @@
         "label": "%lightThemeLabel%",
         "uiTheme": "vs",
         "path": "./themes/unigma-light.json"
+      },
+      {
+        "id": "unigma High Contrast",
+        "label": "%highContrastThemeLabel%",
+        "uiTheme": "hc-black",
+        "path": "./themes/unigma-high-contrast.json"
       }
     ]
   },
