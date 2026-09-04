@@ -33,13 +33,18 @@ interface StagingLease {
 	readonly session: RemoteServerStagingSession;
 }
 
-let outputChannel: vscode.OutputChannel | undefined;
+let outputChannel: vscode.LogOutputChannel | undefined;
 const activeSessions = new Set<ActiveSession>();
 const stagingLeases = new Map<string, StagingLease>();
 
 /** Diagnostics carry category and phase only — never target, user, command or environment. */
 function logDiagnostic(code: RemoteSshResolverFailureCode, phase: RemoteSshResolverPhase): void {
-	outputChannel?.appendLine(`[${phase}] ${code}`);
+	// A plain output channel keeps its contents in memory, so a refusal that
+	// happens before any window is usable leaves nothing behind to read. A log
+	// channel writes to the logs directory, where both the user and a smoke can
+	// find the phase. The phase and code are contract categories and carry no
+	// host, path or credential.
+	outputChannel?.error(`[${phase}] ${code}`);
 }
 
 function readProductJson(): unknown {
@@ -170,7 +175,7 @@ async function stageRemoteServer(): Promise<void> {
 }
 
 export function activate(context: vscode.ExtensionContext): void {
-	outputChannel = vscode.window.createOutputChannel('unigma Remote SSH');
+	outputChannel = vscode.window.createOutputChannel('unigma Remote SSH', { log: true });
 	context.subscriptions.push(outputChannel);
 	context.subscriptions.push(vscode.commands.registerCommand(STAGE_COMMAND, stageRemoteServer));
 

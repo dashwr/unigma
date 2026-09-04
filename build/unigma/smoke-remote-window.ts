@@ -212,6 +212,23 @@ const CONTRACT_CATEGORIES = [
 	'ssh.workspace-blocked'
 ] as const;
 
+/**
+ * The closed set of phases the resolver can name.
+ *
+ * Knowing the category without the phase still costs a runner cycle: the same
+ * category means something different when it comes from the handshake than from
+ * the bootstrap. Phases are contract vocabulary and carry nothing else.
+ */
+const CONTRACT_PHASES = [
+	'authority', 'bootstrap', 'client', 'commit', 'confirmation', 'connect',
+	'forward', 'handshake', 'host', 'lifecycle', 'payload-transfer', 'platform',
+	'remote-execution', 'script-delivery', 'validation', 'workspace'
+] as const;
+
+function observedPhases(text: string): readonly string[] {
+	return CONTRACT_PHASES.filter(phase => text.includes(`[${phase}]`));
+}
+
 function observedContractCategories(text: string): readonly string[] {
 	return CONTRACT_CATEGORIES.filter(category => text.includes(category));
 }
@@ -220,6 +237,9 @@ function writeSanitizedEvidence(observations: Observations, resolverAttempted = 
 	const lines: string[] = [];
 	for (const category of observedContractCategories(rawText)) {
 		lines.push(`observed=${category}`);
+	}
+	for (const phase of observedPhases(rawText)) {
+		lines.push(`observed-phase=${phase}`);
 	}
 	if (observations.resolverSuccess) {
 		lines.push(`resolveAuthority(ssh-remote) returned after ${observations.resolverElapsed ?? 'unknown'} ms`);
