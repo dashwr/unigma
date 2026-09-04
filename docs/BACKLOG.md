@@ -2000,3 +2000,30 @@ usado nesta onda.
   typecheck-client`, registrar a saída e só então decidir se T-012 permanece
   parcial ou pode avançar para E01-E.
 - feito: instruções operacionais do repositório consolidadas em `AGENTS.md`.
+
+## credencial do OpenCode no host remoto
+
+Levantamento feito, implementacao pendente. O que ficou estabelecido por leitura
+do codigo, para nao ser redescoberto:
+
+- O runtime proprio nao le credencial alguma hoje; o store persistido guarda so
+  `sessionId` e `workspaceUri`
+  (`extensions/unigma-agent-runtime/src/infrastructure/sessionReferenceStore.ts`).
+- O OpenCode, por outro lado, **persiste**: `auth.json` em modo 0600 e uma tabela
+  `credential` em SQLite. O refresh de OAuth do plugin Codex chama `auth.set()`,
+  ou seja, grava disco. Manter a credencial so em memoria exige `OPENCODE_AUTH_CONTENT`
+  e `OPENCODE_DB=:memory:`, ou alterar o bundle.
+- `OPENCODE_AUTH_CONTENT` substitui a leitura de `auth.json`, `OPENCODE_DB=:memory:`
+  impede o banco persistente e `OPENCODE_DISABLE_CLAUDE_CODE` desliga a descoberta
+  de `~/.claude`. Sao esses tres que impedem herdar credencial residente no host.
+- Nao foi confirmado quais caminhos o Codex CLI externo consulta, nem existe plugin
+  de autenticacao Claude Code no OpenCode. Nao presumir.
+- Variavel de ambiente expoe o valor em `/proc/<pid>/environ`; socket UNIX
+  encaminhado por `-L` nao aparece em `ps` e serve aos dois clientes, ja que o
+  OpenSSH do Windows nao tem multiplexacao utilizavel.
+- **Bloqueio real:** o OpenCode remoto ainda nao roda. `processManager.ts` recusa
+  URI que nao seja `file:`, entao nao ha processo remoto para receber credencial.
+  Isso vem depois da janela remota de T-053.
+
+feito: levantamento da credencial remota, com canais comparados e superficie de
+vazamento mapeada; implementacao aguarda o extension host remoto existir.
