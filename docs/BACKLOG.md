@@ -2,11 +2,13 @@
 
 > feito: 2026-09-03 — implementados o smoke da primeira janela remota e o workflow
 > self-hosted WSL2: o par desktop/servidor é conferido por `PROVENANCE.txt` antes
-> de qualquer lançamento, o desktop publicado abre a URI SSH sob Xvfb, o log do
-> workbench prova resolver/ResolvedAuthority/extension host, trust bloqueado é
-> informativo e o handshake de token tem categoria própria. O workflow reaproveita
-> staging, executa cleanup guardado em `always()` e publica somente relatório/log
-> allowlisted. Runner e VPS permanecem pendentes.
+> de qualquer lançamento, a confiança da URI remota é semeada no SQLite compartilhado
+> isolado, e o desktop publicado abre a URI SSH sob Xvfb. O log do workbench prova
+> resolver/ResolvedAuthority/extension host e handshake de token com checks
+> bloqueantes; `check.workspace-trust-seeded` deixa explícito que a confiança foi
+> preparada pelo smoke, enquanto trust bloqueado permanece informativo. O workflow
+> reaproveita staging, executa cleanup guardado em `always()` e publica somente
+> relatório/log allowlisted. Runner e VPS permanecem pendentes.
 
 > feito: 2026-09-03 — o payload do servidor remoto voltou a ser utilizável. O
 > workflow do servidor passou a compilar os addons contra o sysroot

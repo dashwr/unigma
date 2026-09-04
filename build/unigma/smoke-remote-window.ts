@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { spawn, type ChildProcess } from 'node:child_process';
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { accessSync, constants as fsConstants, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -13,9 +13,32 @@ const COMMIT = /^[0-9a-f]{40}$/;
 const ALIAS = /^[A-Za-z0-9._-]+$/;
 const RESOLVER_SUCCESS = /resolveAuthority\(ssh-remote\) returned '[^']*' after ([0-9]+) ms/;
 const RESOLVER_ERROR = /resolveAuthority\(ssh-remote\) returned an error after ([0-9]+) ms/;
+const RESOLVED_AUTHORITY_CONSUMED = /\[remote-connection\]\[Management\s*\][^\n]*2\/6\. socketFactory\.connect\(\) was successful\./;
+const CONNECTION_TOKEN_ACCEPTED = /\[remote-connection\]\[Management\s*\][^\n]*4\/6\. received SignRequest control message\./;
 const EXTENSION_HOST_HANDSHAKE = /ExtensionHost\s*\][^\n]*handshake finished, connection is up and running after ([0-9]+) ms/;
 const WORKSPACE_TRUST = /ssh\.workspace-blocked|workspace is not trusted/i;
 const CONNECTION_TOKEN_FAILURE = /Unauthorized client refused|auth mismatch|handshake timed out|received error control message when negotiating connection|VSCODE_CONNECTION_ERROR|Unexpected handshake message/;
+const WORKSPACE_TRUST_STORAGE_KEY = 'content.trust.model.key';
+const STORAGE_TARGETS_KEY = '__$__targetStorageMarker';
+const STORAGE_MACHINE_TARGET = '1';
+const PYTHON_SQLITE_SEED = `
+import sqlite3
+import sys
+
+database, key, value, targets_key, targets_value = sys.argv[1:6]
+connection = sqlite3.connect(database)
+try:
+\tconnection.execute("CREATE TABLE IF NOT EXISTS ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)")
+\tconnection.execute("INSERT OR REPLACE INTO ItemTable (key, value) VALUES (?, ?)", (key, value))
+\tconnection.execute("INSERT OR REPLACE INTO ItemTable (key, value) VALUES (?, ?)", (targets_key, targets_value))
+\tconnection.commit()
+\trow = connection.execute("SELECT value FROM ItemTable WHERE key = ?", (key,)).fetchone()
+\ttargets_row = connection.execute("SELECT value FROM ItemTable WHERE key = ?", (targets_key,)).fetchone()
+\tif row is None or row[0] != value or targets_row is None or targets_row[0] != targets_value:
+\t\traise RuntimeError("seed verification failed")
+finally:
+\tconnection.close()
+`;
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const reportPath = resolve(process.argv[2] ?? join(repoRoot, '.build', 'unigma-remote-window-smoke.txt'));
 const evidencePath = `${reportPath}.workbench.log`;
@@ -25,6 +48,8 @@ const facts: Array<readonly [string, string]> = [];
 interface Observations {
 	readonly resolverSuccess: boolean;
 	readonly resolverError: boolean;
+	readonly resolvedAuthorityConsumed: boolean;
+	readonly connectionTokenHandshake: boolean;
 	readonly trustBlocked: boolean;
 	readonly tokenFailure: boolean;
 	readonly extensionHostHandshake: boolean;
@@ -141,10 +166,14 @@ function observeLogs(directory: string): Observations {
 	const text = files.join('\n');
 	const resolverSuccess = RESOLVER_SUCCESS.exec(text);
 	const resolverError = RESOLVER_ERROR.exec(text);
+	const resolvedAuthorityConsumed = RESOLVED_AUTHORITY_CONSUMED.test(text);
+	const connectionTokenHandshake = CONNECTION_TOKEN_ACCEPTED.test(text);
 	const handshake = EXTENSION_HOST_HANDSHAKE.exec(text);
 	return {
 		resolverSuccess: resolverSuccess !== null,
 		resolverError: resolverError !== null,
+		resolvedAuthorityConsumed,
+		connectionTokenHandshake,
 		trustBlocked: WORKSPACE_TRUST.test(text),
 		tokenFailure: CONNECTION_TOKEN_FAILURE.test(text),
 		extensionHostHandshake: handshake !== null,
@@ -155,7 +184,7 @@ function observeLogs(directory: string): Observations {
 	};
 }
 
-function writeSanitizedEvidence(observations: Observations): void {
+function writeSanitizedEvidence(observations: Observations, resolverAttempted = false): void {
 	const lines: string[] = [];
 	if (observations.resolverSuccess) {
 		lines.push(`resolveAuthority(ssh-remote) returned after ${observations.resolverElapsed ?? 'unknown'} ms`);
@@ -163,6 +192,20 @@ function writeSanitizedEvidence(observations: Observations): void {
 	}
 	if (observations.resolverError) {
 		lines.push(`resolveAuthority(ssh-remote) returned an error after ${observations.resolverErrorElapsed ?? 'unknown'} ms`);
+
+	}
+	if (observations.resolvedAuthorityConsumed) {
+		lines.push('remote ResolvedAuthority consumed by the management connection');
+
+	} else if (resolverAttempted) {
+		lines.push('category=ssh.resolved-authority-consumed');
+
+	}
+	if (observations.connectionTokenHandshake) {
+		lines.push('remote connection token handshake accepted');
+
+	} else if (resolverAttempted) {
+		lines.push('category=ssh.connection-token-handshake');
 
 	}
 	if (observations.extensionHostHandshake) {
@@ -229,6 +272,38 @@ async function delay(milliseconds: number): Promise<void> {
 	await new Promise(resolveDelay => setTimeout(resolveDelay, milliseconds));
 }
 
+function workspaceTrustState(alias: string): string {
+	// URI.toJSON() for the canonical remote URI emits the marshalling id and only
+	// non-empty components; the resolver has no canonical URI rewrite of its own.
+	return JSON.stringify({
+		uriTrustInfo: [{
+			uri: {
+				$mid: 1,
+				path: '/root',
+				scheme: 'vscode-remote',
+				authority: `ssh-remote+${alias}`
+			},
+			trusted: true
+		}]
+	});
+}
+
+function seedWorkspaceTrust(databasePath: string, alias: string): { readonly seeded: boolean; readonly reason: string } {
+	// Keep this DDL identical to src/vs/base/parts/storage/node/storage.ts:343;
+	// the workbench owns this SQLite schema, and the smoke only prepares its state.
+	const result = spawnSync('python3', ['-c', PYTHON_SQLITE_SEED, databasePath, WORKSPACE_TRUST_STORAGE_KEY, workspaceTrustState(alias), STORAGE_TARGETS_KEY, JSON.stringify({ [WORKSPACE_TRUST_STORAGE_KEY]: Number(STORAGE_MACHINE_TARGET) })], {
+		encoding: 'utf8',
+		stdio: ['ignore', 'ignore', 'pipe']
+	});
+	if (result.error) {
+		return { seeded: false, reason: result.error.code === 'ENOENT' ? 'python3-unavailable' : 'python3-failed-to-start' };
+	}
+	if (result.status !== 0) {
+		return { seeded: false, reason: result.status === null ? 'sqlite-process-signaled' : 'sqlite-write-or-verification-failed' };
+	}
+	return { seeded: true, reason: 'sqlite-row-verified' };
+}
+
 async function main(): Promise<void> {
 	// This is deliberately the first assertion: a stale desktop/server pair makes
 	// the resolver refuse correctly and would otherwise look like a workbench bug.
@@ -264,6 +339,8 @@ async function main(): Promise<void> {
 	let observations: Observations = {
 		resolverSuccess: false,
 		resolverError: false,
+		resolvedAuthorityConsumed: false,
+		connectionTokenHandshake: false,
 		trustBlocked: false,
 		tokenFailure: false,
 		extensionHostHandshake: false,
@@ -274,14 +351,24 @@ async function main(): Promise<void> {
 		mkdirSync(cacheDirectory, { recursive: true });
 		stateRoot = mkdtempSync(join(cacheDirectory, 'unigma-remote-window-'));
 		const userDataDirectory = join(stateRoot, 'user-data');
+		const sharedDataDirectory = join(userDataDirectory, 'shared-data');
 		const extensionsDirectory = join(stateRoot, 'extensions');
 		const logsDirectory = join(stateRoot, 'logs');
 		const crashDirectory = join(stateRoot, 'crashes');
-		for (const directory of [userDataDirectory, extensionsDirectory, logsDirectory, crashDirectory]) {
+		for (const directory of [userDataDirectory, sharedDataDirectory, join(sharedDataDirectory, 'sharedStorage'), extensionsDirectory, logsDirectory, crashDirectory]) {
 			mkdirSync(directory);
 
 		}
 		const folderUri = `vscode-remote://ssh-remote+${alias}/root`;
+		const trustSeed = seedWorkspaceTrust(join(sharedDataDirectory, 'sharedStorage', 'state.vscdb'), alias);
+		check('workspace-trust-seeded', trustSeed.seeded);
+		facts.push(['workspace-trust', trustSeed.seeded ? 'seeded-by-smoke' : `not-seeded:${trustSeed.reason}`]);
+		if (!trustSeed.seeded) {
+			facts.push(['result', 'workspace-trust-seed-failed']);
+			info('workspace-trust-blocked');
+			return;
+
+		}
 		process_ = spawn(binary, [
 			'--skip-release-notes',
 			'--skip-welcome',
@@ -291,6 +378,7 @@ async function main(): Promise<void> {
 			'--log=trace',
 			`--folder-uri=${folderUri}`,
 			`--user-data-dir=${userDataDirectory}`,
+			`--shared-data-dir=${sharedDataDirectory}`,
 			`--extensions-dir=${extensionsDirectory}`,
 			`--logsPath=${logsDirectory}`,
 			`--crash-reporter-directory=${crashDirectory}`,
@@ -302,7 +390,7 @@ async function main(): Promise<void> {
 		const deadline = Date.now() + 120_000;
 		while (Date.now() < deadline) {
 			observations = observeLogs(logsDirectory);
-			if (observations.trustBlocked || observations.tokenFailure || (observations.resolverSuccess && observations.extensionHostHandshake) || processError || process_.exitCode !== null) {
+			if (observations.trustBlocked || observations.resolverError || observations.tokenFailure || (observations.resolverSuccess && observations.extensionHostHandshake) || processError || process_.exitCode !== null) {
 				break;
 
 			}
@@ -310,27 +398,30 @@ async function main(): Promise<void> {
 
 		}
 		observations = observeLogs(logsDirectory);
+		check('workbench-resolver', observations.resolverSuccess && !observations.resolverError);
+		check('resolved-authority-consumed', observations.resolverSuccess && observations.resolvedAuthorityConsumed);
+		check('extension-host-handshake', observations.extensionHostHandshake);
+		check('connection-token-handshake', observations.resolverSuccess && observations.connectionTokenHandshake && !observations.tokenFailure);
+		check('remote-window', observations.resolverSuccess && observations.resolvedAuthorityConsumed && observations.extensionHostHandshake && observations.connectionTokenHandshake && !observations.tokenFailure);
 		if (observations.trustBlocked) {
 			facts.push(['result', 'workspace-trust-blocked']);
-			info('workbench-resolver');
-			check('workspace-trust-blocked', true);
-			info('resolved-authority-consumed');
-			info('connection-token-handshake');
-
+			info('workspace-trust-blocked');
+		} else if (observations.resolverError || !observations.resolverSuccess) {
+			facts.push(['result', 'workbench-resolver-failed']);
+		} else if (!observations.resolvedAuthorityConsumed) {
+			facts.push(['result', 'resolved-authority-consumption-failed']);
+		} else if (observations.tokenFailure || !observations.connectionTokenHandshake) {
+			facts.push(['result', 'connection-token-handshake-failed']);
+		} else if (!observations.extensionHostHandshake) {
+			facts.push(['result', 'extension-host-handshake-failed']);
 		} else {
-			check('workbench-resolver', observations.resolverSuccess);
-			check('resolved-authority-consumed', observations.resolverSuccess);
-			check('extension-host-handshake', observations.extensionHostHandshake);
-			check('connection-token-handshake', observations.resolverSuccess && observations.extensionHostHandshake && !observations.tokenFailure);
-			check('remote-window', observations.resolverSuccess && observations.extensionHostHandshake && !observations.tokenFailure);
-			facts.push(['result', observations.tokenFailure ? 'connection-token-handshake-failed' : 'remote-window']);
-
+			facts.push(['result', 'remote-window']);
 		}
 
 	} finally {
 		await terminate(process_);
 		observations = stateRoot ? observeLogs(join(stateRoot, 'logs')) : observations;
-		writeSanitizedEvidence(observations);
+		writeSanitizedEvidence(observations, process_ !== undefined);
 		if (stateRoot) {
 			rmSync(stateRoot, { recursive: true, force: true });
 			check('state-cleanup', !existsSync(stateRoot));
@@ -350,7 +441,7 @@ try {
 	}
 } catch {
 	check('unexpected-error', false);
-	writeSanitizedEvidence({ resolverSuccess: false, resolverError: false, trustBlocked: false, tokenFailure: false, extensionHostHandshake: false });
+	writeSanitizedEvidence({ resolverSuccess: false, resolverError: false, resolvedAuthorityConsumed: false, connectionTokenHandshake: false, trustBlocked: false, tokenFailure: false, extensionHostHandshake: false });
 	writeReport('fail');
 	process.exitCode = 1;
 }
