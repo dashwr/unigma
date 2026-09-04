@@ -6,6 +6,8 @@
 import { $, append, clearNode, h } from '../../../../base/browser/dom.js';
 import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { coalesce, shuffle } from '../../../../base/common/arrays.js';
+import product from '../../../../platform/product/common/product.js';
+import { isChatPanelEnabled } from '../../../../base/common/product.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isMacintosh, isWeb, OS } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
@@ -44,10 +46,14 @@ const toggleTerminal: WatermarkEntry = { text: localize({ key: 'watermark.toggle
 const startDebugging: WatermarkEntry = { text: localize('watermark.startDebugging', "Start Debugging"), id: 'workbench.action.debug.start', when: { web: ContextKeyExpr.equals('terminalProcessSupported', true) } };
 const openSettings: WatermarkEntry = { text: localize('watermark.openSettings', "Open Settings"), id: 'workbench.action.openSettings' };
 
-const baseEntries: WatermarkEntry[] = [
-	openChat,
+// The watermark gated Open Chat only on the setup context keys, while the panel
+// itself is gated on the product capability. With the panel disabled the entry
+// still appeared and pointed at a command that is never registered, so the
+// keyboard hint on an empty editor advertised something that could not happen.
+const baseEntries: WatermarkEntry[] = coalesce([
+	isChatPanelEnabled(product) ? openChat : undefined,
 	showCommands,
-];
+]);
 
 const emptyWindowEntries: WatermarkEntry[] = coalesce([
 	...baseEntries,

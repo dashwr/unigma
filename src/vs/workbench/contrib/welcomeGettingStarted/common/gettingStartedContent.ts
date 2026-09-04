@@ -14,6 +14,7 @@ import { NotebookSetting } from '../../notebook/common/notebookCommon.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../platform/accessibility/common/accessibility.js';
 import { URI } from '../../../../base/common/uri.js';
 import product from '../../../../platform/product/common/product.js';
+import { isChatPanelEnabled } from '../../../../base/common/product.js';
 
 interface IGettingStartedContentProvider {
 	(): string;
@@ -210,17 +211,21 @@ export const startEntries: GettingStartedStartEntryContent = [
 			command: 'command:workbench.action.remote.showWebStartEntryActions',
 		}
 	},
-	{
+	// Gated on the product capability and not only on the setup context keys: with
+	// the chat panel disabled the command behind this entry is never registered,
+	// so Welcome offered a tile whose only possible outcome was a command-not-found
+	// error.
+	...(isChatPanelEnabled(product) ? [{
 		id: 'topLevelNewWorkspaceChat',
 		title: localize('gettingStarted.newWorkspaceChat.title', "Generate New Workspace..."),
 		description: localize('gettingStarted.newWorkspaceChat.description', "Chat to create a new workspace"),
 		icon: Codicon.chatSparkle,
 		when: '!isWeb && !chatSetupHidden && !chatSetupDisabledInWorkspace',
 		content: {
-			type: 'startEntry',
+			type: 'startEntry' as const,
 			command: 'command:welcome.newWorkspaceChat',
 		}
-	},
+	}] : []),
 ];
 
 const Button = (title: string, href: string) => `[${title}](${href})`;
