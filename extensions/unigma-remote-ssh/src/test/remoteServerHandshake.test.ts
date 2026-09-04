@@ -144,3 +144,31 @@ test('refuses an explicit base directory that pushes the socket past the address
 	const result = buildRemoteBootstrapScript({ commit, remoteUserBaseDirectory: deep });
 	assert.deepEqual(result, { valid: false, code: 'socket-path-too-long' });
 });
+
+test('accepts the server-unavailable reason and refuses anything else in that envelope', () => {
+	// The envelope rule is one key per status, and this is the single status that
+	// carries a second field. Adding the field without teaching the parser turned
+	// every server-unavailable into unrecognized, which is how a staging session
+	// that had been passing started to fail.
+	assert.deepEqual(
+		parseRemoteHandshake(`${REMOTE_HANDSHAKE_PREFIX}{"status":"server-unavailable","reason":"missing-version"}`),
+		{ kind: 'server-unavailable', reason: 'missing-version' }
+	);
+	assert.deepEqual(
+		parseRemoteHandshake(`${REMOTE_HANDSHAKE_PREFIX}{"status":"server-unavailable","reason":"entry-point-not-executable"}`),
+		{ kind: 'server-unavailable', reason: 'entry-point-not-executable' }
+	);
+	assert.deepEqual(
+		parseRemoteHandshake(`${REMOTE_HANDSHAKE_PREFIX}{"status":"server-unavailable"}`),
+		{ kind: 'server-unavailable' }
+	);
+	// A reason the script never emits would be host data travelling into a log.
+	assert.deepEqual(
+		parseRemoteHandshake(`${REMOTE_HANDSHAKE_PREFIX}{"status":"server-unavailable","reason":"/root/anything"}`),
+		{ kind: 'unrecognized' }
+	);
+	assert.deepEqual(
+		parseRemoteHandshake(`${REMOTE_HANDSHAKE_PREFIX}{"status":"server-unavailable","reason":"missing-version","extra":1}`),
+		{ kind: 'unrecognized' }
+	);
+});

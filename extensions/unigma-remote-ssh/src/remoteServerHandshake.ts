@@ -188,17 +188,26 @@ function statusToHandshake(payload: Record<string, unknown>): RemoteHandshake | 
 		}
 		return { kind: 'ready', socketPath: payload.socketPath };
 	}
-	if (Object.keys(payload).length !== 1) {
-		return undefined;
-	}
+	// Checked before the single-key envelope rule, because this is the one status
+	// that carries a second field. A fixed vocabulary, so an unexpected value is
+	// dropped rather than forwarded: the reason travels into a log and must never
+	// carry host data.
 	if (status === 'server-unavailable') {
-		// A fixed vocabulary, so an unexpected value is dropped rather than
-		// forwarded: the reason travels into a log and must never carry host data.
+		const keys = Object.keys(payload).length;
+		if (keys === 1) {
+			return { kind: 'server-unavailable' };
+		}
+		if (keys !== 2 || !Object.prototype.hasOwnProperty.call(payload, 'reason')) {
+			return undefined;
+		}
 		const reason = payload['reason'];
 		if (reason === 'missing-version' || reason === 'entry-point-not-executable') {
 			return { kind: 'server-unavailable', reason };
 		}
-		return { kind: 'server-unavailable' };
+		return undefined;
+	}
+	if (Object.keys(payload).length !== 1) {
+		return undefined;
 	}
 	if (status === 'socket-occupied') {
 		return { kind: 'socket-occupied' };
