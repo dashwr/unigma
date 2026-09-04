@@ -1,7 +1,7 @@
 {
-\t"displayName": "unigma themes",
-\t"description": "The unigma color themes",
-\t"darkThemeLabel": "unigma Dark",
-\t"lightThemeLabel": "unigma Light",
-\t"highContrastThemeLabel": "unigma High Contrast"
+	"displayName": "unigma themes",
+	"description": "The unigma color themes",
+	"darkThemeLabel": "unigma Dark",
+	"lightThemeLabel": "unigma Light",
+	"highContrastThemeLabel": "unigma High Contrast"
 }
