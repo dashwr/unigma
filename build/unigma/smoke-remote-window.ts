@@ -361,8 +361,22 @@ async function main(): Promise<void> {
 	}
 
 	const binary = join(pair.desktopDirectory, 'unigma');
-	check('desktop-package', existsSync(join(pair.desktopDirectory, 'resources', 'app', 'product.json')));
+	const productPath = join(pair.desktopDirectory, 'resources', 'app', 'product.json');
+	check('desktop-package', existsSync(productPath));
 	check('desktop-binary', isExecutable(binary));
+	// The resolver asks the host for the commit stamped into the packaged
+	// product.json, not for the one the artifact publisher recorded. Comparing the
+	// two PROVENANCE files left that unchecked, so a package built from a commit
+	// other than the one it was published under looks paired here and is refused
+	// by the host as a missing server.
+	let productCommit = '';
+	try {
+		productCommit = String((JSON.parse(readFileSync(productPath, 'utf8')) as { readonly commit?: unknown }).commit ?? '');
+	} catch {
+		productCommit = '';
+	}
+	facts.push(['desktop.product-commit', COMMIT.test(productCommit) ? productCommit : 'unreadable']);
+	check('product-commit-matches-server', productCommit === pair.serverCommit);
 	if (!isExecutable(binary)) {
 		facts.push(['result', 'desktop-binary-unavailable']);
 		return;
