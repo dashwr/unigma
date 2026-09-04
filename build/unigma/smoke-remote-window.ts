@@ -229,6 +229,20 @@ function observedPhases(text: string): readonly string[] {
 	return CONTRACT_PHASES.filter(phase => text.includes(`[${phase}]`));
 }
 
+/**
+ * Why the host said the server was not there.
+ *
+ * The category and the phase together still did not say whether the version was
+ * missing or its entry point was not executable, which are the two halves of the
+ * same refusal and have different causes. The vocabulary is fixed by the remote
+ * script, so nothing host-specific can travel here.
+ */
+const CONTRACT_REASONS = ['missing-version', 'entry-point-not-executable'] as const;
+
+function observedReasons(text: string): readonly string[] {
+	return CONTRACT_REASONS.filter(reason => text.includes(`reason=${reason}`));
+}
+
 function observedContractCategories(text: string): readonly string[] {
 	return CONTRACT_CATEGORIES.filter(category => text.includes(category));
 }
@@ -240,6 +254,9 @@ function writeSanitizedEvidence(observations: Observations, resolverAttempted = 
 	}
 	for (const phase of observedPhases(rawText)) {
 		lines.push(`observed-phase=${phase}`);
+	}
+	for (const reason of observedReasons(rawText)) {
+		lines.push(`observed-reason=${reason}`);
 	}
 	if (observations.resolverSuccess) {
 		lines.push(`resolveAuthority(ssh-remote) returned after ${observations.resolverElapsed ?? 'unknown'} ms`);
