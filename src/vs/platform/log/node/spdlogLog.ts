@@ -35,6 +35,18 @@ async function createSpdLogLogger(name: string, logfilePath: string, filesize: n
 	return null;
 }
 
+/** Last resort when the native logger is unavailable, so messages are not dropped. */
+function logToConsole(level: LogLevel, message: string): void {
+	switch (level) {
+		case LogLevel.Trace:
+		case LogLevel.Debug:
+		case LogLevel.Info: console.log(message); break;
+		case LogLevel.Warning: console.warn(message); break;
+		case LogLevel.Error: console.error(message); break;
+		default: break;
+	}
+}
+
 interface ILog {
 	level: LogLevel;
 	message: string;
@@ -69,6 +81,16 @@ export class SpdLogLogger extends AbstractMessageLogger implements ILogger {
 	private buffer: ILog[] = [];
 	private readonly _loggerCreationPromise: Promise<void>;
 	private _logger: spdlog.Logger | undefined;
+	/**
+	 * Set when the native logger could not be created.
+	 *
+	 * Without it every message stayed in `buffer` forever: the buffer was only
+	 * drained on success, so a failed addon meant the process logged nothing at
+	 * all and the buffer grew for the lifetime of the window. Losing the file is
+	 * survivable; losing the diagnosis of why it was lost is not, so the messages
+	 * go to the console instead.
+	 */
+	private _useConsoleFallback = false;
 
 	constructor(
 		name: string,
@@ -98,12 +120,20 @@ export class SpdLogLogger extends AbstractMessageLogger implements ILogger {
 				log(this._logger, level, message);
 			}
 			this.buffer = [];
+			return;
 		}
+		this._useConsoleFallback = true;
+		for (const { level, message } of this.buffer) {
+			logToConsole(level, message);
+		}
+		this.buffer = [];
 	}
 
 	protected log(level: LogLevel, message: string): void {
 		if (this._logger) {
 			log(this._logger, level, message);
+		} else if (this._useConsoleFallback) {
+			logToConsole(level, message);
 		} else if (this.getLevel() <= level) {
 			this.buffer.push({ level, message });
 		}
