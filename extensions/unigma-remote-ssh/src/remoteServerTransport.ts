@@ -92,6 +92,14 @@ export interface RemoteServerFailure {
 	readonly phase: RemoteServerFailurePhase;
 	readonly exitCode?: number;
 	readonly stagingSession?: RemoteServerStagingSession;
+	/**
+	 * Why the host said the server was not there.
+	 *
+	 * A missing version and a version whose entry point is not executable are the
+	 * same code and very different problems. The value is a fixed word chosen by
+	 * the remote script, never host data.
+	 */
+	readonly reason?: 'missing-version' | 'entry-point-not-executable';
 }
 
 export type RemoteServerResult = RemoteServerSession | RemoteServerFailure;
@@ -576,10 +584,10 @@ export async function openRemoteServer(input: RemoteServerTransportInput, deps: 
 				case 'start-failed':
 					if (handshake.kind === 'server-unavailable' && input.retainControlMasterOnServerUnavailable) {
 						retainedForStaging = true;
-						complete({ ...failure('ssh.remote-server-unavailable', 'handshake'), stagingSession: { controlPath: control.path, dispose: disposeProcess } });
+						complete({ ...failure('ssh.remote-server-unavailable', 'handshake'), reason: handshake.reason, stagingSession: { controlPath: control.path, dispose: disposeProcess } });
 						return;
 					}
-					fail(failure(handshake.kind === 'home-invalid' ? 'ssh.remote-home-invalid' : handshake.kind === 'socket-path-too-long' ? 'ssh.remote-socket-path-too-long' : 'ssh.remote-server-unavailable', 'handshake'));
+					fail({ ...failure(handshake.kind === 'home-invalid' ? 'ssh.remote-home-invalid' : handshake.kind === 'socket-path-too-long' ? 'ssh.remote-socket-path-too-long' : 'ssh.remote-server-unavailable', 'handshake'), ...(handshake.kind === 'server-unavailable' && handshake.reason !== undefined ? { reason: handshake.reason } : {}) });
 					return;
 			}
 		});

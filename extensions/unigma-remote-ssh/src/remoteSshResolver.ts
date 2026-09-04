@@ -83,6 +83,8 @@ export type RemoteSshResolutionResult =
 		readonly phase: RemoteSshResolverPhase;
 		readonly destination?: string;
 		readonly commit?: string;
+		/** Fixed word from the remote script; never host data. See RemoteServerFailure. */
+		readonly reason?: 'missing-version' | 'entry-point-not-executable';
 		readonly stagingSession?: RemoteServerStagingSession;
 	};
 
@@ -115,7 +117,7 @@ export async function resolveRemoteSsh(
 	const transport = await deps.openRemoteServer({ destination, commit: clientCommit.commit, retainControlMasterOnServerUnavailable: true }, () => deps.onConnectionLost?.());
 	if (isRemoteServerFailure(transport)) {
 		const mapped = mapRemoteServerFailure(transport);
-		return { ok: false, ...mapped, destination, commit: clientCommit.commit, stagingSession: transport.stagingSession };
+		return { ok: false, ...mapped, reason: transport.reason, destination, commit: clientCommit.commit, stagingSession: transport.stagingSession };
 	}
 	return { ok: true, target: preflight.target, destination, commit: clientCommit.commit, session: transport };
 }

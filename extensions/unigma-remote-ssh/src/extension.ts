@@ -104,8 +104,11 @@ function failureMessage(code: RemoteSshResolverFailureCode, phase: RemoteSshReso
 	return `${code}: remote SSH failed during ${phase}.`;
 }
 
-function reportFailure(code: RemoteSshResolverFailureCode, phase: RemoteSshResolverPhase): void {
+function reportFailure(code: RemoteSshResolverFailureCode, phase: RemoteSshResolverPhase, reason?: string): void {
 	logDiagnostic(code, phase);
+	if (reason !== undefined) {
+		outputChannel?.error(`[${phase}] ${code} reason=${reason}`);
+	}
 	void vscode.window.showErrorMessage(failureMessage(code, phase));
 }
 
@@ -207,7 +210,7 @@ export function activate(context: vscode.ExtensionContext): void {
 				if (result.stagingSession && result.destination !== undefined && result.commit !== undefined) {
 					replaceStagingLease(authority, { authority, destination: result.destination, commit: result.commit, session: result.stagingSession });
 				}
-				reportFailure(result.code, result.phase);
+				reportFailure(result.code, result.phase, result.reason);
 				const message = failureMessage(result.code, result.phase);
 				// The extension already showed the message, so `handled` keeps the
 				// workbench from stacking a second notification saying the same thing.

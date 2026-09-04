@@ -28,7 +28,7 @@ export type RemoteBootstrapScriptResult =
 
 export type RemoteHandshake =
 	| { readonly kind: 'ready'; readonly socketPath: string }
-	| { readonly kind: 'server-unavailable' }
+	| { readonly kind: 'server-unavailable'; readonly reason?: 'missing-version' | 'entry-point-not-executable' }
 	| { readonly kind: 'socket-occupied' }
 	| { readonly kind: 'home-invalid' }
 	| { readonly kind: 'socket-path-too-long' }
@@ -105,8 +105,18 @@ export function buildRemoteBootstrapScript(input: RemoteBootstrapScriptInput): R
 		'\texit 45',
 		'fi',
 		'',
-		'if [ ! -d "$VERSIONED" ] || [ ! -x "$SERVER" ]; then',
-		`\temit '{"status":"server-unavailable"}'`,
+		// The two halves of this condition fail for very different reasons: a
+		// version that was never staged, and a version that is on disk but whose
+		// entry point is missing or not executable. Reporting one word for both
+		// cost a runner cycle that ended with the directory provably present on
+		// the host while the connection said the server was not there. The reason
+		// is a fixed word chosen here, not host data.
+		'if [ ! -d "$VERSIONED" ]; then',
+		`\temit '{"status":"server-unavailable","reason":"missing-version"}'`,
+		...(input.retainControlMasterOnServerUnavailable ? ['\twhile :; do sleep 3600; done'] : ['\texit 41']),
+		'fi',
+		'if [ ! -x "$SERVER" ]; then',
+		`\temit '{"status":"server-unavailable","reason":"entry-point-not-executable"}'`,
 		...(input.retainControlMasterOnServerUnavailable ? ['\twhile :; do sleep 3600; done'] : ['\texit 41']),
 		'fi',
 		'',
@@ -182,6 +192,12 @@ function statusToHandshake(payload: Record<string, unknown>): RemoteHandshake | 
 		return undefined;
 	}
 	if (status === 'server-unavailable') {
+		// A fixed vocabulary, so an unexpected value is dropped rather than
+		// forwarded: the reason travels into a log and must never carry host data.
+		const reason = payload['reason'];
+		if (reason === 'missing-version' || reason === 'entry-point-not-executable') {
+			return { kind: 'server-unavailable', reason };
+		}
 		return { kind: 'server-unavailable' };
 	}
 	if (status === 'socket-occupied') {
