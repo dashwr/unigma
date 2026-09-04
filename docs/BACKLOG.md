@@ -80,6 +80,11 @@
 > chrome e a auditoria confirma a extensão/defaults no pacote; alto contraste
 > próprio permanece pendente.
 
+> feito: 2026-09-04 — `theme-unigma` passou a contribuir `unigma High Contrast`,
+> com cores sólidas para editor, workbench, terminal, foco/bordas e tokens de
+> sintaxe. O guard local mede os pares WCAG AA e passou; o pacote no runner e a
+> revisão visual humana continuam pendentes.
+
 > feito: 2026-09-02 — o resolver foi fiado: `resolve()` lê o commit do cliente de
 > `appRoot/product.json`, preserva o alias intacto para não sobrescrever o
 > `ssh_config` do usuário, chama `openRemoteServer` e devolve `ResolvedAuthority`.
