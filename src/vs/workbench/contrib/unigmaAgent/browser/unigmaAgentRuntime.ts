@@ -395,7 +395,10 @@ export class UnigmaAgentRuntime extends Disposable implements IUnigmaAgentRuntim
 			requestId: command.requestId,
 			error,
 		};
-		const sessionId = command.sessionId;
+		// Not every command in the union carries a session: the inventory command
+		// added one that does not, and reading the field unconditionally stopped
+		// the client typecheck.
+		const sessionId = (command as { readonly sessionId?: string }).sessionId;
 		const scopedEvent = sessionId === undefined ? event : { ...event, sessionId };
 		this.resolveCatalog(scopedEvent);
 		this.resolveModelSelection(scopedEvent);
