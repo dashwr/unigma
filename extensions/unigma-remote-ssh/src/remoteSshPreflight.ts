@@ -42,6 +42,8 @@ export type RemoteSshFailureCode =
 	| 'ssh.connection-lost'
 	| 'ssh.remote-server-incompatible'
 	| 'ssh.remote-server-unavailable'
+	| 'ssh.remote-server-busy'
+	| 'ssh.remote-server-start-failed'
 	| 'ssh.client-commit-unavailable';
 
 export type RemoteSshPhase = 'workspace' | 'platform' | 'client' | 'authority' | 'host';
@@ -172,6 +174,10 @@ export function describeRemoteSshFailure(code: RemoteSshFailureCode): string {
 			return 'ssh.remote-server-incompatible: the remote unigma-server build does not match this client. There is no downgrade or fallback.';
 		case 'ssh.remote-server-unavailable':
 			return 'ssh.remote-server-unavailable: the matching unigma-server is not staged for this client commit. Run "Stage Remote Server" (unigma.remoteSsh.stageRemoteServer), then retry.';
+		case 'ssh.remote-server-busy':
+			return 'ssh.remote-server-busy: another session is starting the unigma-server on this host. Wait for it to finish, then retry. Staging again would not help.';
+		case 'ssh.remote-server-start-failed':
+			return 'ssh.remote-server-start-failed: the staged unigma-server was launched but ended without announcing its socket. The server is present, so staging again would not help; inspect the remote server log.';
 		case 'ssh.client-commit-unavailable':
 			return 'ssh.client-commit-unavailable: the running product commit is unavailable or invalid; the remote connection was refused.';
 	}

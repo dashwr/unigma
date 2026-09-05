@@ -278,7 +278,9 @@ spinner permanente ou exceção ignorada.
 | `ssh.transport-failed` | DNS, rota, conexão recusada, timeout ou `sshd` indisponível | transporte SSH falhou, com fase e ação de retry explícitas |
 | `ssh.remote-platform-unsupported` | host não é Linux x64 da matriz | host remoto recusado antes do provisionamento |
 | `ssh.provisioning-denied` | sem aprovação explícita, área gravável ou permissão de usuário | provisionamento recusado; nenhuma alteração administrativa |
-| `ssh.remote-server-unavailable` | servidor remoto ausente, não inicia ou extension host não fica pronto | autoridade remota indisponível; distinguir de falha de OpenCode |
+| `ssh.remote-server-unavailable` | servidor remoto ausente para o commit do cliente | autoridade remota indisponível; distinguir de falha de OpenCode |
+| `ssh.remote-server-busy` | outra sessão detém o lock de bootstrap no host | servidor presente; é a única recusa do lado do servidor que uma nova tentativa resolve |
+| `ssh.remote-server-start-failed` | servidor iniciado, terminou sem anunciar o socket | servidor presente; repetir o staging não muda nada, a resposta está no log remoto |
 | `ssh.remote-server-incompatible` | build ou protocolo remoto não compatível | versão incompatível com esperado/observado; sem fallback |
 | `ssh.opencode-unavailable` | `opencode serve` ausente, encerra ou não atende o contrato de T-011 | runtime do agente indisponível; workspace remoto permanece no host |
 | `ssh.workspace-blocked` | workspace não confiável, caminho remoto inválido ou inacessível | operação bloqueada por trust/caminho; nenhum efeito de agente |

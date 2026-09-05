@@ -80,6 +80,17 @@ export type RemoteServerFailureCode =
 	| 'ssh.transport-failed'
 	| 'ssh.connection-lost'
 	| 'ssh.remote-server-unavailable'
+	/**
+	 * Another session holds the bootstrap lock on the host. The server is
+	 * staged and healthy; retrying is the remedy, not staging again.
+	 */
+	| 'ssh.remote-server-busy'
+	/**
+	 * The server was found and launched but ended without announcing its
+	 * socket. Staging is complete, so re-staging cannot fix it; the remote
+	 * server log is where the answer is.
+	 */
+	| 'ssh.remote-server-start-failed'
 	| 'ssh.remote-home-invalid'
 	| 'ssh.remote-socket-path-too-long'
 	| 'ssh.forward-failed';
@@ -218,6 +229,21 @@ export function buildSshForwardArguments(input: SshForwardArgumentInput): readon
 		input.destination
 	] as const;
 }
+
+/**
+ * The remote script distinguishes five refusals; the client used to collapse
+ * three of them into `ssh.remote-server-unavailable`, whose message tells the
+ * user to stage the server. For a busy lock or a server that started and died
+ * that instruction is false, and following it changes nothing — a smoke run
+ * spent three cycles on exactly that.
+ */
+const HANDSHAKE_FAILURE_CODES = {
+	'server-unavailable': 'ssh.remote-server-unavailable',
+	'socket-occupied': 'ssh.remote-server-busy',
+	'start-failed': 'ssh.remote-server-start-failed',
+	'home-invalid': 'ssh.remote-home-invalid',
+	'socket-path-too-long': 'ssh.remote-socket-path-too-long'
+} as const satisfies Record<Exclude<RemoteHandshake['kind'], 'ready' | 'unrecognized'>, RemoteServerFailureCode>;
 
 function failure(code: RemoteServerFailureCode, phase: RemoteServerFailurePhase, exitCode?: number): RemoteServerFailure {
 	const result: RemoteServerFailure = { ok: false, code, phase };
@@ -587,7 +613,7 @@ export async function openRemoteServer(input: RemoteServerTransportInput, deps: 
 						complete({ ...failure('ssh.remote-server-unavailable', 'handshake'), reason: handshake.reason, stagingSession: { controlPath: control.path, dispose: disposeProcess } });
 						return;
 					}
-					fail({ ...failure(handshake.kind === 'home-invalid' ? 'ssh.remote-home-invalid' : handshake.kind === 'socket-path-too-long' ? 'ssh.remote-socket-path-too-long' : 'ssh.remote-server-unavailable', 'handshake'), ...(handshake.kind === 'server-unavailable' && handshake.reason !== undefined ? { reason: handshake.reason } : {}) });
+					fail({ ...failure(HANDSHAKE_FAILURE_CODES[handshake.kind], 'handshake'), ...(handshake.kind === 'server-unavailable' && handshake.reason !== undefined ? { reason: handshake.reason } : {}) });
 					return;
 			}
 		});

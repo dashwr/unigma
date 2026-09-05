@@ -147,6 +147,13 @@ export function isTransientRemoteSshFailure(code: RemoteSshResolverFailureCode):
 	switch (code) {
 		case 'ssh.connection-lost':
 		case 'ssh.transport-failed':
+		/**
+		 * A busy bootstrap lock clears on its own once the session holding it
+		 * finishes, so this is the one server-side refusal a retry can fix.
+		 * `ssh.remote-server-start-failed` is deliberately not here: the server
+		 * already failed to come up, and retrying only repeats the failure.
+		 */
+		case 'ssh.remote-server-busy':
 			return true;
 		default:
 			return false;

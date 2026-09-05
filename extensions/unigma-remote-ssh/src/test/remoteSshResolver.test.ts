@@ -80,9 +80,15 @@ test('classifies only recoverable failures as transient', () => {
 	assert.equal(isTransientRemoteSshFailure('ssh.connection-lost'), true);
 	assert.equal(isTransientRemoteSshFailure('ssh.transport-failed'), true);
 
+	// A busy bootstrap lock is the one server-side refusal that clears itself:
+	// the session holding it finishes and the next attempt wins the lock.
+	assert.equal(isTransientRemoteSshFailure('ssh.remote-server-busy'), true);
+
 	// These need a person. Retrying them only hides the message that says so.
 	for (const code of [
 		'ssh.remote-server-unavailable',
+		// The server already failed to come up; retrying repeats the failure.
+		'ssh.remote-server-start-failed',
 		'ssh.remote-server-incompatible',
 		'ssh.host-key-untrusted',
 		'ssh.authentication-unavailable',

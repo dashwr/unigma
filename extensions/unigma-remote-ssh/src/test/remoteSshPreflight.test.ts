@@ -154,7 +154,9 @@ test('every failure has a message and none of them leaks target or credential ma
 		'ssh.host-key-untrusted',
 		'ssh.connection-lost',
 		'ssh.remote-server-incompatible',
-		'ssh.remote-server-unavailable'
+		'ssh.remote-server-unavailable',
+		'ssh.remote-server-busy',
+		'ssh.remote-server-start-failed'
 	];
 
 	for (const code of codes) {
@@ -170,4 +172,15 @@ test('every failure has a message and none of them leaks target or credential ma
 test('the blocked remote-server message names the open work instead of promising support', () => {
 	const message = describeRemoteSshFailure('ssh.remote-server-unavailable');
 	assert.equal(message, 'ssh.remote-server-unavailable: the matching unigma-server is not staged for this client commit. Run "Stage Remote Server" (unigma.remoteSsh.stageRemoteServer), then retry.');
+});
+
+test('only the missing server sends the reader to the staging command', () => {
+	// The point of separating these codes is the instruction each one gives.
+	// If a present-but-unusable server still told the reader to stage, the
+	// separation would exist in the type system and nowhere a user can see.
+	for (const code of ['ssh.remote-server-busy', 'ssh.remote-server-start-failed'] as const) {
+		const message = describeRemoteSshFailure(code);
+		assert.equal(message.includes('stageRemoteServer'), false, code);
+		assert.ok(message.includes('would not help'), code);
+	}
 });

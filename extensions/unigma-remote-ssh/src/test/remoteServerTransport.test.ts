@@ -177,6 +177,29 @@ test('maps remote HOME and socket validation statuses to observable failures', a
 	}
 });
 
+// A busy lock and a server that died on startup used to arrive as the same
+// code as a missing server, whose message tells the user to stage. Staging is
+// already done in both, so that advice sends them around a loop that cannot
+// end. These two must stay distinguishable at the boundary.
+test('separates a busy bootstrap lock from a server that failed to start', async () => {
+	for (const [status, code] of [['socket-occupied', 'ssh.remote-server-busy'], ['start-failed', 'ssh.remote-server-start-failed']] as const) {
+		const master = new FakeProcess(child => child.stdout.end(`unigma-remote:{"status":"${status}"}\n`));
+		const result = await openRemoteServer(input, deps([master]));
+		assert.deepEqual(result, { ok: false, code, phase: 'handshake' });
+	}
+});
+
+test('keeps retaining the control master only for a genuinely missing server', async () => {
+	// The staging hand-off exists because the server is absent. A busy lock or a
+	// failed start means it is present, so retaining the master to stage again
+	// would act on a wrong premise.
+	for (const status of ['socket-occupied', 'start-failed'] as const) {
+		const master = new FakeProcess(child => child.stdout.end(`unigma-remote:{"status":"${status}"}\n`));
+		const result = await openRemoteServer({ ...input, retainControlMasterOnServerUnavailable: true }, deps([master]));
+		assert.equal((result as { readonly stagingSession?: unknown }).stagingSession, undefined);
+	}
+});
+
 test('retains an owned control master for explicit staging when the server is absent', async () => {
 	const master = new FakeProcess(child => child.stdout.end('unigma-remote:{"status":"server-unavailable"}\n'));
 	const result = await openRemoteServer({ ...input, retainControlMasterOnServerUnavailable: true }, deps([master]));
