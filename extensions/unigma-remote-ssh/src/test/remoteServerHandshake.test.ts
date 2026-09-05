@@ -46,8 +46,37 @@ test('derives versioned server paths and emits a HOME-based POSIX bootstrap', ()
 	assert.match(result.script, /SOCKET_BYTES=/);
 	assert.match(result.script, /--socket-path \"\$SOCKET\"/);
 	assert.match(result.script, /--without-connection-token/);
-	assert.match(result.script, /Extension host agent listening on \$SOCKET/);
+	assert.match(result.script, /"Extension host agent listening on "\*\)/);
 	assert.equal(result.script.includes('ssh '), false);
+});
+
+test('reports readiness by prefix and reports the server status when it never arrives', () => {
+	const result = buildRemoteBootstrapScript({ commit });
+	assert.equal(result.valid, true);
+	if (!result.valid) {
+		return;
+	}
+	// The server echoes the address it resolved. Comparing that against the
+	// socket path made one round of normalisation on the far side look like a
+	// server that never started, which is a different fault with a different fix.
+	assert.equal(result.script.includes('[ "$line" = "Extension host agent listening on $SOCKET" ]'), false);
+	// Readiness has to leave the subshell, and the exit status only exists
+	// outside it, so the two meet through a file in the directory this session
+	// already owns.
+	assert.match(result.script, /: > "\$LOCK\/ready"/);
+	assert.match(result.script, /if \[ ! -f "\$LOCK\/ready" \]; then/);
+	assert.match(result.script, /"\{\\"status\\":\\"start-failed\\",\\"exit\\":\$server_status\}"/);
+	assert.match(result.script, /rm -f "\$FIFO" "\$LOCK\/pid" "\$LOCK\/ready"/);
+});
+
+test('accepts a bounded server exit status and refuses anything else in its place', () => {
+	assert.deepEqual(parseRemoteHandshake(`${REMOTE_HANDSHAKE_PREFIX}{"status":"start-failed","exit":137}`), { kind: 'start-failed', serverExitCode: 137 });
+	assert.deepEqual(parseRemoteHandshake(`${REMOTE_HANDSHAKE_PREFIX}{"status":"start-failed"}`), { kind: 'start-failed' });
+	// A status is a small number. Anything wider is a channel, so it is dropped
+	// rather than forwarded into a log.
+	for (const payload of ['{"status":"start-failed","exit":256}', '{"status":"start-failed","exit":-1}', '{"status":"start-failed","exit":1.5}', '{"status":"start-failed","exit":"137"}', '{"status":"start-failed","exit":137,"note":"x"}']) {
+		assert.deepEqual(parseRemoteHandshake(`${REMOTE_HANDSHAKE_PREFIX}${payload}`), { kind: 'unrecognized' }, payload);
+	}
 });
 
 test('generates shell fragments from the same path convention as TypeScript', () => {

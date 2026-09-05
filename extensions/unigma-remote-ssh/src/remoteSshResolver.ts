@@ -96,6 +96,8 @@ export type RemoteSshResolutionResult =
 		 * locally, not host data.
 		 */
 		readonly exitCode?: number;
+		/** Exit status of the remote server itself. See RemoteServerFailure. */
+		readonly serverExitCode?: number;
 		readonly stagingSession?: RemoteServerStagingSession;
 	};
 
@@ -128,7 +130,7 @@ export async function resolveRemoteSsh(
 	const transport = await deps.openRemoteServer({ destination, commit: clientCommit.commit, retainControlMasterOnServerUnavailable: true }, () => deps.onConnectionLost?.());
 	if (isRemoteServerFailure(transport)) {
 		const mapped = mapRemoteServerFailure(transport);
-		return { ok: false, ...mapped, reason: transport.reason, exitCode: transport.exitCode, destination, commit: clientCommit.commit, stagingSession: transport.stagingSession };
+		return { ok: false, ...mapped, reason: transport.reason, exitCode: transport.exitCode, serverExitCode: transport.serverExitCode, destination, commit: clientCommit.commit, stagingSession: transport.stagingSession };
 	}
 	return { ok: true, target: preflight.target, destination, commit: clientCommit.commit, session: transport };
 }

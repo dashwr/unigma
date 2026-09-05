@@ -32,7 +32,11 @@ export type RemoteHandshake =
 	| { readonly kind: 'socket-occupied' }
 	| { readonly kind: 'home-invalid' }
 	| { readonly kind: 'socket-path-too-long' }
-	| { readonly kind: 'start-failed' }
+	// The exit status of the server process, when it terminated without ever
+	// announcing its socket. It is a number the remote shell produced from `$?`,
+	// never host text, and it is the only thing that separates "the server
+	// refused to run" from "the server ran and said nothing".
+	| { readonly kind: 'start-failed'; readonly serverExitCode?: number }
 	| { readonly kind: 'unrecognized' };
 
 function shellQuote(value: string): string {
@@ -147,23 +151,33 @@ export function buildRemoteBootstrapScript(input: RemoteBootstrapScriptInput): R
 		'# Only the holder of the lock may clear a socket left behind by a dead session.',
 		'rm -f "$SOCKET"',
 		'rm -f "$FIFO"',
-		'cleanup() { rm -f "$FIFO" "$LOCK/pid"; rmdir "$LOCK" 2>/dev/null || :; }',
+		'cleanup() { rm -f "$FIFO" "$LOCK/pid" "$LOCK/ready"; rmdir "$LOCK" 2>/dev/null || :; }',
 		'trap cleanup 0 HUP INT TERM',
 		`mkfifo "$FIFO" || { emit '{"status":"start-failed"}'; exit 43; }`,
 		'',
 		'(',
 		'\tready=0',
 		'\twhile IFS= read -r line; do',
-		'\t\t# The server prints this from its listen callback, after the UNIX socket accepts connections.',
-		'\t\tif [ "$line" = "Extension host agent listening on $SOCKET" ] && [ "$ready" -eq 0 ]; then',
-		`\t\t\tsocket_json=$(printf '%s' "$SOCKET" | sed 's/\\\\/\\\\\\\\/g; s/"/\\\\"/g')`,
-		`\t\t\temit "{\\"status\\":\\"ready\\",\\"socketPath\\":\\"$socket_json\\"}"`,
-		'\t\t\tready=1',
-		'\t\tfi',
+		'\t\t# The server prints this from its listen callback, after the UNIX socket',
+		'\t\t# accepts connections. Matched by prefix, not by equality against the',
+		'\t\t# socket path: the server echoes the address it resolved, and one round',
+		'\t\t# of normalisation there would silently look like a server that never',
+		'\t\t# started. Nothing else can reach this FIFO, which is private to the',
+		'\t\t# process this script launched, so the prefix identifies it.',
+		'\t\tcase "$line" in',
+		'\t\t"Extension host agent listening on "*)',
+		'\t\t\tif [ "$ready" -eq 0 ]; then',
+		`\t\t\t\tsocket_json=$(printf '%s' "$SOCKET" | sed 's/\\\\/\\\\\\\\/g; s/"/\\\\"/g')`,
+		`\t\t\t\temit "{\\"status\\":\\"ready\\",\\"socketPath\\":\\"$socket_json\\"}"`,
+		'\t\t\t\tready=1',
+		'\t\t\t\t# The subshell cannot hand a variable back, and the exit status of',
+		'\t\t\t\t# the server is only known outside it, so readiness is recorded in',
+		'\t\t\t\t# the directory this session already owns.',
+		'\t\t\t\t: > "$LOCK/ready"',
+		'\t\t\tfi',
+		'\t\t\t;;',
+		'\t\tesac',
 		'\tdone < "$FIFO"',
-		'\tif [ "$ready" -eq 0 ]; then',
-		`\t\temit '{"status":"start-failed"}'`,
-		'\tfi',
 		') &',
 		'reader=$!',
 		'',
@@ -173,6 +187,13 @@ export function buildRemoteBootstrapScript(input: RemoteBootstrapScriptInput): R
 		`"$SERVER" --socket-path "$SOCKET" --without-connection-token --accept-server-license-terms --telemetry-level off --server-data-dir "$SERVER_DATA" > "$FIFO" || server_status=$?`,
 		'server_status=${server_status:-0}',
 		'wait "$reader" || :',
+		'# Reported here rather than inside the reader, because only this shell knows',
+		'# why the server stopped. A start that failed with a status is a different',
+		'# fault from a start that succeeded and stayed silent, and the caller cannot',
+		'# tell them apart without the number.',
+		'if [ ! -f "$LOCK/ready" ]; then',
+		`\temit "{\\"status\\":\\"start-failed\\",\\"exit\\":$server_status}"`,
+		'fi',
 		'exit "$server_status"',
 		''
 	].join('\n');
@@ -206,6 +227,23 @@ function statusToHandshake(payload: Record<string, unknown>): RemoteHandshake | 
 		}
 		return undefined;
 	}
+	// The second status that carries a field, checked before the single-key rule
+	// for the same reason as the one above. The value is bounded to a process
+	// exit status so a host cannot widen it into a channel.
+	if (status === 'start-failed') {
+		const keys = Object.keys(payload).length;
+		if (keys === 1) {
+			return { kind: 'start-failed' };
+		}
+		if (keys !== 2 || !Object.prototype.hasOwnProperty.call(payload, 'exit')) {
+			return undefined;
+		}
+		const serverExitCode = payload['exit'];
+		if (typeof serverExitCode !== 'number' || !Number.isInteger(serverExitCode) || serverExitCode < 0 || serverExitCode > 255) {
+			return undefined;
+		}
+		return { kind: 'start-failed', serverExitCode };
+	}
 	if (Object.keys(payload).length !== 1) {
 		return undefined;
 	}
@@ -217,9 +255,6 @@ function statusToHandshake(payload: Record<string, unknown>): RemoteHandshake | 
 	}
 	if (status === 'socket-path-too-long') {
 		return { kind: 'socket-path-too-long' };
-	}
-	if (status === 'start-failed') {
-		return { kind: 'start-failed' };
 	}
 	return undefined;
 }

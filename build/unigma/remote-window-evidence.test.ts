@@ -5,7 +5,7 @@
 
 import assert from 'node:assert';
 import { describe, it } from 'node:test';
-import { observedExitCodes, sanitizedEvidenceLines, type Observations } from './remote-window-evidence.ts';
+import { observedExitCodes, observedServerExitCodes, sanitizedEvidenceLines, type Observations } from './remote-window-evidence.ts';
 
 const NOTHING_OBSERVED: Observations = {
 	resolverSuccess: false,
@@ -87,5 +87,20 @@ describe('remote window evidence', () => {
 		assert.deepStrictEqual([...observedExitCodes('exit=1234')], []);
 		assert.deepStrictEqual([...observedExitCodes('exit=/home/dasher')], []);
 		assert.deepStrictEqual([...observedExitCodes('unexpected=255')], []);
+	});
+
+	it('never reads the remote server status as the ssh status', () => {
+		// `\b` matches between the hyphen and the `e`, so the naive pattern read
+		// server-exit=137 as exit=137 and published a fault on the far side as a
+		// fault of the transport.
+		assert.deepStrictEqual([...observedExitCodes('server-exit=137')], []);
+		assert.deepStrictEqual([...observedServerExitCodes('server-exit=137')], ['137']);
+		assert.deepStrictEqual([...observedServerExitCodes('exit=255')], []);
+		assert.deepStrictEqual([...observedServerExitCodes('server-exit=1234')], []);
+
+		const lines = sanitizedEvidenceLines({}, false, '[handshake] ssh.remote-server-start-failed server-exit=137\n[connect] ssh.transport-failed exit=255');
+		assert.ok(lines.includes('observed-server-exit=137'));
+		assert.ok(lines.includes('observed-exit=255'));
+		assert.equal(lines.includes('observed-exit=137'), false);
 	});
 });

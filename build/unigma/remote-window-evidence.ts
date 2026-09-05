@@ -106,8 +106,27 @@ export function observedReasons(text: string): readonly string[] {
  * by the local process and bounded to three digits, so no host data rides on it.
  */
 export function observedExitCodes(text: string): readonly string[] {
+	// The lookbehind keeps `server-exit=` out: `\b` matches between `-` and `e`,
+	// so without it the status of the remote server would be republished as the
+	// status of the local SSH process, which is the confusion this key exists to
+	// end.
+	return boundedNumbers(text, /(?<![-\w])exit=(\d{1,3})\b/g);
+}
+
+/**
+ * Exit status of the remote server, when it stopped without announcing itself.
+ *
+ * Separate from the SSH status because the session can end cleanly while the
+ * process it launched on the far side did not, and the two were indistinguishable
+ * for three runner cycles.
+ */
+export function observedServerExitCodes(text: string): readonly string[] {
+	return boundedNumbers(text, /\bserver-exit=(\d{1,3})\b/g);
+}
+
+function boundedNumbers(text: string, pattern: RegExp): readonly string[] {
 	const codes = new Set<string>();
-	for (const match of text.matchAll(/\bexit=(\d{1,3})\b/g)) {
+	for (const match of text.matchAll(pattern)) {
 		codes.add(match[1]);
 	}
 	return [...codes].sort();
@@ -132,6 +151,9 @@ export function sanitizedEvidenceLines(observations: Observations, resolverAttem
 	}
 	for (const exitCode of observedExitCodes(rawText)) {
 		lines.push(`observed-exit=${exitCode}`);
+	}
+	for (const serverExitCode of observedServerExitCodes(rawText)) {
+		lines.push(`observed-server-exit=${serverExitCode}`);
 	}
 	if (observations.resolverSuccess) {
 		lines.push(`resolveAuthority(ssh-remote) returned after ${observations.resolverElapsed ?? 'unknown'} ms`);

@@ -104,7 +104,7 @@ function failureMessage(code: RemoteSshResolverFailureCode, phase: RemoteSshReso
 	return `${code}: remote SSH failed during ${phase}.`;
 }
 
-function reportFailure(code: RemoteSshResolverFailureCode, phase: RemoteSshResolverPhase, reason?: string, exitCode?: number): void {
+function reportFailure(code: RemoteSshResolverFailureCode, phase: RemoteSshResolverPhase, reason?: string, exitCode?: number, serverExitCode?: number): void {
 	logDiagnostic(code, phase);
 	if (reason !== undefined) {
 		outputChannel?.error(`[${phase}] ${code} reason=${reason}`);
@@ -115,6 +115,12 @@ function reportFailure(code: RemoteSshResolverFailureCode, phase: RemoteSshResol
 	// local process, so it carries nothing from the host.
 	if (exitCode !== undefined) {
 		outputChannel?.error(`[${phase}] ${code} exit=${exitCode}`);
+	}
+	// The server can fail while the session that launched it ends cleanly, so
+	// this is a separate key: reading one as the other would blame the transport
+	// for a fault on the far side.
+	if (serverExitCode !== undefined) {
+		outputChannel?.error(`[${phase}] ${code} server-exit=${serverExitCode}`);
 	}
 	void vscode.window.showErrorMessage(failureMessage(code, phase));
 }
@@ -217,7 +223,7 @@ export function activate(context: vscode.ExtensionContext): void {
 				if (result.stagingSession && result.destination !== undefined && result.commit !== undefined) {
 					replaceStagingLease(authority, { authority, destination: result.destination, commit: result.commit, session: result.stagingSession });
 				}
-				reportFailure(result.code, result.phase, result.reason, result.exitCode);
+				reportFailure(result.code, result.phase, result.reason, result.exitCode, result.serverExitCode);
 				const message = failureMessage(result.code, result.phase);
 				// The extension already showed the message, so `handled` keeps the
 				// workbench from stacking a second notification saying the same thing.

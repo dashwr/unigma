@@ -111,6 +111,15 @@ export interface RemoteServerFailure {
 	 * the remote script, never host data.
 	 */
 	readonly reason?: 'missing-version' | 'entry-point-not-executable';
+	/**
+	 * The exit status of the remote server, when it stopped without announcing
+	 * its socket.
+	 *
+	 * Distinct from `exitCode`, which belongs to the local SSH process: the
+	 * session can end cleanly while the thing it launched on the other side did
+	 * not. A number produced by the remote shell, never host text.
+	 */
+	readonly serverExitCode?: number;
 }
 
 export type RemoteServerResult = RemoteServerSession | RemoteServerFailure;
@@ -613,7 +622,11 @@ export async function openRemoteServer(input: RemoteServerTransportInput, deps: 
 						complete({ ...failure('ssh.remote-server-unavailable', 'handshake'), reason: handshake.reason, stagingSession: { controlPath: control.path, dispose: disposeProcess } });
 						return;
 					}
-					fail({ ...failure(HANDSHAKE_FAILURE_CODES[handshake.kind], 'handshake'), ...(handshake.kind === 'server-unavailable' && handshake.reason !== undefined ? { reason: handshake.reason } : {}) });
+					fail({
+						...failure(HANDSHAKE_FAILURE_CODES[handshake.kind], 'handshake'),
+						...(handshake.kind === 'server-unavailable' && handshake.reason !== undefined ? { reason: handshake.reason } : {}),
+						...(handshake.kind === 'start-failed' && handshake.serverExitCode !== undefined ? { serverExitCode: handshake.serverExitCode } : {})
+					});
 					return;
 			}
 		});
