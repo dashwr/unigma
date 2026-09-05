@@ -196,7 +196,7 @@ jobs:
           if ($exitCode -ne 0) { exit $exitCode }
 
       - name: upload OpenCode Linux x64 artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: opencode-linux-x64-c2eacd72
           path: opencode-artifact
@@ -205,7 +205,7 @@ jobs:
 
       - name: upload OpenCode build log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: opencode-linux-build-log-${{ github.run_id }}
           path: opencode-artifact*.log
