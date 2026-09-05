@@ -1,5 +1,28 @@
 # unigma — instruções do repositório
 
+## board do projeto
+
+- O board Trello `PROJETO UNIGMA` (https://trello.com/b/uotAHk20) é onde as
+  tarefas são anotadas. Sempre registre tarefas lá e use os arquivos `.md` de
+  `docs/` como contexto para o que está no board.
+- A coluna `REGRAS` é normativa. `ETAPAS` guarda os épicos no formato
+  `[E-X] módulo`, cada cartão com descrição vazia e uma única checklist de
+  tarefas. `TO-DOs` guarda listas soltas no formato `[TD-X] título - data`, com
+  a descrição começando em `[data // hora]` e uma única checklist.
+- O critério de qual coluna usar é a origem da tarefa, não o tamanho dela:
+  o que nasce da documentação do projeto e da necessidade dele vira etapa/épico;
+  o que nasce de levantamento de pendência, de querer acrescentar algo ou de um
+  caminho alternativo tomado na hora vira to-do.
+- O board guarda **somente nomes**. Passo a passo, critério de pronto e comando
+  de verificação vivem em `docs/BACKLOG.md`, nunca no cartão.
+- Item marcado significa **entregue com evidência**: existe implementação e
+  existe prova reproduzível — run do runner, suíte ou smoke — citada no backlog.
+  Compile e teste local não marcam item. Aceite formal é item próprio, escrito
+  como `AC-XXX`, e só ele fecha o critério.
+- Cada item é uma entrega, não uma tarefa inteira. Uma `T-XXX` que rendeu várias
+  entregas verificáveis vira vários itens, porque um quadrado vazio sobre meses
+  de trabalho provado não descreve o estado do projeto.
+
 ## antes de trabalhar
 
 - `unigma` é um fork de Code - OSS/Electron com OpenCode como runtime primário;

@@ -24,6 +24,7 @@ plano histórico ou em um prompt antigo.
 | histórico/evidência | [`status/`](status/) | registros datados, auditorias e bloqueios; não substitui o quadro vivo |
 | planos/propostas | [`planos/`](planos/) | sequência de execução ou proposta ainda não normativa. Plano de ondas vigente: [`2026-08-28-ondas-refundacao.md`](planos/2026-08-28-ondas-refundacao.md); frente ativa hoje: [`2026-08-29-cli-ssh-remoto.md`](planos/2026-08-29-cli-ssh-remoto.md), que emenda no plano de ondas entre a onda 1 e a onda 2. O anterior [`2026-08-27-e00-e03-ondas.md`](planos/2026-08-27-e00-e03-ondas.md) é histórico |
 | fontes brutas | [`fontes/`](fontes/) | material recebido; preservar sem edição e derivar fatos para os documentos acima |
+| board | Trello `PROJETO UNIGMA` (https://trello.com/b/uotAHk20) | **somente nomes**. Um item marcado significa entregue com evidência reproduzível; aceite formal é item `AC-XXX` próprio. Como executar, critério de pronto e comando de verificação vivem em `BACKLOG.md`, nunca no cartão |
 
 `DECISIONS.md` vence uma proposta ou plano em caso de divergência. Nenhum
 documento de status, fixture ou mock promove uma capacidade a suporte; isso exige

@@ -4,7 +4,7 @@
 > datados desta pasta; este quadro responde **o que está ativo, onde parou e qual
 > é o próximo passo**.
 
-**última atualização:** 2026-09-03
+**última atualização:** 2026-09-04
 
 ## onde estamos, em uma leitura
 
@@ -47,16 +47,32 @@ pacote; o script agora cobre resolução compilada, saúde, sessão mínima e te
 Depois vêm tema de alto contraste e o passo de Welcome que sugere identidade SSH
 sem gerar chave.
 
-**depois disso:** os épicos de agente (`AC-003`, `AC-004`, `AC-006`, `T-043`), e
-as decisões que são tuas e não minhas — titularidade, notices e clearance legal.
+**depois disso:** `T-056` (transporte do cliente Windows), `T-057` (Welcome com
+identidade SSH) e a E-06 inteira — baseline de performance e suíte de segurança —,
+que é a maior frente do projeto sem nenhuma dependência humana e está parada em
+duas entregas de doze.
+
+**o que não avança por decisão e não por código:** os épicos de agente
+(`AC-003`, `AC-004`, `AC-006`, `AC-008`) param todos na mesma parede, que é a
+falta de um provider e um modelo autorizados; `AGENTS.md` proíbe presumir
+provedor. Titularidade, notices e clearance legal continuam sendo decisão humana.
+A contagem está no board: dos 73 itens pendentes, 53 são executáveis agora e 20
+esperam uma de três decisões.
 
 **dívidas conhecidas:** o smoke de conexão pré-popula o servidor em vez de
 exercitar o push, por decisão explícita; `remote/LICENSE` ainda carrega copyright
-herdado; o auditor cobre desktop e servidor, não o payload montado; o pacote
-não tem tema de alto contraste próprio; `src/vs/platform/log/node/spdlogLog.ts`
-devolve `null` sem logger alternativo e nunca drena o buffer de `log()`, ou seja
-perde log em silêncio mesmo com o addon são; e a linha cliente Windows da matriz
-continua sem caminho, porque o transporte depende de `ControlMaster`.
+herdado; o auditor cobre desktop e servidor, não o payload montado;
+`src/vs/platform/log/node/spdlogLog.ts` devolve `null` sem logger alternativo e
+nunca drena o buffer de `log()`, ou seja perde log em silêncio mesmo com o addon
+são; cinco testes da trilha de notices só rodam sob `tsc` e falham com
+`ERR_MODULE_NOT_FOUND` sob `node --experimental-strip-types`; e a linha cliente
+Windows da matriz continua sem caminho, porque o transporte depende de
+`ControlMaster` — decisão agora rastreada como `T-056`.
+
+**o que este quadro mede.** Estado aqui é fase de trabalho. O board Trello mede
+outra coisa: entrega com evidência, um item por entrega. As duas leituras
+divergem de propósito — uma frente inteira pode estar em `review` no quadro com
+vinte itens marcados no board, e isso não é contradição.
 
 **foco atual:** implementação incremental de `E02/E03` no runtime OpenCode e
 workbench nativo, mantendo os gates `E00/E01` em review/partial
@@ -118,7 +134,7 @@ adiciona uma asserção negativa. `compile-client`, `typecheck-client`, 60 teste
 | `E00-B` / `AC-012` | autoria, direitos e não colisão do branding | decisão de escopo | `partial` | manter obrigações legais e remover identidade upstream; prova formal não é gate por D-030 | D-030 | [`BRANDING-CLEARANCE.md`](BRANDING-CLEARANCE.md), [`../DECISIONS.md`](../DECISIONS.md) |
 | `E01-A` / `T-010` | contrato RPC e erros sanitizados | regressão | `review` | executar/registrar a suíte integrada do workbench quando o alvo existir | build e harness do runner | [`BACKLOG.md`](../BACKLOG.md), [`2026-08-26-campanha.md`](2026-08-26-campanha.md) |
 | `E01-B` / `T-011` | compatibilidade HTTP/SSE do OpenCode | evidência | `partial` | obter provider/modelo autorizado para prompt/streaming/diff real; depois validar bundle service-only | bundle service-only; provider autorizado | [`OPENCODE-COMPATIBILITY.md`](../OPENCODE-COMPATIBILITY.md) |
-| `E01-C` / `T-012` | preflight local e bridge workbench↔extension host | regressão/runner | `review` | rodar validação oficial; depois conectar inventário plugin/regra e prova OpenCode real | `E01-B`, runner sequencial | [`LOCAL-INTEGRATIONS-POLICY.md`](../LOCAL-INTEGRATIONS-POLICY.md), [`2026-08-26-campanha.md`](2026-08-26-campanha.md) |
+| `E01-C` / `T-012` | preflight local e bridge workbench↔extension host | regressão/runner | `review` | rodar validação oficial e obter prova contra OpenCode real; o inventário de plugin/regra deixou de ser pendência em `072d55f6`, que ligou a enumeração ao preflight e fez `sourceInventoryComplete` refletir a fonte em vez de ficar falso | `E01-B`, runner sequencial | [`LOCAL-INTEGRATIONS-POLICY.md`](../LOCAL-INTEGRATIONS-POLICY.md), [`2026-08-26-campanha.md`](2026-08-26-campanha.md) |
 | `E01-D` / `T-013` | contrato SSH fail-closed | implementação/review | `partial` | provisionar fora do agente `sshd` + host key + `unigma-server` de teste; então executar matriz sem replay ou segredo | host Linux x64 e `unigma-server` autorizados | [`SSH-CONTRACT.md`](../SSH-CONTRACT.md) |
 | `E01-E` | evidência e fechamento de E-00/E-01 | backlog | `blocked` | consolidar runs, artefatos, aceite e status após as frentes acima | E00/E01 pendentes | [`planos/2026-08-26-e00-e01.md`](../planos/2026-08-26-e00-e01.md) |
 | `E02/E03` | runtime OpenCode e workbench nativo funcional | implementação | `in_progress` | fechar streaming incremental, permissões reais e contrato nativo de `@`/`/`; só então colher runner | E-00/E-01 em review/partial; provider/modelo autorizado para prompt real | [`BACKLOG.md`](../BACKLOG.md), [`OPENCODE-COMPATIBILITY.md`](../OPENCODE-COMPATIBILITY.md) |
@@ -154,7 +170,8 @@ adiciona uma asserção negativa. `compile-client`, `typecheck-client`, 60 teste
 
 | tipo | frente | necessário | estado |
 | --- | --- | --- | --- |
-| decisão técnica | remoto SSH no Windows | o transporte é construído sobre `ControlMaster` do OpenSSH, que o OpenSSH do Windows **não implementa**. O contrato lista cliente Windows x64 como suportado, então isso é lacuna real, não detalhe. Exige decisão de desenho — segunda sessão SSH em vez de `ControlMaster`, `ManagedResolvedAuthority` sobre stdio, ou reduzir a matriz de clientes — e não um remendo | pendente |
+| decisão técnica | remoto SSH no Windows | o transporte é construído sobre `ControlMaster` do OpenSSH, que o OpenSSH do Windows **não implementa**. O contrato lista cliente Windows x64 como suportado, então isso é lacuna real, não detalhe. Exige decisão de desenho — segunda sessão SSH em vez de `ControlMaster`, `ManagedResolvedAuthority` sobre stdio, ou reduzir a matriz de clientes — e não um remendo. A premissa deixou de ser suposição em `33785474120`: OpenSSH 9.5p2 do Windows não multiplexa, mas aceita `-L` para socket UNIX e `-W`, o que mantém viva a segunda sessão `ssh -N -L` como caminho único para os dois clientes. Rastreado como `T-056` | pendente |
+| autorização | provider e modelo | prompt real exige um provider e um modelo autorizados por decisão humana; sem isso `AC-003`, `AC-004`, `AC-006`, `AC-008`, `AC-014` e a validação da E-08 não têm como fechar, por mais código que exista. É a decisão que destrava mais itens do board de uma vez | pendente |
 | escopo | `E00-B` / `AC-012` | prova formal e trademark clearance não são gates por D-030; preservar obrigações legais aplicáveis | decidido |
 | ambiente/permissão | `E01-A` / `E01-C` / `E01-D` | Node `24.18.0`/npm `<12` já disponível localmente; runner Windows/WSL e host Linux x64 autorizado continuam pendentes; nenhum segredo deve ser coletado | pendente |
 | decisão técnica | `E01-B` / `E01-C` | bundle OpenCode fixado e inventário confiável de plugins/regras | pendente |
@@ -171,6 +188,7 @@ adiciona uma asserção negativa. `compile-client`, `typecheck-client`, 60 teste
 
 | data | id | transição | evidência |
 | --- | --- | --- | --- |
+| 2026-09-04 | documentação / board | o backlog voltou a medir trabalho, não só aceite | rodada de reconciliação entre `docs/` e o código no head `0f07ce49`, sem alterar código. Quatro divergências reais: o backlog afirmava que `extension.ts` devolvia `NotAvailable` para toda autoridade **dois dias depois** de `ac4e51ce` ter fiado o resolver; `T-012`, `T-024`, `T-031` e `T-042` estavam marcadas pendentes com implementação no repositório, sendo que `072d55f6` já havia conectado o inventário de plugin/regra que `AC-005` dava como desconectado; `T-051`/`T-052` carregavam títulos do escopo antigo enquanto o entregue era transporte e staging, e a divergência vivia numa nota — os títulos passaram a nomear o executado e o escopo antigo virou `T-054`/`T-055`; e a lacuna do cliente Windows e o passo de Welcome existiam só nesta fila de intervenção, invisíveis para o backlog, virando `T-056` e `T-057`. A causa comum é a mesma: o critério de "feito" era aceite formal, então frente com dezenas de entregas provadas no runner aparecia vazia. O critério passou a ser **entregue com evidência**, com aceite formal como item separado |
 | 2026-09-03 | `CLI-002` / host externo | o transporte encostou numa máquina real pela primeira vez | `unigma-remote-vps-smoke` run `33747429799`, `smoke=pass`. Contra uma VPS externa, endereçada por alias do `ssh_config`: sessão aberta com `BatchMode`, sem prompt; `ControlMaster` estabelecida; `uname -sm` confirmando `Linux x86_64`, que é a matriz do contrato; e a recusa **correta** com `server-unavailable`, porque nada está staged naquele host — ou seja, o fluxo real falha fechado contra uma máquina de verdade em vez de provisionar sozinho. `dispose()` encerrou o processo e removeu o `ControlPath`. **Nada foi escrito na VPS**: o smoke não faz staging, por decisão explícita do mantenedor |
 | 2026-09-03 | `T-053` / `AC-007` | smoke de janela preparado para confiança real | `build/unigma/smoke-remote-window.ts` valida o pareamento de `PROVENANCE.txt`, semeia `content.trust.model.key` no SQLite compartilhado isolado antes de lançar o desktop publicado, abre `vscode-remote://ssh-remote+<alias>/root` sob Xvfb e transforma resolver, consumo de `ResolvedAuthority` e handshake de token em checks bloqueantes; `check.workspace-trust-seeded` identifica a preparação e `check.workspace-trust-blocked` permanece informativo. Validação local focada passou; runner e VPS permanecem pendentes |
 | 2026-09-03 | `CLI-002` / payload REH | o payload remoto voltou a ser utilizável, provado no host real | artefato `33796510313` e smoke `33797399848`. O workflow do servidor passou a compilar os addons contra o sysroot `glibc-2.28-gcc-8.5.0` **já vendorizado e com checksum fixado** (`build/linux/debian/install-sysroot.ts`, `build/checksums/vscode-sysroot.txt:7`), exportando os quatro `VSCODE_REMOTE_*` como `build/azure-pipelines/linux/setup-env.sh:63-66` e escrevendo o `include.gypi` que troca `-std=gnu++20` por `gnu++2a`, porque gcc 8.5 antecede a grafia moderna. Sem Docker, sem `sudo`. Novo gate `build/unigma/verify-server-symbol-baseline.sh` roda entre a auditoria e a publicação e reprova em `GLIBC > 2.28`, `GLIBCXX > 3.4.25` e `CXXABI > 1.3.11` — divergência deliberada do upstream, que só avisa em GLIBCXX e nunca olha CXXABI, e foi exatamente por esses dois que `spdlog` e `kerberos` quebraram. No artefato: 9 objetos ELF inspecionados, todos dentro do baseline. Na VPS: `native.modules.loaded=7`, `rejected=0`, contra `loaded=1`, `rejected=6` antes. O único não carregado é `@vscode/deviceid/build/Release/windows.node`, binário de Windows que não deve carregar em Linux. O risco real — gcc 8.5 recusar fontes modernas — não se materializou. `D-036` |

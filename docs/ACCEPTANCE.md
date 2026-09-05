@@ -23,7 +23,7 @@ suporte, não uma capacidade adicional do runtime.
 | AC-002 | RQ-001, RQ-101 | A revisão de identidade e artefatos de distribuição não encontra marca, ícones, binários oficiais, endpoints/chaves Microsoft ou uso do Visual Studio Marketplace sem direito documentado. | parcial/bloqueado: os dois pacotes finais têm metadados próprios, gallery nula e não contêm as quatro extensões externas nem caminhos de Copilot/MSAL; a revisão ampla de referências upstream e direitos ainda não terminou |
 | AC-003 | RQ-002 | Em um ambiente de teste, o IDE inicia uma interação com o CLI `opencode serve` por HTTP/SSE documentados e apresenta um resultado ou erro observável ao usuário. | bloqueado: há supervisor/cliente e fixture local provisórios, mas não há sessão integrada à UI nem binário OpenCode fixado |
 | AC-004 | RQ-003 | A especificação de implementação define e o teste demonstra: criação/retomada de sessão, apresentação de diff e uma ação explícita de aprovação ou rejeição. | bloqueado: contrato T-010 implementado e validado; UI/runtime e teste integrado ausentes |
-| AC-005 | RQ-004 | A especificação de implementação identifica as integrações MCP/plugin/regra aceitas e o teste demonstra carregamento ou recusa conforme essa política. | parcial/bloqueado: workbench classifica MCP instalado/permitido, a bridge de produção workbench↔extension host é serializável e os smokes confirmam gate obrigatório antes de `ProcessManager.ensureStarted()`; plugin/regra ainda não têm fonte conectada, não há evidência contra OpenCode real e a suíte compilada continua bloqueada |
+| AC-005 | RQ-004 | A especificação de implementação identifica as integrações MCP/plugin/regra aceitas e o teste demonstra carregamento ou recusa conforme essa política. | parcial/bloqueado: workbench classifica MCP instalado/permitido, a bridge de produção workbench↔extension host é serializável e os smokes confirmam gate obrigatório antes de `ProcessManager.ensureStarted()`; o inventário de plugin/regra foi conectado em `072d55f6` e `sourceInventoryComplete` passou a refletir a enumeração real em vez de ficar preso em `false`; falta evidência contra OpenCode real com plugins instalados e a suíte compilada continua bloqueada |
 | AC-006 | RQ-005 | A especificação de implementação define e o teste demonstra o ciclo de vida de um subagente ou worktree suportado. | bloqueado: contrato T-010 cobre a mensagem; ciclo de vida e teste integrado ausentes |
 | AC-007 | RQ-006 | A especificação de implementação define o fluxo SSH suportado e um teste estabelece ou recusa a conexão conforme a política definida. | parcial/bloqueado: transporte, staging e ativação têm smoke no runner com payload real e confirmação fail-closed, o resolver devolve `ResolvedAuthority` e o smoke/workflow da primeira janela foram implementados; falta colher a matriz oficial no runner, porque nenhuma evidência atual abre uma janela remota num workbench real |
 | AC-008 | RQ-007 | A especificação de implementação enumera providers/modelos suportados e testes demonstram a seleção de ao menos uma integração aprovada. | bloqueado: T-011 não anuncia provider/modelo suportado; não há suporte funcional, seleção ou teste |
@@ -89,8 +89,9 @@ restantes com evidência específica.
 - `T-012`: integrar preflight de trust/origem/configuração/aprovação para MCP,
   plugin e regra, com decisão sanitizada obrigatória nas duas rotas de startup,
   bridge serializável e recusas de instalação automática, path escape e segredo;
-  MCP está conectado no workbench; plugin/regra, suíte compilada e evidência real
-  permanecem pendentes;
+  MCP está conectado no workbench e o inventário de plugin/regra foi ligado ao
+  preflight em `072d55f6`; a suíte compilada no runner e a evidência contra um
+  OpenCode real permanecem pendentes;
 - `T-013`: executar a matriz SSH contratual e manter transporte remoto em E-05,
   salvo ambiente remoto autorizado para o gate funcional.
 

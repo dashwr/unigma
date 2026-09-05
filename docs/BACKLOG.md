@@ -1,5 +1,51 @@
 # unigma — backlog implementável
 
+## como este backlog conversa com o board
+
+O board Trello `PROJETO UNIGMA` guarda **somente nomes**. Objetivo, passos,
+critério de pronto e comando de verificação moram aqui; um cartão nunca é fonte
+de verdade sobre como executar.
+
+Um item marcado no board significa **entregue com evidência**: existe
+implementação e existe prova reproduzível — run do runner, suíte executada ou
+smoke — registrada aqui ou em `docs/status/EVIDENCE.md`. Aceite formal é outra
+coisa e vira item próprio, porque um `AC-` fecha bem depois da última entrega
+que ele depende. Compile local, teste local e revisão de diff **não** marcam
+item: o repositório já produziu verde três vezes sobre coisa quebrada.
+
+> rodada de 2026-09-04 — reconciliação entre documentação e código. O backlog
+> media aceite e não trabalho, então frentes com dezenas de entregas provadas no
+> runner apareciam vazias. Nesta rodada: `T-051` e `T-052` passaram a nomear o
+> que foi de fato executado e o escopo antigo virou `T-054`/`T-055`; `T-056` e
+> `T-057` foram criadas porque existiam apenas na fila de intervenção do
+> workbench; a afirmação de que o resolver ainda devolvia `NotAvailable` foi
+> corrigida, dois dias depois de `ac4e51ce` tê-la tornado falsa; e `T-053`
+> ganhou passos executáveis. Nenhum código foi alterado.
+
+## ordem decidida para a rodada seguinte
+
+1. **`T-053` — colher a matriz oficial SSH no runner.** É o único trabalho que
+   converte uma frente inteira de implementada em suportada, e agora ele é
+   colhível: até `D-036` a janela abriria contra um servidor sem terminal nem
+   file watching, e o resultado não significaria nada. Fecha `AC-007`.
+2. **`T-056` — decidir o transporte do cliente Windows.** Depois da matriz, não
+   antes: a medida de `33785474120` já mostrou que `ssh -N -L` serve aos dois
+   clientes com um caminho de código só, mas trocar o transporte antes de ele ter
+   passado uma vez inteira remove a única referência de comparação.
+3. **`T-057` — passo de Welcome sugerindo identidade SSH.** Barato, sem
+   dependência de runner e fecha a lacuna de primeira execução do remoto.
+4. **`T-080`/`T-081` — baseline de performance e suíte de segurança.** Toda a
+   E-06 está parada e ela não depende de provider nem de host: é a maior frente
+   inteiramente desbloqueada do projeto.
+
+**O que não entra e por quê.** `AC-003`, `AC-004`, `AC-006` e `AC-008` exigem
+prompt real, e prompt real exige um provider e um modelo autorizados por decisão
+humana — `AGENTS.md` proíbe presumir provedor. Enquanto essa decisão não existir,
+E-02 e E-04 param em saúde, listagem e catálogo, e nenhuma quantidade de código
+move esses critérios. `AC-001`/`AC-002` dependem de clearance legal, que também é
+decisão humana. A E-08 permanece fora da rodada: é a única frente sem nenhuma
+linha de código e sem dependência resolvida.
+
 > feito: 2026-09-03 — implementados o smoke da primeira janela remota e o workflow
 > self-hosted WSL2: o par desktop/servidor é conferido por `PROVENANCE.txt` antes
 > de qualquer lançamento, a confiança da URI remota é semeada no SQLite compartilhado
@@ -553,6 +599,15 @@ como suportado.
 
 ### T-012 — definir política local de MCP, plugins e regras
 
+> feito: 2026-09-03 — `072d55f6` conectou o inventário. O runtime enumera plugins
+> e regras em `localIntegrationInventory.ts`, `runtimeInfrastructure.ts` guarda o
+> resultado e revalida o preflight, e a view envia
+> `sourceInventoryComplete: inventory.complete`. Antes disso o campo ficava
+> permanentemente `false` e recusava o startup por `unknownOrigin` mesmo quando
+> não havia nada de errado. Agora a recusa só acontece quando a enumeração falha
+> ou é de fato incompleta. Falta a prova contra um OpenCode real com plugins
+> instalados.
+
 **status:** preflight sanitizado, revalidação no extension host, bridge
 serializável workbench↔extension host e testes-fonte de recusa implementados. O
 inventário conectado de plugin/regra, a suíte compilada e a evidência contra
@@ -686,6 +741,14 @@ runs finais; integração no fluxo de sessão permanece pendente.
 
 ### T-024 — integrar caso de uso local ponta a ponta
 
+> feito parcial: 2026-09-03 — `runtimeApplication.ts` liga RPC, processo,
+> cliente HTTP/SSE e store de sessão, e o smoke `33721970575` exercitou a cadeia
+> a partir do **pacote**, não da árvore: resolução compilada do binário, start
+> pelo `ChildProcessManager`, `health-version` batendo `1.18.23`, `session-list`
+> respondendo, teardown do processo e da porta. O que falta é o miolo: prompt
+> real, streaming de resposta e permissão, todos condicionados a um provider
+> autorizado que `AGENTS.md` proíbe presumir.
+
 - **objetivo:** conectar RPC, processo, cliente e armazenamento para criar/
   retomar sessão, enviar entrada, receber resultado e expor erro.
 - **responsável lógico:** engenharia de runtime.
@@ -727,6 +790,13 @@ estão pendentes.
 - **bloqueia:** T-031 a T-034 e AC-014.
 
 ### T-031 — implementar superfície de sessão
+
+> feito parcial: 2026-09-04 — verificado contra o código, não contra a
+> documentação: `browser/unigmaAgentSession.ts` e `browser/unigmaAgentView.ts`
+> existem e implementam sessão, entrada, estados de conexão, seleção de modelo e
+> as superfícies de diff e aprovação. O backlog marcava esta tarefa como
+> `pendente` enquanto o código já estava no repositório. Falta prompt real e
+> validação no runner.
 
 - **objetivo:** apresentar sessões, entrada do usuário, estados e resultados
   através do contrato RPC.
@@ -845,6 +915,12 @@ estão pendentes.
 
 ### T-042 — integrar providers, MCP, plugins e regras autorizados
 
+> feito parcial: 2026-09-04 — MCP é classificado como instalado/permitido, o
+> inventário de plugins e regras foi conectado em `072d55f6` e os modelos são
+> descobertos e sanitizados a partir de `GET /provider`. O que continua ausente
+> é o essencial da tarefa: **nenhum provider é anunciado como suportado**, e sem
+> isso não há seleção real nem `AC-008`.
+
 - **objetivo:** apresentar/encaminhar configurações locais conforme políticas,
   sem reimplementar protocolos nem transportar segredos.
 - **responsável lógico:** integração OpenCode + segurança.
@@ -929,22 +1005,33 @@ estão pendentes.
 
 ## E-05 — remoto SSH
 
-> **estado em 2026-09-02.** O caminho remoto está construído e validado no runner
-> menos o último fio. Existem, com evidência: par versionado e manifesto,
-> transporte OpenSSH sobre `ControlMaster`, staging com validação de manifesto e
-> ativação atômica idempotente, e dois smokes contra `sshd` e servidor reais
-> (`unigma-remote-ssh-smoke` `33660552878` e `unigma-remote-staging-smoke`
-> `33686239262`). **Falta a fiação do resolver**: `extension.ts` ainda devolve
-> `NotAvailable` para toda autoridade, então nenhuma janela remota abre. Depois
-> dele vêm a matriz oficial e o passo de Welcome.
+> **estado em 2026-09-04.** O caminho remoto está construído inteiro e validado
+> no runner. Existem, com evidência: par versionado e manifesto, transporte
+> OpenSSH sobre `ControlMaster`, staging com validação de manifesto e ativação
+> atômica idempotente, cleanup guardado, payload com baseline de símbolos, e
+> smokes contra `sshd` efêmero, contra um host como root e contra uma VPS
+> externa real.
+>
+> **A fiação do resolver foi feita** em `ac4e51ce`: `resolve()` lê o commit do
+> cliente, renderiza o destino, chama `openRemoteServer` e devolve
+> `ResolvedAuthority`; `extension.ts:224` constrói o objeto e as recusas viraram
+> `TemporarilyNotAvailable` para o que se resolve sozinho. A frase anterior desta
+> seção — "`extension.ts` ainda devolve `NotAvailable` para toda autoridade" —
+> ficou desatualizada por dois dias e foi corrigida em 2026-09-04.
+>
+> **O que falta é o último fio, e é outro:** nenhuma janela remota jamais abriu.
+> Todos os smokes verdes exercitam as camadas que o resolver consome, não o
+> resolver dentro de um workbench. Enquanto `T-053` não for colhido, o remoto
+> está implementado, não suportado. Depois dele vêm o passo de Welcome e a
+> decisão de desenho do cliente Windows.
 
-> **nota de numeração.** Os títulos de `T-051` e `T-052` abaixo descrevem o
-> recorte antigo — iniciar o runtime remoto e integrar o fluxo de agente. O que
-> foi executado sob esses identificadores em 2026-09-02 foi o recorte do plano
-> `2026-08-29-cli-ssh-remoto.md`: `T-051` como transporte OpenSSH e `T-052` como
-> staging e ativação. O trabalho de runtime e de fluxo de agente descrito aqui
-> continua pendente e é posterior à fiação do resolver. Registrado para que a
-> divergência não seja lida como escopo entregue.
+> **numeração resolvida em 2026-09-04.** `T-051` e `T-052` carregavam títulos do
+> recorte antigo — iniciar o runtime remoto e integrar o fluxo de agente —
+> enquanto o executado sob esses identificadores foi transporte OpenSSH e
+> staging/ativação. A divergência vivia numa nota, o que fazia o backlog
+> descrever escopo pendente com identificador de escopo entregue. Os títulos
+> passaram a nomear o que foi feito, e o escopo antigo virou `T-054` e `T-055`,
+> que continuam pendentes. Nenhum identificador foi reaproveitado.
 
 > feito: 2026-09-02 — `remoteStagingPlan.ts` calcula, sem qualquer I/O, o plano de
 > staging e ativação a partir do manifesto validado: diretório versionado por
@@ -1014,44 +1101,97 @@ estão pendentes.
 - **paralelo:** pode rodar em paralelo com E-02/E-03 após T-013 e T-002.
 - **bloqueia:** T-051 e testes remotos.
 
-### T-051 — iniciar runtime no host remoto
+### T-051 — transporte OpenSSH até o host remoto
 
-- **objetivo:** fazer o extension host remoto executar/reutilizar `opencode serve`
-  no workspace remoto, sem copiar projeto ou iniciar processo local indevido.
-- **responsável lógico:** engenharia remota + runtime.
-- **dependências:** T-050, T-021, T-022 e T-023.
-- **arquivos/módulos prováveis:** `unigma-remote-ssh/`, runtime, resolução de
-  host/paths e ciclo de vida remoto.
-- **critérios de aceite:** OpenCode roda no destino, dentro do extension host
-  remoto hospedado pelo `unigma-server` — não em substituição a ele; caminhos/Git/
-  worktrees são remotos; loopback é do host remoto e nunca é exposto ao desktop;
-  encerramento limpa apenas processo criado.
-- **testes necessários:** sessão remota, Git remoto, dois workspaces, perda SSH,
-  reconexão e processo remoto órfão.
-- **riscos:** confundir loopback local/remoto ou vazar workspace; mitigação:
-  testes de caminho e processo por host.
-- **paralelo:** pode rodar em paralelo com T-031/T-032, mas precisa T-050.
-- **bloqueia:** T-052 e AC-007.
+> **entregue.** Smoke `unigma-remote-ssh-smoke` `33660552878` e conexão contra
+> VPS externa `33747429799`.
 
-### T-052 — integrar fluxo de agente remoto
+- **objetivo:** abrir a sessão OpenSSH, subir o `unigma-server` em socket UNIX no
+  host e encaminhar uma porta local até ele, sem expor porta remota.
+- **responsável lógico:** engenharia remota.
+- **dependências:** T-050.
+- **arquivos/módulos:** `extensions/unigma-remote-ssh/src/remoteServerTransport.ts`,
+  `remoteServerHandshake.ts`, `openSshClient.ts`.
+- **critérios de aceite:** `ControlMaster` única, script de bootstrap por stdin e
+  nunca em `argv`, `StrictHostKeyChecking=yes`, servidor em foreground para que
+  encerrar o `ssh` encerre o processo criado, posse reivindicada por `mkdir`
+  atômico com pid no lock.
+- **entregue com evidência:** handshake pronto, porta local encaminhada,
+  `GET /version` batendo o commit de `PROVENANCE.txt`, `dispose()` fechando
+  processo e porta; 16 checks.
+- **pendente:** nada neste recorte. O escopo de runtime remoto migrou para
+  `T-054`.
 
-- **objetivo:** conectar UI nativa e runtime remoto preservando o mesmo contrato
-  de sessão, diff, aprovação e erro.
-- **responsável lógico:** runtime + workbench + remoto.
-- **dependências:** T-051, T-024, T-032 e T-033.
-- **arquivos/módulos prováveis:** RPC, resolução de autoridade remota,
-  `unigmaAgent/browser/` e testes de integração SSH.
-- **critérios de aceite:** agente opera no host do workspace; diff/terminal/Git
-  referem-se ao destino correto; aprovação continua explícita; erro SSH é
-  distinguível de erro OpenCode.
-- **testes necessários:** matriz definida em T-013, sessão/diff/aprovação remota,
-  desconexão e reconexão.
-- **riscos:** mistura de estado local/remoto; mitigação: contexto de autoridade
-  em cada sessão e teste de isolamento.
-- **paralelo:** pode rodar em paralelo com T-041/T-042 após T-051.
-- **bloqueia:** AC-007 e smoke remoto.
+### T-052 — staging do par com ativação atômica
+
+> **entregue.** Smoke `unigma-remote-staging-smoke` `33686239262` com
+> `check.payload-mode.real`, ensaio como root `33710801752` e VPS
+> `33784052687`.
+
+- **objetivo:** empurrar o par `unigma-server` + `unigma+opencode` pela sessão
+  SSH já autenticada, validar o manifesto no host e ativar de forma atômica.
+- **responsável lógico:** engenharia remota.
+- **dependências:** T-050, T-051.
+- **arquivos/módulos:** `remoteStagingTransfer.ts`, `remoteStagingScript.ts`,
+  `remoteStagingPlan.ts`, `bootstrapManifest.ts`.
+- **critérios de aceite:** confirmação explícita antes de qualquer escrita
+  (`D-032`), payload por stdin, validação remota de tamanho e SHA-256, extração
+  com `--no-same-owner --no-same-permissions`, ativação por `mv -T`, idempotência
+  na segunda execução, retenção podando versões antigas por `safe_rm`.
+- **entregue com evidência:** payload montado em `1,2 s`, staging em `3,3 s`,
+  segunda execução idempotente, servidor ativado respondendo `GET /version`.
+- **pendente:** nada neste recorte. O escopo de fluxo de agente migrou para
+  `T-055`.
 
 ### T-053 — fechar testes de compatibilidade SSH
+
+> **próximo passo da rodada de 2026-09-04.** É o que converte o remoto de
+> implementado em suportado. Tudo abaixo dele na E-05 depende disto.
+
+#### como executar
+
+A ordem importa, e o primeiro passo existe porque a falha mais provável parece
+defeito e não é:
+
+1. **Confirmar que desktop e servidor saem do mesmo commit.** `D-028` acopla os
+   dois por commit; divergência faz o resolver recusar **corretamente**, com
+   `ssh.client-commit-unavailable` ou recusa de build stamp. Conferir o ponteiro
+   `unigma-latest` e `unigma-server-latest` no depósito do WSL antes de disparar
+   qualquer coisa. Se divergirem, republicar, não contornar.
+2. **Garantir que o par está staged e ativado na VPS.** O smoke de janela não faz
+   staging, por decisão explícita. Rodar `unigma-remote-vps-staging-smoke` antes,
+   e conferir `native.modules.loaded=7`/`rejected=0` — um servidor sem terminal e
+   sem file watching abriria uma janela que mente sobre estar funcionando.
+3. **Conferir que o alias do `ssh_config` existe na máquina que roda o smoke.**
+   Uma WSL recriada perde o alias; `unigma-wsl-ssh-alias.yml` reescreve o bloco
+   `Host` sem tocar em chave, `known_hosts` ou `authorized_keys`.
+4. **Disparar `unigma-remote-window-smoke.yml`** (`workflow_dispatch`,
+   self-hosted). Ele semeia `content.trust.model.key` no SQLite isolado, abre
+   `vscode-remote://ssh-remote+<alias>/root` sob Xvfb e trata resolver, consumo
+   de `ResolvedAuthority` e handshake de token como checks bloqueantes.
+5. **Cobrir a matriz além do caminho feliz:** sessão aberta, queda de conexão e
+   reconexão. A queda precisa devolver `TemporarilyNotAvailable` e a janela
+   precisa voltar — foi exatamente esse o defeito corrigido em `691287b1`, e sem
+   exercitá-lo a correção continua sendo hipótese.
+6. **Registrar em `docs/status/EVIDENCE.md`** no formato obrigatório, dizendo
+   explicitamente o que a evidência **não** prova.
+
+#### comando de verificação
+
+```bash
+# localmente, antes de gastar runner: só o alvo mínimo
+npm run gulp compile-extension:unigma-remote-ssh
+npm --prefix extensions/unigma-remote-ssh test
+```
+
+O resto é runner. Não rode empacotamento, smoke ou typecheck amplo nesta
+máquina: ela já travou fazendo isso e precisou ser reiniciada.
+
+#### critério de pronto
+
+Uma janela remota abriu contra um host real, uma sessão existiu dentro dela, a
+conexão caiu e a janela voltou sem ser recriada. Menos que isso não fecha
+`AC-007`, e nenhum smoke atual substitui esse conjunto.
 
 - **objetivo:** executar a matriz remota suportada e registrar recusas fora dela.
 - **responsável lógico:** QA remoto.
@@ -1065,6 +1205,123 @@ estão pendentes.
   registrar pré-condições e não declarar suporte além da matriz.
 - **paralelo:** pode rodar em paralelo com T-081 após T-052.
 - **bloqueia:** AC-013 se o smoke incluir remoto e gate MVP remoto.
+
+### T-054 — iniciar runtime no host remoto
+
+- **objetivo:** fazer o extension host remoto executar/reutilizar `opencode serve`
+  no workspace remoto, sem copiar projeto ou iniciar processo local indevido.
+- **responsável lógico:** engenharia remota + runtime.
+- **dependências:** T-053, T-021, T-022 e T-023. Depende da matriz porque não faz
+  sentido hospedar runtime num extension host remoto que nunca foi aberto.
+- **arquivos/módulos prováveis:** `unigma-remote-ssh/`, runtime, resolução de
+  host/paths e ciclo de vida remoto.
+- **critérios de aceite:** OpenCode roda no destino, dentro do extension host
+  remoto hospedado pelo `unigma-server` — não em substituição a ele; caminhos/Git/
+  worktrees são remotos; loopback é do host remoto e nunca é exposto ao desktop;
+  encerramento limpa apenas processo criado.
+- **testes necessários:** sessão remota, Git remoto, dois workspaces, perda SSH,
+  reconexão e processo remoto órfão.
+- **riscos:** confundir loopback local/remoto ou vazar workspace; mitigação:
+  testes de caminho e processo por host.
+- **bloqueia:** T-055 e o uso real de AC-007.
+
+### T-055 — integrar fluxo de agente remoto
+
+- **objetivo:** conectar UI nativa e runtime remoto preservando o mesmo contrato
+  de sessão, diff, aprovação e erro.
+- **responsável lógico:** runtime + workbench + remoto.
+- **dependências:** T-054, T-024, T-032 e T-033.
+- **arquivos/módulos prováveis:** RPC, resolução de autoridade remota,
+  `unigmaAgent/browser/` e testes de integração SSH.
+- **critérios de aceite:** agente opera no host do workspace; diff/terminal/Git
+  referem-se ao destino correto; aprovação continua explícita; erro SSH é
+  distinguível de erro OpenCode.
+- **testes necessários:** matriz definida em T-013, sessão/diff/aprovação remota,
+  desconexão e reconexão.
+- **riscos:** mistura de estado local/remoto; mitigação: contexto de autoridade
+  em cada sessão e teste de isolamento.
+- **bloqueia:** smoke remoto de agente.
+
+### T-056 — decidir o transporte do cliente Windows
+
+> **criada em 2026-09-04.** Existia só como linha na fila de intervenção do
+> workbench, o que a deixava invisível no backlog e no board.
+
+- **objetivo:** dar ao cliente Windows x64 um caminho remoto real, ou reduzir a
+  matriz declarada. Hoje o contrato lista Windows como suportado e o transporte
+  depende de `ControlMaster`, que o OpenSSH do Windows não implementa — isso é
+  lacuna de contrato, não detalhe de implementação.
+- **responsável lógico:** desenho + engenharia remota.
+- **dependências:** T-053. Decidir antes de a matriz fechar arriscaria desenhar
+  contra um caminho que ainda não foi exercitado nem no Linux.
+- **o que já foi medido:** `unigma-windows-ssh-capabilities` `33785474120`, em
+  `OpenSSH_for_Windows_9.5p2`. `-M` e `ControlMaster=auto` são parseados mas
+  falham com `getsockname failed: Not a socket`. **`-L 127.0.0.1:<porta>:/caminho/socket.sock`
+  é aceito**, assim como `-W`; a recusa anterior era a porta `0` na
+  especificação, não o alvo socket UNIX.
+- **opções na mesa, em ordem de preferência atual:**
+  1. **segunda sessão `ssh -N -L`** em vez de `ControlMaster`. Serve aos dois
+     clientes com um único caminho de código e remove a dependência que criou o
+     problema. Custa uma autenticação a mais e exige resolver o `socketPath`
+     efetivo antes de abrir o encaminhamento, que hoje vem no handshake.
+  2. `ManagedResolvedAuthority` sobre stdio, sem porta encaminhada.
+  3. reduzir a matriz declarada, removendo Windows do contrato até haver caminho.
+- **critérios de aceite:** a opção escolhida é exercitada contra host real a
+  partir de um cliente Windows, ou o contrato em `docs/SSH-CONTRACT.md` deixa de
+  declarar Windows como suportado. Não há terceira saída: declarar suporte sem
+  caminho é o defeito atual.
+- **riscos:** remendar `ControlMaster` no Windows; mitigação: a medição acima já
+  mostra que não há o que remendar.
+- **bloqueia:** AC-007 na linha Windows e o gate MVP multiplataforma do remoto.
+
+### T-057 — passo de Welcome que sugere identidade SSH
+
+- **objetivo:** oferecer, na janela local, um passo de walkthrough que explique e
+  sugira o comando de geração de identidade.
+- **responsável lógico:** workbench.
+- **dependências:** T-053.
+- **critérios de aceite:** o passo **não gera, não lê, não copia e não guarda
+  chave**. Ele sugere e explica. Gerar chave tornaria o produto custodiante de
+  credencial, que é exatamente o que `RQ-103`/`RQ-104` recusam.
+- **testes necessários:** o passo aparece em janela local e não aparece em sessão
+  remota; nenhum caminho do código escreve em `~/.ssh`.
+- **bloqueia:** nada; é acabamento de E-05.
+
+> correção de 2026-09-04: o critério dizia que o passo aparecia **só em sessão
+> remota**. Isso o tornaria inútil, porque quem já está em sessão remota já
+> conectou e portanto já tem identidade. A identidade importa **antes** de
+> conectar, então a condição correta é `remoteName == ''`. O caminho registrado
+> aqui também estava errado: o arquivo é `common/`, não `browser/`.
+
+#### como executar
+
+1. localizar o ponto de contribuição de walkthrough usado pelo produto
+   (`src/vs/workbench/contrib/welcomeGettingStarted/common/gettingStartedContent.ts`
+   para os passos internos; `contributes.walkthroughs` para os de extensão) e
+   escolher **um** deles, não os dois;
+2. condicionar a visibilidade a `remoteName == ''`, a context key que
+   `src/vs/workbench/browser/contextkeys.ts:92` já preenche com string vazia em
+   janela local, em vez de criar chave nova;
+3. escrever o texto com o comando de geração de identidade **como texto copiável
+   e nada além disso**. Sem botão que execute, sem leitura de `~/.ssh` para
+   detectar chave existente, sem escrita;
+4. cobrir com teste que o passo aparece sob contexto remoto e não aparece sem
+   ele, e com busca estática que nenhum caminho novo toca `~/.ssh`.
+
+#### comando de verificação
+
+```bash
+npm run compile-client
+npm run test-node -- --run <arquivo-do-teste>
+npm run eslint
+```
+
+#### critério de pronto
+
+O passo aparece só em sessão remota, o comando é copiável, e a busca estática
+não encontra nenhuma escrita ou leitura de material de chave. Se em algum momento
+a implementação precisar ler `~/.ssh` para “melhorar a sugestão”, a tarefa está
+errada: `RQ-103`/`RQ-104` recusam o produto como custodiante de credencial.
 
 ## E-06 — segurança e performance
 
@@ -1120,6 +1377,38 @@ estão pendentes.
   plataforma e perfil fixo.
 - **paralelo:** após T-003, pode rodar em paralelo com E-01, E-02 e E-03.
 - **bloqueia:** T-071, T-072, T-073 e AC-015.
+
+#### como executar
+
+Estado verificado em 2026-09-04: **`test/performance/` não existe**. Esta tarefa
+começa do zero, e é o ponto de entrada de toda a E-06.
+
+1. criar `test/performance/` com um medidor que aceite um executável já
+   empacotado e um perfil de usuário descartável, porque medir a árvore de
+   desenvolvimento mede o compilador, não o produto;
+2. medir quatro cenários nomeados: perfil limpo, idle após abrir uma pasta,
+   sessão de agente ativa e sessão SSH. Os dois últimos ficam pendentes enquanto
+   provider e matriz não existirem — declare-os ausentes em vez de simulá-los;
+3. coletar, por processo identificado (`main`, `renderer`, `extension host`,
+   `ptyHost`): tempo até a janela responder, RSS e CPU acumulado;
+4. registrar máquina, versão, commit e número de repetições junto do número. Um
+   baseline sem ambiente registrado não é comparável e vira ruído no primeiro
+   troca de hardware;
+5. nada de telemetria: a coleta é local e o artefato fica no repositório.
+
+#### comando de verificação
+
+```bash
+npm run test-build-scripts
+npm run eslint
+```
+
+#### critério de pronto
+
+O medidor roda duas vezes na mesma máquina e produz números repetíveis dentro de
+uma margem declarada. Enquanto os quatro cenários não estiverem medidos, `T-071`
+não começa — publicar baseline parcial como se fosse completo é o defeito que
+`AC-015` existe para impedir.
 
 ### T-071 — publicar baseline inicial
 
