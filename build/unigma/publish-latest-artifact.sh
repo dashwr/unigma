@@ -30,7 +30,7 @@ commit="$3"
 shift 3
 
 case "$name" in
-	unigma | unigma-server | opencode | opencode-service-only) ;;
+	unigma | unigma-server | opencode | opencode-service-only | unigma-payload) ;;
 	*)
 		echo "refusing to publish unknown artifact name: $name" >&2
 		exit 1

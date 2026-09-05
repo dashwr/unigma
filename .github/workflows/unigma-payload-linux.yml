@@ -1,0 +1,139 @@
+name: assemble unigma+opencode Linux payload
+
+on:
+  workflow_dispatch:
+    inputs:
+      opencode_profile:
+        description: 'OpenCode artifact to bundle: opencode or opencode-service-only'
+        type: choice
+        default: opencode
+        options:
+          - opencode
+          - opencode-service-only
+
+permissions:
+  contents: read
+
+jobs:
+  assemble:
+    name: assemble and verify Linux x64 payload
+    runs-on: self-hosted
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: powershell
+    env:
+      OPENCODE_PROFILE: ${{ inputs.opencode_profile }}
+    steps:
+      - name: checkout workflow ref
+        uses: actions/checkout@v4
+
+      - name: prepare WSL paths
+        run: |
+          $workspace = $env:GITHUB_WORKSPACE -replace '\\', '/'
+          if ($workspace -notmatch '^([A-Za-z]):/(.+)$') { throw "Unsupported Windows workspace path: $env:GITHUB_WORKSPACE" }
+          $drive = $matches[1].ToLowerInvariant()
+          $path = $matches[2]
+          [System.IO.File]::AppendAllText($env:GITHUB_ENV, "WSL_SOURCE=/mnt/$drive/$path`n")
+
+      - name: assemble and verify payload in WSL
+        run: |
+          $scriptPath = Join-Path $env:RUNNER_TEMP 'unigma-payload.sh'
+          $script = @'
+          set -euo pipefail
+
+          source="$1"
+          profile="$2"
+          export PATH="/opt/node-current/bin:$PATH"
+
+          store="${UNIGMA_ARTIFACT_ROOT:-$HOME/.local/share/unigma-artifacts}"
+          server_dir="$store/unigma-server-latest"
+          opencode_dir="$store/$profile-latest"
+          desktop_dir="$store/unigma-latest"
+
+          for pointer in "$server_dir" "$opencode_dir"; do
+            if [ ! -d "$pointer" ]; then
+              echo "artifact store has no $pointer; build it before assembling a payload" >&2
+              exit 1
+            fi
+          done
+
+          commit_of() {
+            sed -n 's/^commit=//p' "$1/PROVENANCE.txt" | head -n 1
+          }
+
+          server_commit="$(commit_of "$server_dir")"
+          opencode_commit="$(commit_of "$opencode_dir")"
+          if [ -z "$server_commit" ]; then
+            echo "server artifact has no commit in its provenance" >&2
+            exit 1
+          fi
+
+          # The payload carries a server that only pairs with a desktop built from
+          # the same commit (D-028). Assembling one while the store holds a desktop
+          # from a different commit would publish a pair nothing can use, so the
+          # divergence is reported here rather than discovered by a smoke run.
+          if [ -d "$desktop_dir" ]; then
+            desktop_commit="$(commit_of "$desktop_dir")"
+            if [ "$desktop_commit" != "$server_commit" ]; then
+              echo "desktop ($desktop_commit) and server ($server_commit) in the store are from different commits" >&2
+              exit 1
+            fi
+          fi
+
+          server_archive="$(find "$server_dir" -maxdepth 1 -type f -name '*.tar.gz' | head -n 1)"
+          if [ -z "$server_archive" ]; then
+            echo "server artifact has no .tar.gz archive" >&2
+            exit 1
+          fi
+          opencode_binary="$opencode_dir/opencode"
+          if [ ! -f "$opencode_binary" ]; then
+            echo "opencode artifact has no binary at $opencode_binary" >&2
+            exit 1
+          fi
+
+          payload="$source/.build/payload"
+          rm -rf "$payload"
+          mkdir -p "$source/.build/logs"
+
+          license_argument=""
+          if [ -f "$opencode_dir/LICENSE" ]; then
+            license_argument="--opencode-license $opencode_dir/LICENSE"
+          fi
+
+          # shellcheck disable=SC2086
+          node --experimental-strip-types "$source/build/unigma/make-payload.ts" \
+            --server "$server_archive" \
+            --opencode "$opencode_binary" \
+            --output "$payload" \
+            --client-commit "$server_commit" \
+            --server-commit "$server_commit" \
+            --target linux-x64 \
+            $license_argument
+
+          report="$source/.build/logs/unigma-payload.txt"
+          {
+            printf 'opencode-profile=%s\n' "$profile"
+            printf 'opencode-commit=%s\n' "$opencode_commit"
+          } > "$report"
+          node --experimental-strip-types "$source/build/unigma/verify-payload.ts" "$payload" | tee -a "$report"
+
+          "$source/build/unigma/publish-latest-artifact.sh" unigma-payload "$payload" "$server_commit" \
+            target=linux-x64 "opencode-profile=$profile" "opencode-commit=$opencode_commit"
+          '@
+          $script = $script -replace "`r`n", "`n"
+          [System.IO.File]::WriteAllText($scriptPath, $script)
+          $scriptWsl = $scriptPath -replace '\\', '/'
+          if ($scriptWsl -notmatch '^([A-Za-z]):/(.+)$') { throw "Unsupported Windows temp path: $scriptPath" }
+          $scriptWsl = "/mnt/$($matches[1].ToLowerInvariant())/$($matches[2])"
+          wsl.exe -d Ubuntu --user dasher -- bash "$scriptWsl" "$env:WSL_SOURCE" "$env:OPENCODE_PROFILE"
+          if ($LASTEXITCODE -ne 0) { throw "payload assembly failed with exit code $LASTEXITCODE" }
+
+      - name: upload payload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unigma-payload-${{ github.run_id }}
+          path: .build/logs
+          if-no-files-found: warn
+          retention-days: 7
