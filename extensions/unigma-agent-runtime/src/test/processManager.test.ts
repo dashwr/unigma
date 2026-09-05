@@ -267,4 +267,42 @@ suite('Unigma agent process manager', () => {
 		assert.strictEqual(spawnCount, 3);
 		await manager.stopOwned();
 	});
+
+	test('reports the spawn failure class without the executable path', async () => {
+		const secretish = process.platform === 'win32'
+			? 'C:\\Users\\someone\\AppData\\Local\\opencode.exe'
+			: '/home/someone/.local/bin/opencode';
+		const manager = new ChildProcessManager(optionsFor(() => {
+			const child = new FakeProcess();
+			const failure: NodeJS.ErrnoException = new Error(`spawn ${secretish} ENOENT`);
+			failure.code = 'ENOENT';
+			queueMicrotask(() => child.emit('error', failure));
+			return child as unknown as ReturnType<NonNullable<ProcessManagerOptions['spawn']>>;
+		}));
+
+		await assert.rejects(manager.ensureStarted(workspace), error => {
+			const message = (error as Error).message;
+			assert.ok(message.includes('ENOENT'), message);
+			assert.ok(!message.includes(secretish), message);
+			assert.ok(!message.includes('someone'), message);
+			return true;
+		});
+	});
+
+	test('collapses an unrecognized spawn failure instead of echoing its message', async () => {
+		const manager = new ChildProcessManager(optionsFor(() => {
+			const child = new FakeProcess();
+			const failure: NodeJS.ErrnoException = new Error('spawn /home/someone/.local/bin/opencode EWEIRD');
+			failure.code = 'EWEIRD';
+			queueMicrotask(() => child.emit('error', failure));
+			return child as unknown as ReturnType<NonNullable<ProcessManagerOptions['spawn']>>;
+		}));
+
+		await assert.rejects(manager.ensureStarted(workspace), error => {
+			const message = (error as Error).message;
+			assert.ok(message.includes('unknown'), message);
+			assert.ok(!message.includes('someone'), message);
+			return true;
+		});
+	});
 });

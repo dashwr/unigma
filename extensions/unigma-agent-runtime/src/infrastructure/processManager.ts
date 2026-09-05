@@ -42,6 +42,32 @@ const DEFAULT_STARTUP_TIMEOUT_MS = 10_000;
 const DEFAULT_MAX_RESTARTS = 1;
 const RESTART_BACKOFF_MS = 1_000;
 
+/*
+ * A Node spawn error carries the resolved executable path inside its message
+ * (`spawn /home/<user>/.local/bin/opencode ENOENT`), so interpolating that
+ * message puts the local filesystem layout — including the account name — into
+ * an error the workbench renders. The caller only needs to know which class of
+ * failure happened, and that is the errno. Anything outside this list becomes
+ * `unknown` rather than falling back to the original text, because a fallback
+ * that reproduces the message is the same leak with extra steps.
+ */
+const SPAWN_FAILURE_CODES: ReadonlySet<string> = new Set([
+	'E2BIG',
+	'EACCES',
+	'EAGAIN',
+	'EMFILE',
+	'ENFILE',
+	'ENOENT',
+	'ENOMEM',
+	'ENOTDIR',
+	'EPERM',
+]);
+
+function spawnFailureCode(error: unknown): string {
+	const code = (error as NodeJS.ErrnoException | undefined)?.code;
+	return typeof code === 'string' && SPAWN_FAILURE_CODES.has(code) ? code : 'unknown';
+}
+
 function inspectCandidate(command: string): OpenCodeCandidate {
 	const exists = existsSync(command);
 	let executable = false;
@@ -335,7 +361,7 @@ export class ChildProcessManager implements ProcessManager {
 				settled = true;
 				clearTimeout(timeout);
 				this.clearIfOwned(child, handle);
-				reject(new Error(`Could not start OpenCode process: ${error.message}`));
+				reject(new Error(`Could not start OpenCode process (${spawnFailureCode(error)}).`));
 			});
 			child.once('exit', (code, signal) => {
 				if (settled) {

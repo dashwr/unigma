@@ -1287,6 +1287,18 @@ conexão caiu e a janela voltou sem ser recriada. Menos que isso não fecha
   remota; nenhum caminho do código escreve em `~/.ssh`.
 - **bloqueia:** nada; é acabamento de E-05.
 
+> entregue em 2026-09-04 (`c917fcfe`): o step `remoteSshIdentity` entrou no
+> walkthrough `Setup` de
+> `src/vs/workbench/contrib/welcomeGettingStarted/common/gettingStartedContent.ts`,
+> entre `pickColorTheme` e `videoTutorial`. A visibilidade ficou em `!remoteName`
+> e não em `remoteName == ''`: a chave já é preenchida com string vazia em janela
+> local e o avaliador trata string vazia como falsa, então a negação expressa o
+> caso local sem depender de comparação com literal vazio. O passo é texto e um
+> link para `docs/SSH-CONTRACT.md`; **não há botão que execute comando**, e
+> nenhum caminho lê ou escreve `~/.ssh`. `eslint` limpo e formatter sem
+> alteração; a compilação do cliente é do runner, porque esta máquina não a
+> executa.
+
 > correção de 2026-09-04: o critério dizia que o passo aparecia **só em sessão
 > remota**. Isso o tornaria inútil, porque quem já está em sessão remota já
 > conectou e portanto já tem identidade. A identidade importa **antes** de
