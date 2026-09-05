@@ -69,6 +69,29 @@ test('reports readiness by prefix and reports the server status when it never ar
 	assert.match(result.script, /rm -f "\$FIFO" "\$LOCK\/pid" "\$LOCK\/ready"/);
 });
 
+test('reuses the socket of the session that won the bootstrap race', () => {
+	const result = buildRemoteBootstrapScript({ commit });
+	assert.equal(result.valid, true);
+	if (!result.valid) {
+		return;
+	}
+	const contended = result.script.slice(result.script.indexOf('if [ "$owned" -ne 1 ]; then'), result.script.indexOf('echo $$ > "$LOCK/pid"'));
+	// The lock is scoped to one commit, so the holder is starting, or has
+	// already started, the very server this session wanted. Reporting the lock
+	// as a refusal denied four runner cycles a server that was healthy on the
+	// host, with its own staging smoke passing in the same run.
+	assert.match(contended, /if \[ -S "\$SOCKET" \]; then/);
+	assert.match(contended, /\\"status\\":\\"ready\\"/);
+	// Reuse is not ownership. Removing the socket, the pid or the lock here
+	// would take the server away from the session that does own it, and a
+	// cleanup trap on this path would do it on the way out.
+	assert.equal(/\brm\b/.test(contended), false);
+	assert.equal(/\brmdir\b/.test(contended), false);
+	assert.equal(contended.includes('trap '), false);
+	// The refusal survives for a lock nobody is serving behind.
+	assert.match(contended, /'\{"status":"socket-occupied"\}'/);
+});
+
 test('accepts a bounded server exit status and refuses anything else in its place', () => {
 	assert.deepEqual(parseRemoteHandshake(`${REMOTE_HANDSHAKE_PREFIX}{"status":"start-failed","exit":137}`), { kind: 'start-failed', serverExitCode: 137 });
 	assert.deepEqual(parseRemoteHandshake(`${REMOTE_HANDSHAKE_PREFIX}{"status":"start-failed"}`), { kind: 'start-failed' });

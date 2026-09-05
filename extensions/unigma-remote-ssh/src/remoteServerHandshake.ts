@@ -15,6 +15,13 @@ export const REMOTE_HANDSHAKE_PREFIX = 'unigma-remote:';
 
 const COMMIT = /^[0-9a-f]{40}$/;
 
+/**
+ * How long a session that lost the bootstrap race waits for the owner's socket
+ * before giving up. Long enough to cover a server that is still starting, short
+ * enough that a genuinely stuck lock is reported instead of hanging the window.
+ */
+const REMOTE_SHARED_SOCKET_WAIT_SECONDS = 20;
+
 export interface RemoteBootstrapScriptInput {
 	readonly commit: string;
 	readonly remoteUserBaseDirectory?: string;
@@ -142,7 +149,29 @@ export function buildRemoteBootstrapScript(input: RemoteBootstrapScriptInput): R
 		'\t\tif mkdir "$LOCK" 2>/dev/null; then owned=1; fi',
 		'\tfi',
 		'fi',
+		// Losing the race does not mean the window cannot be served. The lock is
+		// scoped to one commit, so whoever holds it is starting, or has already
+		// started, the very server this session was going to start. Refusing here
+		// denied four runner cycles a server that was provably healthy on the
+		// host. The socket is awaited briefly and then reused.
+		//
+		// Nothing is removed on this path and no cleanup trap is installed: this
+		// session owns neither the lock nor the socket, and tearing down either
+		// would take the server out from under the session that does own it.
 		'if [ "$owned" -ne 1 ]; then',
+		`\twaited=0`,
+		`\twhile [ "$waited" -lt ${REMOTE_SHARED_SOCKET_WAIT_SECONDS} ]; do`,
+		'\t\tif [ -S "$SOCKET" ]; then',
+		`\t\t\tsocket_json=$(printf '%s' "$SOCKET" | sed 's/\\\\/\\\\\\\\/g; s/"/\\\\"/g')`,
+		`\t\t\temit "{\\"status\\":\\"ready\\",\\"socketPath\\":\\"$socket_json\\"}"`,
+		'\t\t\t# Held open so the forward outlives this script, exactly as the owning',
+		'\t\t\t# session does. The server belongs to that session, so this one waits',
+		'\t\t\t# to be closed by the client rather than ending on its own.',
+		'\t\t\twhile :; do sleep 3600; done',
+		'\t\tfi',
+		'\t\tsleep 1',
+		'\t\twaited=$((waited + 1))',
+		'\tdone',
 		`\temit '{"status":"socket-occupied"}'`,
 		'\texit 42',
 		'fi',
