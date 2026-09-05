@@ -219,6 +219,32 @@ jobs:
           Remove-Item -Force $scriptPath -ErrorAction SilentlyContinue
           if ($exitCode -ne 0) { exit $exitCode }
 
+      - name: run workbench agent unit tests in WSL
+        timeout-minutes: 10
+        run: |
+          $scriptPath = Join-Path $env:RUNNER_TEMP 'unigma-wsl-workbench-test.sh'
+          $script = @'
+          set -euo pipefail
+          build="$1"
+          export PATH="/opt/node-current/bin:$PATH"
+          cd "$build"
+          # The unigmaAgent workbench suite had never run anywhere: the Linux job
+          # ran the extension suites and the Windows job ran typecheck and the
+          # build scripts, so the tests that guard the UI/runtime boundary and the
+          # local integration policy were only ever executed by hand. They run
+          # here, against out-build, because the package step just produced it and
+          # compiling the client a second time would cost ten minutes to obtain a
+          # tree the job already has.
+          npm run test-node -- --build --runGlob "vs/workbench/contrib/unigmaAgent/test/common/*.test.js"
+          '@
+          $script = $script -replace "`r`n?", "`n"
+          [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))
+          $scriptPathWsl = "/mnt/$($scriptPath.Substring(0, 1).ToLowerInvariant())/$($scriptPath.Substring(3).Replace('\', '/'))"
+          & wsl.exe -d Ubuntu --user dasher -- bash $scriptPathWsl $env:WSL_BUILD
+          $exitCode = $LASTEXITCODE
+          Remove-Item -Force $scriptPath -ErrorAction SilentlyContinue
+          if ($exitCode -ne 0) { exit $exitCode }
+
       - name: audit Linux x64 package in WSL
         timeout-minutes: 2
         run: |
