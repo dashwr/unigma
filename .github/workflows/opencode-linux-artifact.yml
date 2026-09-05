@@ -2,6 +2,13 @@ name: build OpenCode Linux artifact
 
 on:
   workflow_dispatch:
+    inputs:
+      service_only:
+        description: >-
+          Apply the versioned service-only patchset before building. Publishes
+          under its own name, so the stock OpenCode in the store is untouched.
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -16,6 +23,9 @@ jobs:
         shell: powershell
     env:
       OPENCODE_COMMIT: c2eacd72afc4a4984564c393e15ab30011057269
+      # The applier refuses a checkout whose HEAD is not this commit, so the
+      # patchset and the pin above cannot drift apart unnoticed.
+      SERVICE_ONLY: ${{ inputs.service_only && '1' || '0' }}
 
     steps:
       - name: checkout Unigma workflow ref
@@ -47,6 +57,10 @@ jobs:
           commit="$2"
           # Named apart from the OpenCode checkout below, which also uses `source`.
           unigma_source="$3"
+          service_only="$4"
+          # Same interpreter the other Linux jobs use; the applier is TypeScript
+          # run through strip-types, so it needs node on PATH, not just bun.
+          export PATH="/opt/node-current/bin:$PATH"
           bun_version="1.3.14"
           toolchain="$HOME/.local/share/unigma-toolchains/bun-$bun_version"
           if [ ! -x "$toolchain/bin/bun" ]; then
@@ -112,6 +126,19 @@ jobs:
           git -C "$source" checkout --detach --quiet FETCH_HEAD
           test "$(git -C "$source" rev-parse HEAD)" = "$commit"
 
+          build_flags=""
+          artifact_name="opencode"
+          if [ "$service_only" = "1" ]; then
+            # The applier does its own base and cleanliness checks and refuses
+            # rather than force anything, so a drifted patchset stops the build
+            # here instead of producing a binary nobody can reproduce.
+            node --experimental-strip-types \
+              "$unigma_source/build/unigma/apply-service-only-patches.ts" \
+              --checkout "$source" --expect-commit "$commit"
+            build_flags="--service-only"
+            artifact_name="opencode-service-only"
+          fi
+
           cd "$source"
           df -h "$HOME" "$source"
           df -i "$HOME" "$source"
@@ -125,7 +152,7 @@ jobs:
           fi
           build_log="${output}.log"
           rm -f "$build_log"
-          if ! OPENCODE_VERSION=1.18.23 bun run --cwd packages/opencode build -- --single --skip-install 2>&1 | tee "$build_log"; then
+          if ! OPENCODE_VERSION=1.18.23 bun run --cwd packages/opencode build -- --single --skip-install $build_flags 2>&1 | tee "$build_log"; then
             tail -n 250 "$build_log" >&2
             exit 1
           fi
@@ -141,19 +168,29 @@ jobs:
             printf 'commit=%s\n' "$commit"
             printf 'version=%s\n' "$(bun -e "console.log((await Bun.file('./packages/opencode/package.json').json()).version)")"
             printf 'license=MIT\n'
+            printf 'profile=%s\n' "$artifact_name"
+            if [ "$service_only" = "1" ]; then
+              for patch in "$unigma_source"/build/unigma/opencode-service-only/*.patch; do
+                printf 'patch=%s %s\n' "$(basename "$patch")" "$(sha256sum "$patch" | cut -d' ' -f1)"
+              done
+            fi
             sha256sum "$output/bin/opencode"
           } > "$output/PROVENANCE.txt"
 
           # Publish into the same persistent store as the client and the server, so
           # a staging smoke can assemble a real payload without any of the three
           # being rebuilt or fetched from outside WSL.
+          # The service-only build publishes under its own name. Overwriting the
+          # stock pointer would swap the binary the remote matrix depends on for
+          # one with a different surface, mid-investigation.
           bash "$unigma_source/build/unigma/publish-latest-artifact.sh" \
-            opencode "$output" "$commit" target=linux-x64 version=1.18.23
+            "$artifact_name" "$output" "$commit" target=linux-x64 version=1.18.23 \
+            profile="$artifact_name"
           '@
           $script = $script -replace "`r`n?", "`n"
           [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))
           $scriptPathWsl = "/mnt/$($scriptPath.Substring(0, 1).ToLowerInvariant())/$($scriptPath.Substring(3).Replace('\', '/'))"
-          & wsl.exe -d Ubuntu --user dasher -- bash $scriptPathWsl $env:WSL_OUTPUT $env:OPENCODE_COMMIT $env:WSL_SOURCE
+          & wsl.exe -d Ubuntu --user dasher -- bash $scriptPathWsl $env:WSL_OUTPUT $env:OPENCODE_COMMIT $env:WSL_SOURCE $env:SERVICE_ONLY
           $exitCode = $LASTEXITCODE
           Remove-Item -Force $scriptPath -ErrorAction SilentlyContinue
           if ($exitCode -ne 0) { exit $exitCode }
