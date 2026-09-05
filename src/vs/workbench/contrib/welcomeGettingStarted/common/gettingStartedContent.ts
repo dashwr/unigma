@@ -282,6 +282,21 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					media: { type: 'markdown', path: 'theme_picker', }
 				},
 				{
+					// Only shown on a local window. Someone already inside a remote session
+					// has, by definition, already connected, so the identity is settled by
+					// then; it is before connecting that the missing key costs a failed
+					// attempt. This step never reads, writes or generates a key: it explains
+					// the command and leaves running it to the user.
+					id: 'remoteSshIdentity',
+					title: localize('gettingStarted.remoteSshIdentity.title', "Prepare an SSH identity"),
+					description: localize('gettingStarted.remoteSshIdentity.description.interpolated', "Connecting to a remote host reuses the identity your OpenSSH client already has. If you do not have one yet, create it in a terminal with `ssh-keygen -t ed25519` and add the public key to the host.\n{0}", Button(localize('readSshDocs', "Read the SSH Contract"), 'https://github.com/dashwr/unigma/blob/main/docs/SSH-CONTRACT.md')),
+					// `remoteName` is an empty string on a local window, and the evaluator
+					// treats that as falsy, so the negation is the local case without
+					// introducing a context key of our own.
+					when: '!remoteName',
+					media: { type: 'svg', altText: 'unigma remote SSH', path: 'learn.svg' },
+				},
+				{
 					id: 'videoTutorial',
 					title: localize('gettingStarted.videoTutorial.title', "Watch video tutorials"),
 					description: localize('gettingStarted.videoTutorial.description.interpolated', "Read the documentation for unigma's key features.\n{0}", Button(localize('readDocs', "Open Documentation"), 'https://github.com/dashwr/unigma')),
