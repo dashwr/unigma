@@ -20,12 +20,23 @@ build, auditoria e smoke no runner, não opinião.
 estiveram verdes enquanto o pacote distribuía duas extensões próprias **sem
 código**. Verde só vale pelo que a asserção realmente toca.
 
-O caminho remoto por SSH está construído inteiro — par versionado, transporte,
-staging, ativação atômica, resolver devolvendo `ResolvedAuthority` — e validado
-no runner, inclusive num ensaio como root e contra uma VPS externa de verdade,
-com staging real, ativação, idempotência e limpeza guardada. **Mas nenhuma janela
-remota jamais abriu**, e até esta rodada a extensão do resolver nem sequer
-chegava ao pacote. O remoto continua implementado, não suportado.
+**A janela remota abriu.** Em 2026-09-04, no run `33949936848`, o produto
+publicado conectou a uma VPS externa real: o resolver devolveu
+`ResolvedAuthority` em 725 ms, a conexão de gerenciamento o consumiu, o token foi
+aceito e o extension host remoto completou o handshake em 261 ms. Os doze checks
+do smoke passaram. É a primeira vez que o caminho inteiro executa fim a fim —
+todo verde anterior do E-05 provava apenas as camadas que o resolver consome.
+
+**Isso ainda não fecha `AC-007`.** A matriz pede janela, sessão, queda de conexão
+e reconexão; só a primeira está colhida. O remoto saiu de "implementado" para
+"abre", não para "suportado".
+
+Custou quatro runs falhos, e a causa foi de diagnóstico: o lock de bootstrap é
+escopado por commit, então quem o perdia estava perdendo para o servidor que ele
+mesmo queria — e recusava em vez de reusar. Pior, três estados distintos do
+handshake colapsavam num código só, cuja mensagem mandava rodar um staging que já
+estava feito. Separar os códigos (`fd07d937`) entregou a causa raiz na execução
+seguinte.
 
 **A rodada da VPS custou caro e valeu:** o servidor subia, respondia `/version` e
 estava funcionalmente quebrado. Seis dos oito módulos nativos não carregavam no
@@ -36,21 +47,18 @@ produto **já declarava** em três lugares, um deles dentro do próprio pacote.
 Corrigido pelo sysroot já vendorizado e trancado por um gate de símbolos antes da
 publicação (`D-036`).
 
-**próximo passo:** colher no runner a matriz oficial `T-053`/`AC-007`, abrindo a janela de verdade
-— agora contra um servidor que tem terminal e file watching do outro lado, o que
-antes não seria verdade. O primeiro passo dela é conferir que desktop e servidor
-saem do **mesmo commit**: divergência faz o resolver recusar corretamente, e essa
-recusa passaria por defeito.
+**próximo passo:** fechar o resto da matriz `T-053`/`AC-007` — queda de conexão e
+reconexão contra o mesmo host. A janela já abre; falta provar que ela sobrevive à
+rede caindo, que é o cenário em que um remoto realmente se prova.
 
-**logo depois:** colher no runner o smoke de `opencode serve` subindo a partir do
-pacote; o script agora cobre resolução compilada, saúde, sessão mínima e teardown.
-Depois vêm tema de alto contraste e o passo de Welcome que sugere identidade SSH
-sem gerar chave.
+**logo depois:** `T-056` (transporte do cliente Windows, hoje sem caminho porque
+o OpenSSH do Windows não tem `ControlMaster`) e `T-054`/`T-055`, que levam o
+runtime do agente para dentro da sessão remota.
 
-**depois disso:** `T-056` (transporte do cliente Windows), `T-057` (Welcome com
-identidade SSH) e a E-06 inteira — baseline de performance e suíte de segurança —,
-que é a maior frente do projeto sem nenhuma dependência humana e está parada em
-duas entregas de doze.
+**também aberto:** o medidor de baseline já roda no runner mas o produto não
+respondeu `--status` sob Xvfb dentro de 120 s; a medição agora reporta o exit
+code e a saída do processo, então o próximo run diz o motivo em vez de só
+cronometrar.
 
 **o que não avança por decisão e não por código:** os épicos de agente
 (`AC-003`, `AC-004`, `AC-006`, `AC-008`) param todos na mesma parede, que é a

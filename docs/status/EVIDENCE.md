@@ -312,3 +312,53 @@ prova:           o mesmo head final também passa pela instalação limpa, pacot
                  auditoria e smoke em Linux/WSL2.
 não prova:       notice root regenerado, clearance legal de terceiros, sessão
                  OpenCode real ou qualquer capacidade SSH.
+
+### primeira janela remota contra host real — 2026-09-04
+
+data:            2026-09-04
+tarefa/gate:     `T-053` / `AC-007` — abertura de janela remota
+run id:          `33949936848`
+workflow:        `unigma-remote-window-smoke.yml`
+commit/head:     `493dcfe76117e759058a28e69cb6c956a780f952`
+plataforma:      cliente linux-x64 sob Xvfb no WSL2 do runner Windows; host
+                 remoto = VPS externa, alias `unigma-vps`
+node/npm:        `v24.18.0` / npm 11.x
+passos:
+  1 `checkout`                                   ok
+  2 `prepare WSL paths`                          ok
+  3 `stage server on VPS`                        ok
+  4 `open remote window under Xvfb`              ok
+  5 `clean staged server from VPS`               ok
+  6 `upload remote window smoke evidence`        ok
+artefato:        `unigma-remote-window-smoke-33949936848`
+hashes:          par conferido por `PROVENANCE.txt` antes do lançamento;
+                 `desktop.commit`, `server.commit` e `desktop.product-commit`
+                 iguais a `493dcfe7`
+checks:          os doze verdes, incluindo `check.workbench-resolver`,
+                 `check.resolved-authority-consumed`,
+                 `check.extension-host-handshake`,
+                 `check.connection-token-handshake` e `check.remote-window`;
+                 `result=remote-window`, `smoke=pass`
+tempos:          `resolveAuthority(ssh-remote)` retornou em 725 ms; handshake do
+                 extension host concluído em 261 ms
+prova:           uma janela remota abriu contra um host real. O resolver
+                 devolveu `ResolvedAuthority`, a conexão de gerenciamento a
+                 consumiu, o token de conexão foi aceito e o extension host
+                 remoto completou o handshake. É a primeira vez que o caminho
+                 inteiro executa fim a fim; até aqui todo verde do E-05 provava
+                 apenas as camadas que o resolver consome.
+não prova:       **a matriz de `AC-007` não está fechada.** Este run cobre
+                 abrir a janela; queda de conexão e reconexão continuam sem
+                 evidência. Também não prova sessão de agente remota, provider
+                 ou modelo real, cliente Windows (sem caminho por `T-056`) nem
+                 qualquer capacidade de E-02 em diante no host remoto.
+contexto:        os quatro runs anteriores (`33914111178`, `33945192725`,
+                 `33946689619`, `33948264271`) falharam no mesmo ponto
+                 reportando servidor ausente contra um host cujo staging smoke
+                 passava na mesma execução. A causa era o lock de bootstrap,
+                 escopado por commit: a sessão que o perdia recusava em vez de
+                 reusar o servidor que o vencedor já havia iniciado, e três
+                 estados distintos do handshake colapsavam num código só.
+                 `fd07d937` separou os códigos, `316e670e` passou a reportar o
+                 status de saída do servidor e `493dcfe7` fez a sessão perdedora
+                 reusar o socket.
