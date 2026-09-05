@@ -368,6 +368,40 @@ jobs:
           Remove-Item -Force $scriptPath -ErrorAction SilentlyContinue
           if ($exitCode -ne 0) { exit $exitCode }
 
+      # Runs after the artifact is published on purpose: a baseline is a
+      # measurement, not a gate, and a measurement that fails must not withhold
+      # a package that already passed the audit and the smoke.
+      - name: measure startup baseline in WSL
+        if: success()
+        timeout-minutes: 10
+        run: |
+          $scriptPath = Join-Path $env:RUNNER_TEMP 'unigma-wsl-baseline.sh'
+          $script = @'
+          set -euo pipefail
+          source="$1"
+          build="$2"
+          export PATH="/opt/node-current/bin:$PATH"
+          cd "$build"
+          mkdir -p "$source/.build/logs"
+          xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' \
+            node --experimental-strip-types build/unigma/measure-baseline.ts \
+              --exe "$build/../VSCode-linux-x64/unigma" \
+              --scenario clean-profile \
+              --out "$source/.build/logs/unigma-linux-baseline-clean-profile.txt"
+          xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' \
+            node --experimental-strip-types build/unigma/measure-baseline.ts \
+              --exe "$build/../VSCode-linux-x64/unigma" \
+              --scenario idle-folder --folder "$build" \
+              --out "$source/.build/logs/unigma-linux-baseline-idle-folder.txt"
+          '@
+          $script = $script -replace "`r`n?", "`n"
+          [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))
+          $scriptPathWsl = "/mnt/$($scriptPath.Substring(0, 1).ToLowerInvariant())/$($scriptPath.Substring(3).Replace('\', '/'))"
+          & wsl.exe -d Ubuntu --user dasher -- bash $scriptPathWsl $env:WSL_SOURCE $env:WSL_BUILD
+          $exitCode = $LASTEXITCODE
+          Remove-Item -Force $scriptPath -ErrorAction SilentlyContinue
+          if ($exitCode -ne 0) { exit $exitCode }
+
       - name: upload Linux evidence
         if: always()
         uses: actions/upload-artifact@v4
