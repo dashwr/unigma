@@ -538,6 +538,14 @@ integração local ou SSH é anunciado sem teste real.
 
 ### T-010 — especificar domínio e RPC UI↔runtime
 
+> entregue em 2026-09-04 (f01db014): a suíte do workbench em
+> `src/vs/workbench/contrib/unigmaAgent/test/common/` passou a rodar no CI, no
+> passo `run workbench agent unit tests in WSL`, contra `out-build` que o passo
+> de pacote acabou de produzir. Ela nunca havia rodado em workflow algum: o job
+> Linux rodava as duas suítes de extensão e o Windows rodava typecheck e build
+> scripts, e os cinco arquivos ficaram no vazio entre os dois. Verde na run
+> `33948717879`. O teste de `browser/` fica de fora por exclusão do upstream.
+
 **status:** contrato TypeScript e handler RPC do runtime têm implementação
 inicial, com testes-fonte para duplicidade, sessão ausente, concorrência,
 rollback e redaction. A suíte compilada do working tree atual ainda precisa ser
@@ -698,6 +706,15 @@ pendente.
 - **bloqueia:** T-024, T-051 e AC-003.
 
 ### T-022 — implementar cliente HTTP/SSE OpenCode
+
+> entregue em 2026-09-04 (97b19e1f): o event stream deixou de ter uma única
+> tentativa de reconexão. Havia um `setTimeout(..., 0)` e um `catch` que marcava
+> `disconnecting`, de modo que um processo ainda reiniciando virava cliente morto
+> permanente, indistinguível de shutdown deliberado. Agora as tentativas seguem
+> `[0, 250, 1000, 4000]` e terminam explicitamente com
+> `opencode.event.reconnect.exhausted`. Tentar para sempre foi recusado: esconde
+> processo morto do workbench em vez de reportá-lo. A retomada de **conteúdo**
+> continua pendente em T-040.
 
 **status:** adapter, fixture estrutural local e testes compilados executados nos
 runs finais; compatibilidade real permanece condicional a T-011.
@@ -1364,6 +1381,14 @@ errada: `RQ-103`/`RQ-104` recusam o produto como custodiante de credencial.
 
 ### T-060 — aplicar trust e gates de aprovação
 
+> entregue em 2026-09-04 (75a0e0e6): o gate de trust rodava ao **enfileirar** o
+> prompt, e um prompt enfileirado espera os que estão à frente. Fechar a pasta
+> nesse intervalo tirava o workspace do conjunto confiável enquanto a fila ainda
+> drenava, e o comando que começou legítimo executava ilegítimo. Pior: o
+> `connectWorkspace` até lançava, mas o `catch` de `runPrompt` converte todo
+> throw em `internal`, então a recusa chegava disfarçada de falha de runtime.
+> Agora `runPrompt` rechecha antes de rodar e recusa com `workspaceUntrusted`.
+
 - **objetivo:** centralizar exigência de workspace confiável, política OpenCode e
   aprovação explícita antes de efeitos locais/remotos.
 - **responsável lógico:** segurança de produto + runtime/workbench.
@@ -1381,6 +1406,16 @@ errada: `RQ-103`/`RQ-104` recusam o produto como custodiante de credencial.
 - **bloqueia:** T-033, T-041, T-042, T-052 e AC-009.
 
 ### T-061 — validar fronteiras e redaction
+
+> entregue em 2026-09-04 (646e0d0a, b8765116): duas fronteiras fechadas com
+> prova. Primeira: `processManager.ts` interpolava `error.message` do spawn, e a
+> mensagem de erro do Node carrega o caminho resolvido, ou seja o layout do
+> filesystem local e o nome da conta iam para um erro que o workbench renderiza;
+> agora só a classe de errno atravessa, e código não reconhecido colapsa em
+> `unknown` sem fallback para o texto. Segunda: a função que decide o que sai do
+> log de uma sessão remota para um artefato publicado virou o módulo próprio
+> `build/unigma/remote-window-evidence.ts`, provado contra um log hostil com IP,
+> conta, dois filesystems e stderr remoto em volta do vocabulário de contrato.
 
 - **objetivo:** validar entradas externas e impedir persistência/log de tokens,
   credenciais, chaves, prompts e conteúdo sensível por padrão.
@@ -1458,6 +1493,15 @@ estiverem medidos, `T-071` não começa — publicar baseline parcial como se fo
 
 ### T-071 — publicar baseline inicial
 
+> parcial em 2026-09-04 (317e7c0f, f3c0e429): a medição passou a rodar no
+> runner que constrói o pacote, depois da publicação do artefato — baseline é
+> medição, não gate, e um pacote que passou auditoria e smoke não pode ser
+> retido porque uma medição falhou. A ordenação se provou certa na run
+> `33948717879`: o baseline foi o único passo vermelho e o par chegou ao
+> depósito assim mesmo. **O número ainda não existe**: sob Xvfb o produto não
+> respondeu `--status` em 120 s. O medidor agora reporta o exit code e as
+> primeiras linhas dos dois fluxos em vez de só cronometrar.
+
 - **objetivo:** executar o harness e versionar baseline do Code - OSS + unigma
   mínimo antes de otimizações.
 - **responsável lógico:** performance/QA.
@@ -1529,6 +1573,17 @@ estiverem medidos, `T-071` não começa — publicar baseline parcial como se fo
 
 ### T-062 — executar revisão e suíte de segurança
 
+> entregue em 2026-09-04 (0993cd2f): `build/unigma/audit-remote-safety.ts`
+> consolida quatro invariantes que vivem em shell montado como string e executado
+> em máquina que o projeto não possui — nenhum type checker as vê, e a forma
+> perigosa difere da segura por uma flag. O auditor achou **oito extrações reais
+> sem flags de titularidade**, incluindo todas as cópias do checkout para o
+> diretório de build do WSL, que é exatamente o padrão que o `AGENTS.md` registra
+> ter reproduzido titularidade de mount Windows dentro de `/root`. Escalação é
+> recusada em shell remoto e permitida em workflow, porque o runner é máquina que
+> o projeto provisiona e o host remoto não. O primeiro teste audita o
+> repositório real, então o gate existe sem passo novo de workflow.
+
 - **objetivo:** consolidar testes de trust, fronteiras, segredos, licenças de
   integração e ausência de bypass.
 - **responsável lógico:** segurança + QA.
@@ -1580,6 +1635,17 @@ estiverem medidos, `T-071` não começa — publicar baseline parcial como se fo
 - **bloqueia:** T-083 e gate MVP.
 
 ### T-082 — configurar CI sem infraestrutura de aplicação
+
+> entregue em 2026-09-04 (087d3272): o payload `unigma+opencode` nunca era
+> montado no CI, e `audit-distribution.ts` só conhece desktop e servidor, ambos
+> lidos **antes** da combinação — um arquivo que aparecesse durante a montagem
+> não era visto por check algum. `verify-payload.ts` lê o payload como um
+> destinatário lê: o manifesto é a alegação e o diretório é o artefato, com
+> digest **recomputado** e conteúdo não declarado reprovando. `bin/opencode`
+> precisa ter cabeçalho ELF, porque um wrapper shell no lugar dele passa por
+> binário para qualquer coisa que só confira o nome, e o host remoto seria o
+> lugar da descoberta. O workflow `unigma-payload-linux.yml` recusa montar par de
+> commits divergentes.
 
 - **objetivo:** automatizar harness, lint/typecheck/build/testes e matriz Windows/
   Linux no CI aprovado, sem backend ou runner adicional.
@@ -1709,6 +1775,15 @@ exemplos numéricos da direção, inclusive `~49`, não são valores normativos.
 
 ### T-087 — versionar índice de inteligência e custo sem ranking universal
 
+> entregue em 2026-09-04 (b86d7bb3): `intelligenceIndex.ts` lê índice e tabela
+> de custo como dado que o operador fornece, não como tabela que este projeto
+> afirma. Nenhum valor é fixado e nenhum teto de escala é validado: a escala
+> pertence à fonte, e um limite inventado aqui recusaria fonte que mede
+> diferente. A referência é obrigatória e viaja com o documento, porque número
+> que perde a referência deixa de ser comparável. Tabela sem unidade é recusada
+> em vez de assumida, e um modelo só é elegível quando as duas fontes o
+> descrevem.
+
 - **objetivo:** definir fonte local explícita, versão, proveniência, unidade de
   custo, evidência de pesquisa e tratamento de atualização, ausência ou
   ambiguidade para o `intelligence index`, sem criar catálogo remoto, cache
@@ -1765,6 +1840,15 @@ exemplos numéricos da direção, inclusive `~49`, não são valores normativos.
 
 ### T-089 — selecionar o modelo elegível de menor custo
 
+> entregue em 2026-09-04 (e5582fd2): `routerSelection.ts` é função pura, de
+> modo que escolha inesperada se reproduz das entradas. Nada que o usuário
+> escreveu chega nela. `maxModel` limita a comparação e nunca é a resposta; ler
+> o teto como resposta faria dele o piso. Demanda acima do teto **recusa** em vez
+> de escalar, porque passar de um limite que o operador fixou não é decisão de
+> roteamento. Modelo sem preço é reportado separado de demanda inatingível: um é
+> lacuna na tabela, o outro é pedido que nada atende. Empate resolve por custo,
+> índice e identificador, para não cair diferente entre máquinas.
+
 - **objetivo:** implementar a decisão que estima o índice necessário, filtra
   modelos configurados e autorizados, aplica o teto explícito de `maxModel` e
   escolhe o candidato elegível de menor custo conforme a mesma versão/unidade;
@@ -1791,6 +1875,15 @@ exemplos numéricos da direção, inclusive `~49`, não são valores normativos.
 - **bloqueia:** T-090, T-092, T-093 e AC-019.
 
 ### T-090 — implementar bypass, fallback, timeout e privacidade
+
+> entregue em 2026-09-04 (a6423f3c): `routerPlan.ts` é a metade de segurança do
+> router. Quatro situações terminam com modelo não roteado — escolha do usuário,
+> autopilot desligado, prazo estourado, router inconsultável — e reportar as
+> quatro como "default" torna um produto roteado irrevisável depois do fato.
+> Cada uma se nomeia. O tempo é entrada: prazo que o chamador mede se testa,
+> prazo que o módulo mede só se espera. Com autopilot desligado o selecionado é
+> a resposta inteira, nunca o teto, senão desligar a feature a deixaria subir o
+> modelo. `fallback: 'refuse'` é honrado como resposta configurada.
 
 - **objetivo:** fechar o ciclo de segurança do router: Autopilot desligado e
   `persistSelectedModel` devem bypassar a chamada; erro, indisponibilidade,
@@ -1847,6 +1940,14 @@ exemplos numéricos da direção, inclusive `~49`, não são valores normativos.
 - **bloqueia:** T-093, T-094 e AC-021.
 
 ### T-092 — executar testes unitários e de contrato do router
+
+> entregue em 2026-09-04 (8112d3b9): os quatro módulos do router foram escritos
+> um por vez, então nada cobria a costura. A suíte **enumera** o espaço de
+> entrada em vez de amostrar: é pequeno o bastante para cobrir inteiro, e passe
+> exaustivo falha igual duas vezes, enquanto aleatório reporta caso diferente a
+> cada run e não se bissecta. Toda configuração usada passa antes pelo parser,
+> então nenhuma propriedade é afirmada sobre forma que o produto recusaria. Cada
+> propriedade é o inverso de um jeito de router dar errado em produção.
 
 - **objetivo:** cobrir com o harness existente as decisões de configuração,
   índice/custo, chamada curta Luna, seleção, bypass, fallback, timeout e
@@ -1973,6 +2074,15 @@ superfícies alcançáveis/empacotadas. Ver
 
 ### T-096 — aplicar patchset reproduzível do decepador
 
+> entregue em 2026-09-04 (b03c3964): o corte já existia, mas só como alterações
+> não commitadas num worktree solto ao lado do repositório — não é perfil que
+> alguém reproduza: não se revisa, não se reaplica, não se reconstrói, e some com
+> o diretório. Agora é `build/unigma/opencode-service-only/` mais um aplicador
+> que **verifica** o commit base em vez de confiar nele, porque patch feito
+> contra um commit pode aplicar limpo em outro e significar coisa diferente; e
+> que confere todos os patches antes de aplicar qualquer um, para que conjunto
+> quebrado deixe o checkout inteiro em vez de meio cortado e compilando.
+
 - **objetivo:** produzir o perfil `service-only` a partir do upstream, com patch
   pequeno, identificado, reaplicável e separado do código do unigma.
 - **responsável lógico:** mantenedor OpenCode/build.
@@ -1990,6 +2100,15 @@ superfícies alcançáveis/empacotadas. Ver
 - **bloqueia:** T-097 e AC-025/AC-026.
 
 ### T-097 — gerar bundle versionado com manifesto
+
+> entregue em 2026-09-04 (2629b1e0): `opencode-linux-artifact.yml` ganhou o
+> input `service_only`, que aplica o patchset versionado antes de compilar. O
+> workflow já fixava o mesmo commit que o patchset mira, então a checagem de base
+> do aplicador transforma esse pin em invariante imposta, não em comentário. O
+> artefato publica sob nome próprio: sobrescrever o ponteiro padrão trocaria, no
+> meio de uma investigação que lê o comportamento desse binário como evidência,
+> o binário de que a matriz remota depende. O `PROVENANCE.txt` registra o perfil
+> e o hash de cada patch aplicado.
 
 - **objetivo:** empacotar `unigma+opencode` por plataforma e registrar
   proveniência, hashes, versão, patchset e resultados do pipeline.
@@ -2040,6 +2159,15 @@ superfícies alcançáveis/empacotadas. Ver
 > devolve. Nenhum caminho toca dado de usuário, que vive fora do pacote.
 
 ### T-099 — fechar suporte do bundle por evidência
+
+> entregue em 2026-09-04 (c8b07354): a lista de remoções de `D-023` é alegação
+> até o binário responder por ela. `audit-service-only.ts` roda cada superfície
+> removida e **exige recusa**, porque build que ignora flag desconhecida parece
+> exatamente com build que ainda a honra. Término por sinal não conta como
+> recusa: processo morto no meio de um subcomando chegou ao subcomando, e ler
+> wait status diferente de zero como negação deixaria um crash certificar a
+> remoção. A Web UI é conferida **nos bytes**, com blocos sobrepostos para que
+> marcador na fronteira não vire aprovação.
 
 - **objetivo:** validar a combinação upstream + patchset + executável + plataforma
   e separar probe de desenvolvimento, candidato e suporte oficial.
