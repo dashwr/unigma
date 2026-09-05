@@ -880,6 +880,19 @@ estão pendentes.
 
 ### T-040 — fechar ciclo de sessões, retomada e reconexão
 
+> dívida encontrada em 2026-09-04, ainda aberta: `reconnectEventStream` chama
+> `/session`, `/session/status`, `/session/{id}/message` e `/session/{id}/diff`
+> e **descarta todos os resultados**. A recarga prova que o servidor responde e
+> não entrega nada a ninguém, então o transcript que o workbench mostra depois
+> de uma queda continua sendo o que sobrou em memória, sem a lacuna preenchida.
+> `OPENCODE-COMPATIBILITY.md` designa `/session/{id}/message` como a fonte de
+> verdade da retomada justamente para esse caso. Fechar isso não é mudança no
+> cliente: exige um evento novo no RPC e um caminho de reconciliação em
+> `unigmaAgentSession.ts`, que hoje só concatena deltas e não tem chave de
+> identidade de evento para deduplicar. Por isso a reconexão foi entregue em
+> `97b19e1f` como resiliência de transporte, e a retomada de conteúdo continua
+> pendente aqui.
+
 - **objetivo:** suportar criação/retomada conforme OpenCode, reconexão e
   encerramento, mantendo apenas referências locais.
 - **responsável lógico:** runtime + UI nativa.

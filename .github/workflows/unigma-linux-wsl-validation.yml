@@ -99,7 +99,7 @@ jobs:
               --output "$temporary/SHASUMS256.txt"
             grep " ${archive}$" "$temporary/SHASUMS256.txt" > "$temporary/expected.sha256"
             (cd "$temporary" && sha256sum -c expected.sha256)
-            tar -xJf "$temporary/$archive" -C /opt
+            tar --no-same-owner --no-same-permissions -xJf "$temporary/$archive" -C /opt
             rm -rf "$temporary"
             trap - EXIT
           fi
@@ -109,7 +109,7 @@ jobs:
           rm -rf "$build"
           mkdir -p "$build"
           tar --exclude=.git --exclude=node_modules --exclude=.build \
-            -C "$source" -cf - . | tar -C "$build" -xf -
+            -C "$source" -cf - . | tar --no-same-owner --no-same-permissions -C "$build" -xf -
           git -C "$build" init --quiet
           chown -R dasher:dasher "$build"
 

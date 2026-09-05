@@ -47,7 +47,7 @@ jobs:
             grep " ${archive}$" "$temporary/SHASUMS256.txt" > "$temporary/expected.sha256"
             (cd "$temporary" && sha256sum --check expected.sha256)
             mkdir -p "$toolchain"
-            tar -xJf "$temporary/$archive" -C "$temporary"
+            tar --no-same-owner --no-same-permissions -xJf "$temporary/$archive" -C "$temporary"
             mv "$temporary/node-v${node_version}-linux-x64"/* "$toolchain"
             rm -rf "$temporary"
             trap - EXIT
@@ -62,7 +62,7 @@ jobs:
           df -h "$build_root" /tmp
           build="$(mktemp -d -p "$build_root")"
           trap 'rm -rf "$build"' EXIT
-          tar --exclude=.git --exclude=node_modules --exclude=.build -C "$source" -cf - . | tar -C "$build" -xf -
+          tar --exclude=.git --exclude=node_modules --exclude=.build -C "$source" -cf - . | tar --no-same-owner --no-same-permissions -C "$build" -xf -
           # The build copy has no .git, but postinstall and the build date task
           # both require a repository with a HEAD commit. Reuse the source commit
           # date so the generated build date stays deterministic.

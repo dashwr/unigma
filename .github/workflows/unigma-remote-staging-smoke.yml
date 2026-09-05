@@ -82,7 +82,7 @@ jobs:
           # The source lives on a Windows mount, where every file reads as owned by
           # dasher. Extracting as root would restore that ownership inside /root,
           # and git then refuses the repository for dubious ownership.
-          tar --exclude=.git --exclude=node_modules --exclude=.build -C "$source" -cf - . | tar --no-same-owner -C "$build" -xf -
+          tar --exclude=.git --exclude=node_modules --exclude=.build -C "$source" -cf - . | tar --no-same-owner --no-same-permissions -C "$build" -xf -
           git -C "$build" init --quiet
           cd "$build"
           # postinstall runs `git config` with no scope, which needs a repository

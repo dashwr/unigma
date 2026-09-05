@@ -72,7 +72,7 @@ jobs:
 
           rm -rf "$build"
           mkdir -p "$build"
-          tar --exclude=.git --exclude=node_modules --exclude=.build -C "$source" -cf - . | tar --no-same-owner -C "$build" -xf -
+          tar --exclude=.git --exclude=node_modules --exclude=.build -C "$source" -cf - . | tar --no-same-owner --no-same-permissions -C "$build" -xf -
           git -C "$build" init --quiet
           cd "$build"
           node build/azure-pipelines/common/disableFoundryLocalInstall.ts

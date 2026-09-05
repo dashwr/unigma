@@ -86,7 +86,7 @@ jobs:
             grep " ${archive}$" "$temporary/SHASUMS256.txt" > "$temporary/expected.sha256"
             (cd "$temporary" && sha256sum --check expected.sha256)
             mkdir -p "$toolchain"
-            tar -xJf "$temporary/$archive" -C "$temporary"
+            tar --no-same-owner --no-same-permissions -xJf "$temporary/$archive" -C "$temporary"
             mv "$temporary/node-v${node_version}-linux-x64"/* "$toolchain"
             rm -rf "$temporary"
             trap - EXIT
@@ -97,7 +97,7 @@ jobs:
 
           rm -rf "$build"
           mkdir -p "$build"
-          tar --exclude=.git --exclude=node_modules --exclude=.build -C "$source" -cf - . | tar -C "$build" -xf -
+          tar --exclude=.git --exclude=node_modules --exclude=.build -C "$source" -cf - . | tar --no-same-owner --no-same-permissions -C "$build" -xf -
           git -C "$build" init --quiet
           cd "$build"
           node build/azure-pipelines/common/disableFoundryLocalInstall.ts
