@@ -18,6 +18,8 @@ export interface OpenCodeHttpClientOptions {
 	readonly healthCheckIntervalMs?: number;
 	readonly diagnostics?: DiagnosticSink;
 	readonly sleep?: (milliseconds: number) => Promise<void>;
+	/** Overrides the reconnection backoff so a test does not wait real seconds. */
+	readonly reconnectDelaysMs?: readonly number[];
 }
 
 const REQUIRED_OPERATIONS = [
@@ -71,6 +73,15 @@ const DEFAULT_HEALTH_CHECK_INTERVAL_MS = 30_000;
 const MAX_RESPONSE_BYTES = 16 * 1024 * 1024;
 /* A single SSE event stays under the smaller guard; no observed event needs more. */
 const MAX_EVENT_BUFFER_BYTES = 4 * 1024 * 1024;
+/*
+ * Delay before each event stream reconnection attempt. The first is immediate
+ * because the common case is the stream ending while the process is healthy.
+ * The rest are spaced because the second common case is the process restarting,
+ * which takes longer than a scheduler tick to accept connections again. The
+ * list is short on purpose: a client that retries forever hides a dead process
+ * from the workbench instead of reporting it.
+ */
+const RECONNECT_DELAYS_MS = [0, 250, 1_000, 4_000] as const;
 export const SUPPORTED_OPENCODE_VERSION = '1.18.23';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -116,6 +127,7 @@ export class OpenCodeHttpClient implements OpenCodeClient<OpenCodeRequest, OpenC
 	private readonly healthCheckIntervalMs: number;
 	private readonly diagnostics: DiagnosticSink | undefined;
 	private readonly sleep: (milliseconds: number) => Promise<void>;
+	private readonly reconnectDelaysMs: readonly number[];
 	private readonly listeners = new Set<(event: OpenCodeEvent) => void>();
 	private endpoint: URL | undefined;
 	private process: OwnedProcessHandle | undefined;
@@ -124,7 +136,7 @@ export class OpenCodeHttpClient implements OpenCodeClient<OpenCodeRequest, OpenC
 	private eventBuffer = '';
 	private eventData: string[] = [];
 	private reconnectTimer: NodeJS.Timeout | undefined;
-	private reconnectAttempted = false;
+	private reconnectAttempts = 0;
 	private disconnecting = false;
 	private connected = false;
 	private connectionResolve: (() => void) | undefined;
@@ -138,6 +150,7 @@ export class OpenCodeHttpClient implements OpenCodeClient<OpenCodeRequest, OpenC
 		this.healthCheckIntervalMs = options.healthCheckIntervalMs ?? DEFAULT_HEALTH_CHECK_INTERVAL_MS;
 		this.diagnostics = options.diagnostics;
 		this.sleep = options.sleep ?? (milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds)));
+		this.reconnectDelaysMs = options.reconnectDelaysMs ?? RECONNECT_DELAYS_MS;
 	}
 
 	public async connect(process: OwnedProcessHandle): Promise<void> {
@@ -157,7 +170,7 @@ export class OpenCodeHttpClient implements OpenCodeClient<OpenCodeRequest, OpenC
 		this.endpoint = endpoint;
 		this.process = process;
 		this.disconnecting = false;
-		this.reconnectAttempted = false;
+		this.reconnectAttempts = 0;
 		try {
 			const deadline = Date.now() + this.startupTimeoutMs;
 			await this.waitForHealthy(deadline);
@@ -414,7 +427,7 @@ export class OpenCodeHttpClient implements OpenCodeClient<OpenCodeRequest, OpenC
 
 		if (event.type === 'server.connected') {
 			this.connected = true;
-			this.reconnectAttempted = false;
+			this.reconnectAttempts = 0;
 			const resolve = this.connectionResolve;
 			this.connectionResolve = undefined;
 			this.connectionReject = undefined;
@@ -427,15 +440,28 @@ export class OpenCodeHttpClient implements OpenCodeClient<OpenCodeRequest, OpenC
 	}
 
 	private scheduleReconnect(): void {
-		if (this.reconnectTimer || this.disconnecting || this.reconnectAttempted) {
+		if (this.reconnectTimer || this.disconnecting) {
 			return;
 		}
 
-		this.reconnectAttempted = true;
+		const delay = this.reconnectDelaysMs[this.reconnectAttempts];
+		if (delay === undefined) {
+			/*
+			 * Every attempt is spent. `disconnecting` is the flag the stream
+			 * handlers already read to stop reacting, so reusing it here keeps
+			 * a dead client quiet instead of reopening a socket nobody awaits.
+			 */
+			this.connected = false;
+			this.disconnecting = true;
+			this.diagnostics?.record({ level: 'warn', code: 'opencode.event.reconnect.exhausted' });
+			return;
+		}
+
+		this.reconnectAttempts += 1;
 		this.reconnectTimer = setTimeout(() => {
 			this.reconnectTimer = undefined;
 			void this.reconnectEventStream();
-		}, 0);
+		}, delay);
 	}
 
 	private async reconnectEventStream(): Promise<void> {
@@ -449,9 +475,15 @@ export class OpenCodeHttpClient implements OpenCodeClient<OpenCodeRequest, OpenC
 			}
 			await this.waitForServerConnected(this.startupTimeoutMs);
 		} catch {
+			/*
+			 * A failed attempt is not a dead server. Report it and let
+			 * `scheduleReconnect` decide whether any attempt is left, so a
+			 * process that is still restarting is not written off on the first
+			 * refused connection.
+			 */
 			this.connected = false;
-			this.disconnecting = true;
 			this.diagnostics?.record({ level: 'warn', code: 'opencode.event.reconnect.failed' });
+			this.scheduleReconnect();
 		}
 	}
 

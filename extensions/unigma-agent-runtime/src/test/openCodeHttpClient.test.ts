@@ -306,6 +306,40 @@ suite('Unigma OpenCode HTTP/SSE client', () => {
 		}
 	});
 
+	test('keeps trying after a failed reconnection and reports when the attempts run out', async () => {
+		/*
+		 * A restarting process refuses connections for longer than a scheduler
+		 * tick. Giving up on the first refusal turned a restart into a dead
+		 * client, so the attempts must survive a refusal and still end.
+		 */
+		const fixture = await createFixture({
+			/* The first stream is the healthy one; every reattempt is cut. */
+			onEvent: (response, index) => {
+				if (index > 0) {
+					response.destroy();
+				}
+			},
+		});
+		const captured = diagnostics();
+		const client = new OpenCodeHttpClient({
+			diagnostics: captured.sink,
+			requestTimeoutMs: 200,
+			startupTimeoutMs: 300,
+			reconnectDelaysMs: [0, 0, 0],
+		});
+
+		try {
+			await client.connect(processFor(fixture.endpoint));
+			fixture.eventResponses[0].end();
+			await waitFor(() => captured.records.some(record => record.code === 'opencode.event.reconnect.exhausted'));
+			/* One healthy stream plus one attempt per configured delay. */
+			assert.strictEqual(fixture.eventResponses.length, 4);
+		} finally {
+			await client.disconnect();
+			await fixture.close();
+		}
+	});
+
 	test('performs periodic health checks after connection', async () => {
 		const fixture = await createFixture();
 		const captured = diagnostics();
