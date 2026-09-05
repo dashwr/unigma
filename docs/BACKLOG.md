@@ -1663,6 +1663,22 @@ exemplos numéricos da direção, inclusive `~49`, não são valores normativos.
 
 ### T-086 — definir contrato e configuração do router
 
+> entregue em 2026-09-04: o contrato vive em
+> `extensions/unigma-agent-runtime/src/domain/router/routerContract.ts` e valida
+> versão, campos declarados, identificador de modelo, referências locais,
+> timeout, fallback e política de prompt, reconstruindo a configuração campo a
+> campo em vez de repassar a entrada. `promptPolicy` aceita **um único** valor,
+> `metadataOnly`: um router que lê o prompt para classificá-lo manda o conteúdo
+> do workspace para um modelo que o operador não escolheu para aquele conteúdo,
+> então o campo existe para ser recusado quando mudar. Autopilot exige
+> `routerModel`, `maxModel` e as duas referências, porque rotear sem router é
+> adivinhar e ordenar modelos sem os dados que os ordenam é inventar ordem. O
+> bypass separa seleção explícita de autopilot desligado, que são eventos
+> diferentes. Nenhuma decisão de roteamento foi escrita: ela depende de provider
+> autorizado, e escrevê-la antes fixaria seu formato em torno de um provider que
+> ninguém viu. Prova: suíte da extensão com 102 passing, incluindo 11 casos
+> novos e um que lê o próprio fonte e reprova vocabulário de credencial.
+
 - **objetivo:** transformar a direção do router em contrato privado TypeScript e
   schema local versionado, cobrindo `autopilotEnabled`, `selectedModel`,
   `persistSelectedModel`, `routerModel`, `maxModel`, referências de índice/custo,
