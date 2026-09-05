@@ -162,6 +162,12 @@
 
 - Use Node.js `24.18.0`/x64 conforme `.nvmrc` e npm menor que `12`; o
   `build/npm/preinstall.ts` rejeita outra major de Node ou npm `>=12`.
+- **O `node` do PATH desta máquina é a v26 e não serve para a suíte do
+  `unigma-agent-runtime`**: ela roda por `mocha`, cujo `yargs` embutido falha com
+  `require is not defined in ES module scope` fora da major fixada. O Node
+  correto está em `~/.local/node-v24.18.0-linux-x64/bin`; exporte esse caminho no
+  `PATH` antes de rodar a suíte. Não há nvm instalado. A suíte de
+  `unigma-remote-ssh` usa `node --test` e roda em qualquer uma das duas.
 - O `.npmrc` fixa headers Electron `42.8.1`, `build_from_source=true` e
   `ignore-scripts=false`; Python e toolchain C/C++ nativos são pré-requisitos.
 - Só rode `npm ci --no-audit --no-fund` quando a instalação/rede estiver
