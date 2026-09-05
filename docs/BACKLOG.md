@@ -1380,12 +1380,19 @@ errada: `RQ-103`/`RQ-104` recusam o produto como custodiante de credencial.
 
 #### como executar
 
-Estado verificado em 2026-09-04: **`test/performance/` não existe**. Esta tarefa
-começa do zero, e é o ponto de entrada de toda a E-06.
+> entregue em 2026-09-04: `build/unigma/measure-baseline.ts`. O medidor **não**
+> ficou em `test/performance/`, como este bloco previa. Dois motivos, ambos
+> verificados: `test/package.json` declara `commonjs`, então um script ESM ali
+> exigiria um `package.json` novo só para ele; e `eslint.config.js` não tem
+> `code-import-patterns` para esse diretório, o que fez o hygiene do pre-commit
+> reprovar o commit — e `AGENTS.md` proíbe alterar `eslint.config.js` para
+> acomodar arquivo novo. `build/unigma/` já é ESM, já abriga todos os
+> instrumentos (`smoke-*.ts`, `audit-distribution.ts`, `verify-theme-contrast.ts`)
+> e já é coberto por `npm run test-build-scripts`.
 
-1. criar `test/performance/` com um medidor que aceite um executável já
-   empacotado e um perfil de usuário descartável, porque medir a árvore de
-   desenvolvimento mede o compilador, não o produto;
+1. criar um medidor que aceite um executável já empacotado e um perfil de
+   usuário descartável, porque medir a árvore de desenvolvimento mede o
+   compilador, não o produto;
 2. medir quatro cenários nomeados: perfil limpo, idle após abrir uma pasta,
    sessão de agente ativa e sessão SSH. Os dois últimos ficam pendentes enquanto
    provider e matriz não existirem — declare-os ausentes em vez de simulá-los;
@@ -1406,8 +1413,10 @@ npm run eslint
 #### critério de pronto
 
 O medidor roda duas vezes na mesma máquina e produz números repetíveis dentro de
-uma margem declarada. Enquanto os quatro cenários não estiverem medidos, `T-071`
-não começa — publicar baseline parcial como se fosse completo é o defeito que
+uma margem declarada — o relatório traz mediana e amplitude de cada métrica, e a
+amplitude **é** a margem: se ela for da ordem da diferença que se quer detectar,
+o número não sustenta conclusão nenhuma. Enquanto os quatro cenários não
+estiverem medidos, `T-071` não começa — publicar baseline parcial como se fosse completo é o defeito que
 `AC-015` existe para impedir.
 
 ### T-071 — publicar baseline inicial
