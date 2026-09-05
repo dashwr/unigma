@@ -104,10 +104,17 @@ function failureMessage(code: RemoteSshResolverFailureCode, phase: RemoteSshReso
 	return `${code}: remote SSH failed during ${phase}.`;
 }
 
-function reportFailure(code: RemoteSshResolverFailureCode, phase: RemoteSshResolverPhase, reason?: string): void {
+function reportFailure(code: RemoteSshResolverFailureCode, phase: RemoteSshResolverPhase, reason?: string, exitCode?: number): void {
 	logDiagnostic(code, phase);
 	if (reason !== undefined) {
 		outputChannel?.error(`[${phase}] ${code} reason=${reason}`);
+	}
+	// Without this the generic verdict is indistinguishable from the specific
+	// one: a smoke run reported `ssh.remote-server-unavailable` with no reason
+	// and the diagnosis cost a full runner cycle. The number is produced by the
+	// local process, so it carries nothing from the host.
+	if (exitCode !== undefined) {
+		outputChannel?.error(`[${phase}] ${code} exit=${exitCode}`);
 	}
 	void vscode.window.showErrorMessage(failureMessage(code, phase));
 }
@@ -210,7 +217,7 @@ export function activate(context: vscode.ExtensionContext): void {
 				if (result.stagingSession && result.destination !== undefined && result.commit !== undefined) {
 					replaceStagingLease(authority, { authority, destination: result.destination, commit: result.commit, session: result.stagingSession });
 				}
-				reportFailure(result.code, result.phase, result.reason);
+				reportFailure(result.code, result.phase, result.reason, result.exitCode);
 				const message = failureMessage(result.code, result.phase);
 				// The extension already showed the message, so `handled` keeps the
 				// workbench from stacking a second notification saying the same thing.

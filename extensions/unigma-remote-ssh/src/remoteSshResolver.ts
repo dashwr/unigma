@@ -85,6 +85,17 @@ export type RemoteSshResolutionResult =
 		readonly commit?: string;
 		/** Fixed word from the remote script; never host data. See RemoteServerFailure. */
 		readonly reason?: 'missing-version' | 'entry-point-not-executable';
+		/**
+		 * Exit status of the SSH process, when it closed before answering.
+		 *
+		 * `ssh.remote-server-unavailable` is also the generic verdict for a session
+		 * that died without classifying itself, so on its own the code cannot tell
+		 * a server that was never staged from one that failed for another reason.
+		 * The exit status separates them — 255 is OpenSSH refusing the connection,
+		 * anything else came from the remote shell — and it is a number produced
+		 * locally, not host data.
+		 */
+		readonly exitCode?: number;
 		readonly stagingSession?: RemoteServerStagingSession;
 	};
 
@@ -117,7 +128,7 @@ export async function resolveRemoteSsh(
 	const transport = await deps.openRemoteServer({ destination, commit: clientCommit.commit, retainControlMasterOnServerUnavailable: true }, () => deps.onConnectionLost?.());
 	if (isRemoteServerFailure(transport)) {
 		const mapped = mapRemoteServerFailure(transport);
-		return { ok: false, ...mapped, reason: transport.reason, destination, commit: clientCommit.commit, stagingSession: transport.stagingSession };
+		return { ok: false, ...mapped, reason: transport.reason, exitCode: transport.exitCode, destination, commit: clientCommit.commit, stagingSession: transport.stagingSession };
 	}
 	return { ok: true, target: preflight.target, destination, commit: clientCommit.commit, session: transport };
 }

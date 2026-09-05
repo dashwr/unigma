@@ -247,6 +247,23 @@ function observedContractCategories(text: string): readonly string[] {
 	return CONTRACT_CATEGORIES.filter(category => text.includes(category));
 }
 
+/**
+ * Exit status of the SSH process when it closed without answering.
+ *
+ * `ssh.remote-server-unavailable` is emitted both by the explicit refusal and by
+ * the generic verdict for a session that died silently, and the sanitized log
+ * kept only the code. A run reported that code with no reason at all, which the
+ * evidence could not explain, so the number is published as well: it is produced
+ * by the local process and bounded to two digits, so no host data rides on it.
+ */
+function observedExitCodes(text: string): readonly string[] {
+	const codes = new Set<string>();
+	for (const match of text.matchAll(/\bexit=(\d{1,3})\b/g)) {
+		codes.add(match[1]);
+	}
+	return [...codes].sort();
+}
+
 function writeSanitizedEvidence(observations: Observations, resolverAttempted = false, rawText = ''): void {
 	const lines: string[] = [];
 	for (const category of observedContractCategories(rawText)) {
@@ -257,6 +274,9 @@ function writeSanitizedEvidence(observations: Observations, resolverAttempted = 
 	}
 	for (const reason of observedReasons(rawText)) {
 		lines.push(`observed-reason=${reason}`);
+	}
+	for (const exitCode of observedExitCodes(rawText)) {
+		lines.push(`observed-exit=${exitCode}`);
 	}
 	if (observations.resolverSuccess) {
 		lines.push(`resolveAuthority(ssh-remote) returned after ${observations.resolverElapsed ?? 'unknown'} ms`);

@@ -53,6 +53,27 @@ test('runs gates, commit resolution and transport in order, failing closed', asy
 	assert.deepEqual(unavailable, { ok: false, code: CLIENT_COMMIT_UNAVAILABLE, phase: 'commit' });
 });
 
+test('carries the exit status out of a transport failure', async () => {
+	// `ssh.remote-server-unavailable` is both the explicit refusal and the verdict
+	// for a session that died without saying anything, so the code alone cannot
+	// tell them apart. A smoke run reported it with no reason and the evidence
+	// could not explain it; the exit status is what separates the two.
+	const failed = await resolveRemoteSsh(local, {
+		resolveClientCommit: () => ({ ok: true, commit }),
+		openRemoteServer: async () => ({ ok: false, code: 'ssh.remote-server-unavailable', phase: 'handshake', exitCode: 255 })
+	});
+	assert.equal(failed.ok, false);
+	assert.equal(failed.ok === false && failed.exitCode, 255);
+
+	// A failure that never closed a process must not invent one.
+	const noExit = await resolveRemoteSsh(local, {
+		resolveClientCommit: () => ({ ok: true, commit }),
+		openRemoteServer: async () => ({ ok: false, code: 'ssh.remote-server-unavailable', phase: 'handshake', reason: 'missing-version' })
+	});
+	assert.equal(noExit.ok === false && noExit.exitCode, undefined);
+	assert.equal(noExit.ok === false && noExit.reason, 'missing-version');
+});
+
 test('classifies only recoverable failures as transient', () => {
 	// During reconnection the workbench treats NotAvailable as final, so a dropped
 	// channel reported that way ends the window instead of coming back.
