@@ -167,6 +167,16 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
+ * Quotes the first lines of a captured stream so a failure message carries the
+ * reason with it. Bounded on purpose: this text ends up in a CI log, and an
+ * unbounded splice of a product's output is how a log stops being readable.
+ */
+function describeOutput(text: string, label = 'launch'): string {
+	const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0).slice(0, 4);
+	return lines.length === 0 ? '' : `; ${label}: ${lines.join(' | ')}`;
+}
+
+/**
  * Launches the product against a throwaway profile and waits until it answers
  * `--status`. Answering is the readiness signal: it means the main process is
  * up and the window has an IPC handle, which is the closest observable event to
@@ -184,19 +194,30 @@ async function measureOnce(options: Options, profile: string): Promise<Run> {
 	}
 
 	const started = Date.now();
-	const child: ChildProcess = spawn(options.executable, args, { stdio: 'ignore', detached: false });
+	// The launched process keeps its own output: when readiness never arrives,
+	// the reason is almost always on its stderr, and discarding it turns a
+	// diagnosable failure into a stopwatch that only says "no".
+	const child: ChildProcess = spawn(options.executable, args, { stdio: ['ignore', 'pipe', 'pipe'], detached: false });
 	let exited = false;
+	let launchOutput = '';
+	const keep = (chunk: Buffer | string) => { launchOutput = (launchOutput + String(chunk)).slice(-4000); };
+	child.stdout?.on('data', keep);
+	child.stderr?.on('data', keep);
 	child.on('exit', () => { exited = true; });
 
+	let lastCode: number | null = null;
+	let lastOutput = '';
 	try {
 		while (Date.now() - started < options.timeoutMs) {
 			if (exited) {
-				throw new Error('the product exited before it answered --status');
+				throw new Error(`the product exited before it answered --status${describeOutput(launchOutput)}`);
 			}
 			const status = spawnSync(options.executable, ['--user-data-dir', userDataDir, '--extensions-dir', extensionsDir, '--status'], {
 				encoding: 'utf8',
 				timeout: 30000
 			});
+			lastCode = status.status;
+			lastOutput = `${status.stdout ?? ''}${status.stderr ?? ''}`;
 			if (status.status === 0 && STATUS_READY.test(status.stdout ?? '')) {
 				const samples = parseStatus(status.stdout);
 				if (samples.length > 0) {
@@ -205,7 +226,7 @@ async function measureOnce(options: Options, profile: string): Promise<Run> {
 			}
 			await sleep(500);
 		}
-		throw new Error(`the product did not answer --status within ${options.timeoutMs} ms`);
+		throw new Error(`the product did not answer --status within ${options.timeoutMs} ms (last --status exit=${lastCode ?? 'none'})${describeOutput(lastOutput, 'status')}${describeOutput(launchOutput)}`);
 	} finally {
 		if (!exited) {
 			child.kill();
