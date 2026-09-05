@@ -1,0 +1,244 @@
+diff --git a/packages/opencode/script/build.ts b/packages/opencode/script/build.ts
+index ce45f770f0..5603a855b1 100755
+--- a/packages/opencode/script/build.ts
++++ b/packages/opencode/script/build.ts
+@@ -3,7 +3,6 @@
+ import { $ } from "bun"
+ import path from "path"
+ import { fileURLToPath } from "url"
+-import { createSolidTransformPlugin } from "@opentui/solid/bun-plugin"
+ 
+ const __filename = fileURLToPath(import.meta.url)
+ const __dirname = path.dirname(__filename)
+@@ -20,8 +19,9 @@ const singleFlag = process.argv.includes("--single")
+ const baselineFlag = process.argv.includes("--baseline")
+ const skipInstall = process.argv.includes("--skip-install")
+ const sourcemapsFlag = process.argv.includes("--sourcemaps")
+-const plugin = createSolidTransformPlugin()
+-const skipEmbedWebUi = process.argv.includes("--skip-embed-web-ui")
++const serviceOnlyFlag = process.argv.includes("--service-only")
++const skipEmbedWebUi = serviceOnlyFlag || process.argv.includes("--skip-embed-web-ui")
++const plugin = serviceOnlyFlag ? undefined : (await import("@opentui/solid/bun-plugin")).createSolidTransformPlugin()
+ 
+ const createEmbeddedWebUIBundle = async () => {
+   console.log(`Building Web UI to embed in the binary`)
+@@ -48,7 +48,9 @@ const createEmbeddedWebUIBundle = async () => {
+ }
+ 
+ const embeddedFileMap = skipEmbedWebUi ? null : await createEmbeddedWebUIBundle()
+-const treeSitterWorker = await Bun.file(fileURLToPath(import.meta.resolve("@opentui/core/parser.worker"))).text()
++const treeSitterWorker = serviceOnlyFlag
++  ? null
++  : await Bun.file(fileURLToPath(import.meta.resolve("@opentui/core/parser.worker"))).text()
+ 
+ const allTargets: {
+   os: string
+@@ -138,7 +140,9 @@ await $`rm -rf dist`
+ 
+ const binaries: Record<string, string> = {}
+ if (!skipInstall) {
+-  await $`bun install --os="*" --cpu="*" @opentui/core@${pkg.dependencies["@opentui/core"]}`
++  if (!serviceOnlyFlag) {
++    await $`bun install --os="*" --cpu="*" @opentui/core@${pkg.dependencies["@opentui/core"]}`
++  }
+   await $`bun install --os="*" --cpu="*" @parcel/watcher@${pkg.dependencies["@parcel/watcher"]}`
+   await $`bun install --os="*" --cpu="*" @ff-labs/fff-bun@${pkg.dependencies["@ff-labs/fff-bun"]}`
+ }
+@@ -163,7 +167,7 @@ for (const item of targets) {
+   await Bun.build({
+     conditions: ["bun", "node"],
+     tsconfig: "./tsconfig.json",
+-    plugins: [plugin],
++    plugins: plugin ? [plugin] : [],
+     external: ["node-gyp"],
+     format: "esm",
+     minify: true,
+@@ -180,21 +184,25 @@ for (const item of targets) {
+       windows: {},
+     },
+     files: {
+-      [treeSitterWorkerPath]: treeSitterWorker,
++      ...(treeSitterWorker ? { [treeSitterWorkerPath]: treeSitterWorker } : {}),
+       ...(embeddedFileMap ? { "opencode-web-ui.gen.ts": embeddedFileMap } : {}),
+     },
+     entrypoints: [
+-      "./src/index.ts",
+-      workerPath,
+-      treeSitterWorkerPath,
++      serviceOnlyFlag ? "./src/service.ts" : "./src/index.ts",
++      ...(serviceOnlyFlag ? [] : [workerPath, treeSitterWorkerPath]),
+       ...(embeddedFileMap ? ["opencode-web-ui.gen.ts"] : []),
+     ],
+     define: {
+       FFF_LIBC: JSON.stringify(item.abi === "musl" ? "musl" : "gnu"),
+       OPENCODE_VERSION: `'${Script.version}'`,
+       OPENCODE_MODELS_DEV: generated.modelsData,
+-      OTUI_TREE_SITTER_WORKER_PATH: bunfsRoot + treeSitterWorkerPath,
+-      OPENCODE_WORKER_PATH: workerPath,
++      OPENCODE_SERVICE_ONLY: serviceOnlyFlag ? "true" : "false",
++      ...(serviceOnlyFlag
++        ? {}
++        : {
++            OTUI_TREE_SITTER_WORKER_PATH: bunfsRoot + treeSitterWorkerPath,
++            OPENCODE_WORKER_PATH: workerPath,
++          }),
+       OPENCODE_CHANNEL: `'${Script.channel}'`,
+       OPENCODE_LIBC: item.os === "linux" ? `'${item.abi ?? "glibc"}'` : "",
+       ...(item.os === "linux" ? { "process.env.OPENTUI_LIBC": JSON.stringify(item.abi ?? "glibc") } : {}),
+diff --git a/packages/opencode/src/server/routes/instance/httpapi/server.ts b/packages/opencode/src/server/routes/instance/httpapi/server.ts
+index fb9d2db656..a85b8b4ed9 100644
+--- a/packages/opencode/src/server/routes/instance/httpapi/server.ts
++++ b/packages/opencode/src/server/routes/instance/httpapi/server.ts
+@@ -68,7 +68,6 @@ import { SessionExecution } from "@opencode-ai/core/session/execution"
+ import * as SessionExecutionLocal from "@opencode-ai/core/session/execution/local"
+ import { lazy } from "@/util/lazy"
+ import { CorsConfig, isAllowedCorsOrigin, type CorsOptions } from "@opencode-ai/server/cors"
+-import { serveUIEffect } from "@/server/shared/ui"
+ import { ServerAuth } from "@/server/auth"
+ import { InstanceHttpApi, RootHttpApi } from "./api"
+ import { Api } from "@opencode-ai/server/api"
+@@ -116,6 +115,8 @@ import { errorLayer } from "./middleware/error"
+ import { fenceLayer } from "./middleware/fence"
+ import { schemaErrorLayer } from "./middleware/schema-error"
+ 
++declare const OPENCODE_SERVICE_ONLY: boolean
++
+ export const context = Context.makeUnsafe<unknown>(new Map())
+ 
+ const cors = (corsOptions?: CorsOptions) =>
+@@ -191,16 +192,19 @@ const docRoute = HttpRouter.use((router) => router.add("GET", "/doc", () => Effe
+   Layer.provide(authOnlyRouterLayer),
+ )
+ 
+-const uiRoute = HttpRouter.use((router) =>
+-  Effect.gen(function* () {
+-    const fs = yield* FSUtil.Service
+-    const client = yield* HttpClient.HttpClient
+-    const flags = yield* RuntimeFlags.Service
+-    yield* router.add("*", "/*", (request) =>
+-      serveUIEffect(request, { fs, client, disableEmbeddedWebUi: flags.disableEmbeddedWebUi }),
+-    )
+-  }),
+-).pipe(Layer.provide(authOnlyRouterLayer))
++function uiRoute() {
++  return HttpRouter.use((router) =>
++    Effect.gen(function* () {
++      const fs = yield* FSUtil.Service
++      const flags = yield* RuntimeFlags.Service
++      const { serveUIEffect } = yield* Effect.promise(() => import("@/server/shared/ui"))
++      const client = yield* HttpClient.HttpClient
++      yield* router.add("*", "/*", (request) =>
++        serveUIEffect(request, { fs, client, disableEmbeddedWebUi: flags.disableEmbeddedWebUi }),
++      )
++    }),
++  ).pipe(Layer.provide(authOnlyRouterLayer))
++}
+ 
+ type RouteRequirements =
+   | HttpRouter.HttpRouter
+@@ -269,7 +273,7 @@ const app = LayerNode.group([
+ ])
+ 
+ export function createRoutes(
+-  corsOptions?: CorsOptions,
++  options: CorsOptions & { ui?: boolean } = {},
+ ): Layer.Layer<never, EffectConfig.ConfigError, RouteRequirements> {
+   const locationServiceMapV2 = buildLocationServiceMap()
+ 
+@@ -280,18 +284,18 @@ export function createRoutes(
+     instanceRoutes,
+     serverRoutes,
+     docRoute,
+-    uiRoute,
++    ...((typeof OPENCODE_SERVICE_ONLY === "boolean" && OPENCODE_SERVICE_ONLY) || options.ui === false ? [] : [uiRoute()]),
+   ).pipe(
+     Layer.provide([
+       errorLayer,
+       compressionLayer,
+       corsVaryFix,
+       fenceLayer,
+-      cors(corsOptions),
++      cors(options),
+       AppNodeBuilderV1.build(MoveSession.node, [[LocationServiceMap.node, locationServiceMapV2]]),
+       HttpServer.layerServices,
+     ]),
+-    Layer.provide(Layer.succeed(CorsConfig)(corsOptions)),
++    Layer.provide(Layer.succeed(CorsConfig)(options)),
+     Layer.provide(sessionLocationLayer),
+     Layer.provide(locationLayer),
+     Layer.provide(PtyEnvironment.layer),
+diff --git a/packages/opencode/src/server/server.ts b/packages/opencode/src/server/server.ts
+index 440b992c15..f77750e469 100644
+--- a/packages/opencode/src/server/server.ts
++++ b/packages/opencode/src/server/server.ts
+@@ -34,6 +34,7 @@ type ListenOptions = CorsOptions & {
+   hostname: string
+   mdns?: boolean
+   mdnsDomain?: string
++  ui?: boolean
+ }
+ type ListenerState = {
+   scope: Scope.Scope
+diff --git a/packages/opencode/src/service.ts b/packages/opencode/src/service.ts
+new file mode 100644
+index 0000000000..e2703559af
+--- /dev/null
++++ b/packages/opencode/src/service.ts
+@@ -0,0 +1,57 @@
++import { InstallationVersion } from "@opencode-ai/core/installation/version"
++
++const args = process.argv.slice(2)
++if (args[0] === "serve") args.shift()
++
++if (args.length === 1 && (args[0] === "--version" || args[0] === "-v")) {
++  process.stdout.write(`${InstallationVersion}\n`)
++} else {
++  const options = parseOptions(args)
++  const { Server } = await import("./server/server")
++  const listener = await Server.listen({ ...options, ui: false })
++
++  process.stdout.write(`opencode server listening on http://${listener.hostname}:${listener.port}\n`)
++
++  let stopping = false
++  const stop = async () => {
++    if (stopping) return
++    stopping = true
++    await listener.stop(true)
++    process.exit()
++  }
++
++  process.once("SIGINT", () => void stop())
++  process.once("SIGTERM", () => void stop())
++}
++
++function parseOptions(args: string[]) {
++  let hostname = "127.0.0.1"
++  let port = 0
++
++  for (let index = 0; index < args.length; index++) {
++    const arg = args[index]
++    const [name, inlineValue] = arg.split("=", 2)
++    if (name !== "--hostname" && name !== "--port") {
++      throw new Error(`Unsupported service option: ${arg}`)
++    }
++
++    const value = inlineValue ?? args[++index]
++    if (!value || value.startsWith("--")) {
++      throw new Error(`Missing value for ${name}`)
++    }
++
++    if (name === "--hostname") {
++      if (value !== "127.0.0.1") throw new Error("Service hostname must be 127.0.0.1")
++      hostname = value
++      continue
++    }
++
++    const parsed = Number(value)
++    if (!Number.isSafeInteger(parsed) || parsed < 0 || parsed > 65535) {
++      throw new Error("Service port must be an integer between 0 and 65535")
++    }
++    port = parsed
++  }
++
++  return { hostname, port }
++}

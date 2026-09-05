@@ -102,6 +102,9 @@ export const indentationFilter = Object.freeze<string[]>([
 	'!build/ext.js',
 	'!build/darwin/patch-dmg.py',
 	'!build/npm/gyp/patches/gyp_spectre_mitigation_support.patch',
+	// A patch is a verbatim record of another project's tree; reindenting it
+	// makes it stop applying.
+	'!build/unigma/opencode-service-only/*.patch',
 	'!product.overrides.json',
 	'!src/vs/platform/endpoint/common/licenseAgreement.ts',
 
@@ -192,6 +195,7 @@ export const copyrightFilter = Object.freeze<string[]>([
 	'!**/*.zsh',
 	'!**/*.fish',
 	'!**/*.txt',
+	'!**/*.patch',
 	'!**/*.xpm',
 	'!**/*.opts',
 	'!**/*.disabled',
