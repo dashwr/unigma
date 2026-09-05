@@ -111,7 +111,7 @@ const FALLBACKS: readonly RouterFallback[] = ['maxModel', 'selectedModel', 'refu
  * `provider/model`, both halves bounded. Anything looking like a URL, a path or
  * a credential fails here rather than reaching a provider.
  */
-const MODEL_ID = /^[a-z0-9][a-z0-9._-]{0,63}\/[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+export const MODEL_ID = /^[a-z0-9][a-z0-9._-]{0,63}\/[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 
 const REVISION = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 
@@ -131,7 +131,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function parseReference(value: unknown): RouterReference | undefined {
+export function parseReference(value: unknown): RouterReference | undefined {
 	if (!isRecord(value)) {
 		return undefined;
 	}
