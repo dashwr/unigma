@@ -1997,6 +1997,19 @@ superfícies alcançáveis/empacotadas. Ver
 - **paralelo:** somente depois de T-097 e sem compartilhar o diretório de bundle.
 - **bloqueia:** T-099 e AC-026.
 
+> entregue em 2026-09-04: `build/unigma/swap-opencode-bundle.ts`, com
+> `swap-opencode-bundle.test.ts` (7 testes). O bundle vive em
+> `resources/app/opencode` dentro do pacote instalado, então a troca é feita por
+> dois renames dentro desse diretório, com o candidato copiado antes para
+> `opencode.incoming` no mesmo filesystem — copiar através de fronteira deixaria
+> um bundle parcial onde o produto procura um inteiro. O candidato é validado
+> antes de qualquer movimento (ELF, bit de execução, licença, commit no
+> `PROVENANCE.txt`), porque depois de começar a única saída é restaurar. Processo
+> vivo é detectado lendo `/proc/*/exe`, não `fuser` nem `lsof`, que são pacotes
+> opcionais: um check que some quando falta pacote não é check. O bundle anterior
+> fica em `opencode.previous` até `--action discard`, e `--action rollback` o
+> devolve. Nenhum caminho toca dado de usuário, que vive fora do pacote.
+
 ### T-099 — fechar suporte do bundle por evidência
 
 - **objetivo:** validar a combinação upstream + patchset + executável + plataforma
