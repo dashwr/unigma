@@ -303,6 +303,51 @@ suite('Unigma agent runtime application', () => {
 		application.dispose();
 	});
 
+	test('refuses a queued prompt when the workspace stops being trusted before it runs', async () => {
+		const rpc = new FakeRpc();
+		const diagnostics: DiagnosticRecord[] = [];
+		const base = portsFor({ diagnostics });
+		let trusted = true;
+		let release: () => void = () => undefined;
+		let reached: () => void = () => undefined;
+		const held = new Promise<void>(resolve => { release = resolve; });
+		const running = new Promise<void>(resolve => { reached = resolve; });
+		const ports: RuntimePorts = {
+			...base,
+			workspaceTrust: { isTrusted: () => trusted },
+			openCodeClient: {
+				...base.openCodeClient,
+				send: async request => {
+					if (request.path === '/session') {
+						reached();
+						await held;
+						return { id: 'session-one' };
+					}
+					return { ok: true };
+				},
+			},
+		};
+		const application = new AgentRuntimeApplication(ports, rpc);
+
+		// Both commands pass the gate in handlePrompt while the workspace is still
+		// trusted. The second one then waits in the queue, which is the window a
+		// gate that only runs at queue time cannot see.
+		const first = rpc.command({ version: 1, type: 'session.prompt', workspace, prompt: { parts: [] }, requestId: 'request-first' });
+		const second = rpc.command({ version: 1, type: 'session.prompt', workspace, prompt: { parts: [] }, requestId: 'request-second' });
+		await running;
+		trusted = false;
+		release();
+		await first;
+		await second;
+
+		assert.deepStrictEqual(rpc.events, [
+			{ version: 1, type: 'session.ready', sessionId: 'session-one', requestId: 'request-first' },
+			{ version: 1, type: 'session.error', requestId: 'request-second', error: { code: 'workspaceUntrusted', message: 'The workspace is not trusted.', retryable: false } },
+		]);
+		assert.deepStrictEqual(diagnostics, [{ level: 'warn', code: 'runtime.workspace.untrusted', requestId: 'request-second' }]);
+		application.dispose();
+	});
+
 	test('rejects duplicate and unknown session IDs through the RPC handler without echoing prompt contents', async () => {
 		const rpc = new FakeRpc();
 		const requests: OpenCodeRequest[] = [];

@@ -159,6 +159,19 @@ export class AgentRuntimeApplication implements DisposableLike {
 			return;
 		}
 
+		// The gate in handlePrompt ran when this command was queued, and a queued
+		// command waits for the ones ahead of it. Trust can stop holding in that
+		// gap: closing the folder takes the workspace out of the trusted set while
+		// the queue is still draining. Re-checking here also keeps the refusal
+		// legible, because connectWorkspace throws and the catch below reports
+		// every throw as internal, which reads as a runtime fault rather than a
+		// denial.
+		if (!this._ports!.workspaceTrust.isTrusted(command.workspace)) {
+			this._ports!.diagnostics.record({ level: 'warn', code: 'runtime.workspace.untrusted', requestId: command.requestId });
+			this.emitRpcError(command.requestId, 'workspaceUntrusted');
+			return;
+		}
+
 		let createdSession = false;
 		let sessionId: string | undefined;
 		try {
