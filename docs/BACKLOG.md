@@ -1003,6 +1003,18 @@ estão pendentes.
 - **paralelo:** pode rodar com T-043/T-044 sem editar a UI.
 - **bloqueia:** AC-028.
 
+> entregue em 2026-09-04: `extensions/unigma-agent-runtime/src/domain/remoteControlProtocol.ts`
+> com versão, ativação, capacidades e recusas nomeadas, mais sete testes em
+> `src/test/remoteControlProtocol.test.ts` (suíte de 84 para 91). O campo
+> `activation` é obrigatório e só aceita `dormant`, de modo que um chamador que
+> espera ser atendido é recusado por nome em vez de tratado como inspeção. As
+> capacidades declaradas são apenas `runtime.status` e `session.list`: nada que
+> produza efeito, porque efeito remoto exigiria responder por trust e aprovação
+> do outro lado, e essa questão não está resolvida. O último teste lê o próprio
+> fonte e reprova `createServer`, `listen(`, `net.`, `http`, `WebSocket`,
+> `setTimeout`, `setInterval` e `process.` — é a única asserção que sobrevive a
+> um refactor que mantivesse os testes de parser verdes e abrisse uma porta.
+
 ## E-05 — remoto SSH
 
 > **estado em 2026-09-04.** O caminho remoto está construído inteiro e validado
