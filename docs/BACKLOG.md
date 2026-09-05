@@ -1502,6 +1502,19 @@ estiverem medidos, `T-071` não começa — publicar baseline parcial como se fo
 > respondeu `--status` em 120 s. O medidor agora reporta o exit code e as
 > primeiras linhas dos dois fluxos em vez de só cronometrar.
 
+> achado de 2026-09-05 (run `33950524239`): a medição roda no runner mas ainda
+> não produz número. Com a instrumentação de `f3c0e429`, a falha deixou de ser
+> um cronômetro e passou a dizer o que houve: `--status` **responde**, com
+> `exit=0`, imprimindo `Version:`, `OS Version:` e `CPUs:` — e **sem** a tabela
+> `Process Info`. Esse cabeçalho é o que o produto imprime quando não encontra
+> instância viva; logo a janela não subiu sob `xvfb-run`, e o critério de
+> prontidão não é o defeito. O processo lançado também não escreveu nada em
+> stderr, o que aponta para o Electron desistindo antes de logar — o candidato
+> mais provável é sandbox/GPU no WSL, já que o desktop smoke passa no mesmo
+> ambiente porque `npm run smoketest` gerencia essas flags por conta própria.
+> Próximo passo: comparar as flags que o smoketest usa e reproduzir uma
+> execução mínima do pacote no WSL antes de gastar outro ciclo de runner.
+
 - **objetivo:** executar o harness e versionar baseline do Code - OSS + unigma
   mínimo antes de otimizações.
 - **responsável lógico:** performance/QA.
