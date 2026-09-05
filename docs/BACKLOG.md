@@ -1913,6 +1913,17 @@ exemplos numéricos da direção, inclusive `~49`, não são valores normativos.
 
 ### T-091 — implementar UI nativa acessível do Autopilot
 
+> parcial em 2026-09-04: a redução de estado saiu em
+> `src/vs/workbench/contrib/unigmaAgent/common/autopilotState.ts`, com teste em
+> `test/common/autopilotState.test.js` rodando no passo de CI criado por
+> `T-010`. Ela cobre os oito estados exigidos e `prefers-reduced-motion`, que
+> vira dado testável em vez de detalhe de folha de estilo: o reduzido remove a
+> animação e **mantém** o estado, porque quem pediu menos movimento continua
+> precisando saber que há decisão em curso. O módulo devolve chave de mensagem,
+> não texto: um redutor que produzisse texto localizado prenderia o teste a um
+> idioma. Segue pendente o que exige render — a superfície em si, foco, nome
+> acessível, contraste medido e evidência renderizada.
+
 - **objetivo:** entregar o toggle `Autopilot!` na contribuição nativa do
   workbench, opt-in, operável por teclado e tecnologias assistivas, com estados
   desligado, pronto, roteando, selecionado, bypass, fallback, timeout/erro e
