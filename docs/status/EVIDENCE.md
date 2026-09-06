@@ -391,3 +391,34 @@ contexto:        os quatro runs anteriores (`33914111178`, `33945192725`,
                  `fd07d937` separou os códigos, `316e670e` passou a reportar o
                  status de saída do servidor e `493dcfe7` fez a sessão perdedora
                  reusar o socket.
+
+### primeiro relatório de baseline com processo vivo — 2026-09-06
+
+data:            2026-09-06
+tarefa/gate:     `T-071` / `T-070` — baseline de inicialização
+run id:          `34043447622`
+workflow:        `unigma-linux-wsl-validation.yml`
+commit/head:     `9dc0f1b7211970780925be2c0c7b35d55ae0a82e`
+plataforma:      linux-x64 sob Xvfb no WSL2 do runner Windows
+node/npm:        `v24.18.0` / npm 11.x
+resultado:       job verde em 16m11s; artefato `unigma-linux-x64-34043447622`
+números:         `clean-profile` `ready-ms.median=3156`, `spread=2011`;
+                 `idle-folder` `ready-ms.median=3118`, `spread=1241`; três
+                 repetições cada
+prova:           é a primeira vez que o harness sai com um relatório em vez de
+                 uma falha. A correção do cabeçalho (`CPU %/Mem MB/PID/Process`
+                 no lugar da string `Process Info`, que só existe como comentário
+                 no fonte) fez o `--status` ser reconhecido, e o processo
+                 principal apareceu por nome do `applicationName`.
+não prova:       **estes números não são baseline de inicialização.** As duas
+                 execuções reportaram `renderer.present=no`, e `idle-folder`
+                 reportou também `extension-host` e `shared-process` ausentes:
+                 o harness devolvia assim que qualquer linha aparecia, ou seja
+                 media o instante em que o processo principal começa a responder,
+                 antes de a janela existir. Também não prova memória, que
+                 continua não publicada por conta da dupla conversão em
+                 `ps.ts`/`diagnosticsService.ts`.
+correção:        a prontidão passou a exigir a linha `renderer`, e o timeout
+                 passou a nomear os papéis já vistos. `ready-definition` entrou
+                 no relatório para que o número nunca seja lido como outro
+                 evento. Falta o run que produza o primeiro `ready-ms` de janela.

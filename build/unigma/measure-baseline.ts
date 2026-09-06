@@ -278,10 +278,22 @@ function describeProductLogs(logsDir: string, limit = 8): string {
 }
 
 /**
- * Launches the product against a throwaway profile and waits until it answers
- * `--status`. Answering is the readiness signal: it means the main process is
- * up and the window has an IPC handle, which is the closest observable event to
- * "the window responds" that does not require instrumenting the product.
+ * The role whose presence defines readiness.
+ *
+ * Answering `--status` at all is not readiness: the first run to get real
+ * numbers (`34043447622`) returned as soon as any row appeared, and reported
+ * `renderer.present=no` in both scenarios — it had measured the moment the main
+ * process started answering, before the window existed. In `idle-folder` even
+ * the extension host and the shared process were still absent. A startup
+ * baseline that stops before the window is up is measuring the wrong event.
+ */
+const READY_ROLE = 'renderer';
+
+/**
+ * Launches the product against a throwaway profile and waits until `--status`
+ * reports a window. The renderer row is the closest observable event to "the
+ * window responds" that does not require instrumenting the product; the main
+ * process answering is strictly earlier than that.
  */
 async function measureOnce(options: Options, profile: string): Promise<Run> {
 	const userDataDir = join(profile, 'user-data');
@@ -337,6 +349,7 @@ async function measureOnce(options: Options, profile: string): Promise<Run> {
 
 	let lastCode: number | null = null;
 	let lastOutput = '';
+	const rolesSeen = new Set<string>();
 	try {
 		while (Date.now() - started < options.timeoutMs) {
 			if (exited) {
@@ -350,8 +363,13 @@ async function measureOnce(options: Options, profile: string): Promise<Run> {
 			lastOutput = `${status.stdout ?? ''}${status.stderr ?? ''}`;
 			if (status.status === 0 && STATUS_READY.test(status.stdout ?? '')) {
 				const samples = parseStatus(status.stdout, options.applicationName);
-				if (samples.length > 0) {
+				if (samples.some(sample => sample.role === READY_ROLE)) {
 					return { readyMs: Date.now() - started, samples };
+				}
+				// Keep the roles seen so a timeout can say how far startup got
+				// instead of repeating that nothing answered.
+				for (const sample of samples) {
+					rolesSeen.add(sample.role);
 				}
 			}
 			await sleep(500);
@@ -359,7 +377,8 @@ async function measureOnce(options: Options, profile: string): Promise<Run> {
 		// Whether the launched process was still alive separates "the window never
 		// came up" from "the instance is up but does not answer", and the previous
 		// failure could not tell those apart.
-		throw new Error(`the product did not answer --status within ${options.timeoutMs} ms (last --status exit=${lastCode ?? 'none'}; launched process ${exited ? 'exited' : 'still running'})${describeOutput(lastOutput, 'status')}${describeOutput(launchOutput)}${describeProductLogs(logsDir)}`);
+		const seen = rolesSeen.size === 0 ? 'none' : [...rolesSeen].sort().join(', ');
+		throw new Error(`the product did not report a ${READY_ROLE} within ${options.timeoutMs} ms (roles seen: ${seen}; last --status exit=${lastCode ?? 'none'}; launched process ${exited ? 'exited' : 'still running'})${describeOutput(lastOutput, 'status')}${describeOutput(launchOutput)}${describeProductLogs(logsDir)}`);
 	} finally {
 		if (!exited) {
 			child.kill();
@@ -408,6 +427,7 @@ function report(options: Options, runs: readonly Run[]): string {
 	lines.push(`repetitions=${runs.length}`);
 
 	const readyValues = runs.map(run => run.readyMs);
+	lines.push(`ready-definition=first --status reporting a ${READY_ROLE} row`);
 	lines.push(`ready-ms.median=${median(readyValues)}`);
 	lines.push(`ready-ms.spread=${spread(readyValues)}`);
 

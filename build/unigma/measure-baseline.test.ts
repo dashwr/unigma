@@ -140,7 +140,8 @@ test('a launch that never answers --status carries the product log, not only the
 	try {
 		const result = run(['--exe', writeStandInProduct(root), '--scenario', 'clean-profile', '--repeat', '1', '--timeout', '3000']);
 		assert.equal(result.status, 1);
-		assert.match(result.stderr, /did not answer --status within 3000 ms/);
+		assert.match(result.stderr, /did not report a renderer within 3000 ms/);
+		assert.match(result.stderr, /roles seen: none/);
 		assert.match(result.stderr, /launched process still running/);
 		assert.match(result.stderr, /product logs: main\.log: the stand-in never opened a window/);
 	} finally {
@@ -257,6 +258,66 @@ test('the report refuses to publish the --status memory column as megabytes', ()
 		// `total-memory-mb` is the machine's, not the product's; no process row
 		// may carry a megabyte figure.
 		assert.doesNotMatch(report, /process\..*memory-mb/);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test('a product whose window never comes up is not measured, and says how far it got', () => {
+	const root = mkdtempSync(join(tmpdir(), 'unigma-baseline-test-'));
+	try {
+		const executable = join(root, 'unigma');
+		mkdirSync(join(root, 'resources', 'app'), { recursive: true });
+		writeFileSync(join(root, 'resources', 'app', 'product.json'), JSON.stringify({ applicationName: 'unigma' }));
+		// The shape of run 34043447622: the main process answers, the window is
+		// not there yet. Returning here is what made that run report
+		// renderer.present=no while calling itself a startup baseline.
+		const withoutWindow = [
+			'CPU %\tMem MB\t   PID\tProcess',
+			'    4\t   412\t 20262\tunigma',
+			'    0\t   142\t 20480\tshared-process'
+		].join('\n');
+		writeFileSync(executable, [
+			'#!/usr/bin/env node',
+			'const argv = process.argv.slice(2);',
+			'if (argv.includes("--status")) {',
+			`\tprocess.stdout.write(${JSON.stringify(withoutWindow)} + "\\n");`,
+			'\tprocess.exit(0);',
+			'}',
+			'setTimeout(() => { }, 60000);'
+		].join('\n') + '\n');
+		chmodSync(executable, 0o700);
+
+		const result = run(['--exe', executable, '--scenario', 'clean-profile', '--repeat', '1', '--timeout', '3000']);
+		assert.equal(result.status, 1);
+		assert.match(result.stderr, /did not report a renderer within 3000 ms/);
+		assert.match(result.stderr, /roles seen: main, shared-process/);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test('the report states which event ready-ms measures', () => {
+	const root = mkdtempSync(join(tmpdir(), 'unigma-baseline-test-'));
+	try {
+		const executable = join(root, 'unigma');
+		mkdirSync(join(root, 'resources', 'app'), { recursive: true });
+		writeFileSync(join(root, 'resources', 'app', 'product.json'), JSON.stringify({ applicationName: 'unigma' }));
+		writeFileSync(executable, [
+			'#!/usr/bin/env node',
+			'const argv = process.argv.slice(2);',
+			'if (argv.includes("--status")) {',
+			`\tprocess.stdout.write(${JSON.stringify(REAL_STATUS_TABLE)} + "\\n");`,
+			'\tprocess.exit(0);',
+			'}',
+			'setTimeout(() => { }, 60000);'
+		].join('\n') + '\n');
+		chmodSync(executable, 0o700);
+
+		const out = join(root, 'report.txt');
+		const result = run(['--exe', executable, '--scenario', 'clean-profile', '--repeat', '1', '--timeout', '20000', '--out', out]);
+		assert.equal(result.status, 0, result.stderr);
+		assert.match(readFileSync(out, 'utf8'), /ready-definition=first --status reporting a renderer row/);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}

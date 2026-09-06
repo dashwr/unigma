@@ -57,8 +57,15 @@ nomes de módulo que não existem na saída (`main`, `extensionHost`, `ptyHost`)
 fundiam extension host com shared process; e a coluna de memória é escalada por
 `totalmem()/100` **duas vezes** (`ps.ts:29` e `diagnosticsService.ts:554`), logo
 não é megabyte. Os três foram corrigidos, e a memória passou a ser recusada com
-a trilha de arquivos no relatório em vez de publicada. Continua sem baseline
-numérico até o próximo run — mas agora por falta de run, não por defeito.
+a trilha de arquivos no relatório em vez de publicada. O run `34043447622` ficou verde e **produziu o primeiro relatório** — e
+imediatamente mostrou o defeito seguinte: `renderer.present=no` nas duas
+execuções. O harness devolvia assim que qualquer linha aparecia, então mediu o
+processo principal começando a responder, não a janela. Os números
+(`ready-ms.median` 3156 e 3118) estão registrados em `EVIDENCE.md` **como não
+sendo baseline de inicialização**. A prontidão passou a exigir a linha
+`renderer`, o timeout passou a nomear os papéis vistos e o relatório passou a
+declarar qual evento mede. Falta o run que produza o primeiro `ready-ms` de
+janela de verdade.
 
 **o que esses contratos destravaram e o que não destravaram.** Cada um termina
 com a decomposição e a lista de provas do aceite. As duas decisões humanas que ficaram na

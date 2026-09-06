@@ -163,7 +163,23 @@ do pacote; e a memória **não publicada**, com o motivo e a trilha de arquivos 
 próprio relatório. `ready-ms`, presença e CPU continuam. Quatro testes novos
 usam a tabela real do run `34036136102` — o harness anterior não passaria em
 nenhum deles. Local: `node --test` 11/11, `test-build-scripts` 343/343, eslint
-limpo. **Falta o run** que produza o primeiro relatório com processo vivo.
+limpo.
+
+**Run `34043447622` (commit `9dc0f1b7`), verde em 16m11s: o primeiro relatório
+saiu.** `clean-profile` `ready-ms.median=3156` (spread 2011) e `idle-folder`
+`ready-ms.median=3118` (spread 1241), três repetições cada. **E ele mostrou o
+defeito seguinte:** as duas execuções reportaram `renderer.present=no`, e
+`idle-folder` também `extension-host` e `shared-process` ausentes. O harness
+devolvia assim que qualquer linha da tabela aparecia — mediu o instante em que o
+processo principal começa a responder, **antes de a janela existir**. Esses
+números não são baseline de inicialização e não devem ser publicados como tal.
+
+**Corrigido na sequência:** a prontidão exige a linha `renderer`; o timeout
+nomeia os papéis já vistos, para separar “nada respondeu” de “parou no shared
+process”; e `ready-definition` entra no relatório para o número não ser lido
+como outro evento. Dois testes novos cobrem os dois casos (13/13 local,
+`test-build-scripts` 345/345, eslint limpo). **Falta o run** que produza o
+primeiro `ready-ms` medido até a janela.
 
 **Instrumentação aplicada antes disso, e foi ela que entregou a causa:** o
 lançamento passou a usar `--log=trace` como o smoke, e as duas mensagens de

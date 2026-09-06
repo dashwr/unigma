@@ -1694,7 +1694,12 @@ estiverem medidos, `T-071` não começa — publicar baseline parcial como se fo
 > `applicationName` do pacote, e memória não publicada com a trilha no relatório.
 > Quatro testes usam a tabela real do run; local `node --test` 11/11,
 > `test-build-scripts` 343/343, eslint limpo. Falta o run que produza o primeiro
-> relatório com processo vivo.
+> relatório com processo vivo. **Run `34043447622` verde**: o relatório saiu, com
+> `ready-ms.median` 3156/3118 — e com `renderer.present=no`, revelando que o
+> harness devolvia antes de a janela existir. A prontidão passou a exigir a linha
+> `renderer` e o relatório passou a declarar qual evento mede; 13/13 local,
+> `test-build-scripts` 345/345. Os números anteriores estão em `EVIDENCE.md`
+> marcados como não sendo baseline de inicialização.
 
 > parcial anterior em 2026-09-06: a comparação de flags pedida pela fila foi
 > feita por leitura de código. O smoke que abre janela lê os logs do produto e semeia
