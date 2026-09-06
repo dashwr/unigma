@@ -1,7 +1,7 @@
 # proposta de desenho — interação do painel do agente
 
-**Estado: `[EM REVISÃO]`.** Proposta para o responsável corrigir. Não autoriza
-implementação e não fecha aceite nenhum. Cobre a etapa J das
+**Estado: `[EM REVISÃO]`, com as respostas de `D-047` incorporadas.** Não
+autoriza implementação e não fecha aceite nenhum. Cobre a etapa J das
 [projeções](PROJECTIONS-CONTRACT.md), com as bordas de
 [contexto](CONTEXT-CONTRACT.md) e [worktree](WORKTREE-CONTRACT.md).
 
@@ -82,11 +82,21 @@ Proposta:
   `+1 aguardando`. Enfileirar é honesto; empilhar duas caixas de decisão faz o
   usuário responder a errada.
 
-**Aberto para você:** aceito ambas as famílias `question.*` e `question.v2.*` na
-entrada e respondo pela rota sem `v2` — isso o contrato já fixou. O que não está
-decidido é se uma pergunta pendente deve **desabilitar a composição**. Minha
-recomendação é **não**: travar o campo de texto transforma uma pergunta em modal,
-e o produto inteiro foi desenhado para não ter modal de startup.
+**Decidido em `D-047`:** uma pergunta pendente **desabilita a composição**, e a
+saída entra na própria pergunta. Além das opções que o agente mandou, toda
+pergunta ganha sempre as **duas últimas**: `digitar` (texto livre) e `cancelar`.
+
+Isso corrigiu a proposta original, que recomendava não desabilitar por receio de
+a pergunta virar modal. A resposta resolve o mesmo receio melhor: a saída deixa
+de morar no campo de composição e passa a morar onde o usuário já está olhando.
+O campo travado não é armadilha, porque existe sempre uma opção que destrava.
+
+**Posição relativa, nunca fixa.** Se o agente mandar seis opções, `digitar` e
+`cancelar` são a sétima e a oitava — para que teclado ou repetição nunca caiam
+sobre `cancelar` por acidente de contagem.
+
+Ambas as famílias `question.*` e `question.v2.*` são aceitas na entrada, com
+resposta pela rota sem `v2`; isso o contrato já fixava.
 
 ### 3.2 trabalho: todo é leitura, e a UI não pode sugerir o contrário
 
@@ -94,10 +104,18 @@ O contrato: `Todo` **não tem `id`**, `todo.updated` manda a lista inteira, e
 `status`/`priority` são strings livres no schema. Três consequências diretas de
 desenho:
 
-- **nada de checkbox.** Um checkbox convida a clicar, e não há a quem mandar o
-  clique — não existe endpoint de escrita de todo, e não existe `id` para
-  endereçar um item. Desenhar um controle que não funciona é pior que não
-  desenhar nada. Proposta: marcador de estado não interativo.
+- **marcador próprio, não o checkbox do sistema** (`D-047`): quadrado com um
+  quadrado menor dentro para o item feito.
+
+  É um **marcador de estado, não um controle** — sem clique, sem foco de
+  teclado, sem estado próprio no unigma, porque não existe endpoint de escrita
+  de todo e `Todo` não tem `id` para endereçar um item. O checkbox do sistema
+  foi recusado justamente por convidar a um clique que não tem para onde ir.
+
+  A forma escolhida se encaixa em `D-046`: quadrado aninhado é do registro de
+  bloco e grade, e a regra de geometria da identidade diz que **arredondado é o
+  que se clica**. Um marcador quadrado já diz por si que não é botão, sem
+  precisar de tooltip explicando.
 - **substituição integral, sem animação de reordenação.** A lista chega inteira;
   fingir que itens se moveram é inventar uma história que os dados não contam.
   Proposta: substituir em bloco, e apenas realçar por ~1 s o que mudou de estado.

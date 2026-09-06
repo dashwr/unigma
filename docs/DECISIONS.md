@@ -426,6 +426,80 @@ licença, pesos e direitos de uso antes de qualquer incorporação.
 - Produto desta decisão: um documento de opções com custo e prova de cada uma.
   `T-056` permanece sem implementação autorizada até a decisão seguinte.
 
+### D-046 — identidade visual: campo neutro, roxo e magenta em realce — 2026-09-06
+
+Sobre as cinco referências entregues e a
+[proposta de identidade](VISUAL-IDENTITY-DRAFT.md).
+
+- **Fundo neutro** (preto, cinza e os demais já nomeados); **roxo e magenta
+  aparecem em realce**, não em área. "Roxo predominante" é predominância na
+  identidade, não em área de tela — a distinção fica registrada porque as duas
+  leituras produzem produtos diferentes.
+- **Magenta é cor de estado**: erro, atenção, permissão pendente. Recusadas as
+  alternativas de magenta como segundo acento de marca e de acento único.
+  Justificativa: quando magenta aparecer, ele **significa** alguma coisa, e o
+  usuário aprende a reagir a ele. Como enfeite, perderia esse sinal.
+- **Separar expressão de trabalho, com uma exceção.** Grade, micro-tipografia,
+  dithering e brilho ficam nas superfícies de marca (splash, Welcome, About,
+  ícone, site). Editor e painéis recebem só paleta e geometria — **exceto a
+  barra de status e o painel do agente**, que podem carregar o registro de
+  micro-rótulo desde que ele traga **fato verificável**: commit, versão fixada,
+  run id, modelo que respondeu. Número não medido não aparece.
+- **Lettering por construção própria**, em blocos com terminais de canto
+  arredondado. `Cinderblock` sai do caminho: sem licença a verificar, sem
+  dependência, sem risco de cópia. Só o logotipo; a UI usa a fonte do sistema.
+- Nenhuma referência é ativo distribuível. A restrição de cópia de
+  [`PRODUCT.md`](PRODUCT.md) continua integral.
+
+### D-047 — interação do painel do agente — 2026-09-06
+
+Sobre a [proposta de interação](AGENT-UX-DRAFT.md).
+
+- **Quatro regiões fixas**, nesta ordem: cabeçalho, atenção, trabalho,
+  transcrição, composição. O que bloqueia fica acima do que só informa; a
+  transcrição fica embaixo porque cresce sem limite.
+- **Sessão filha expande no lugar.** Nada de painel por filha nesta etapa:
+  multiplicaria a reconciliação de SSE por N.
+- **Pergunta pendente desabilita a composição — e a saída entra na própria
+  pergunta.** Além das opções que o agente mandou, a pergunta ganha sempre as
+  duas últimas: **digitar** (texto livre) e **cancelar**.
+
+  Esta resposta corrigiu a proposta. Eu havia recomendado não desabilitar, pelo
+  receio de a pergunta virar modal e o usuário ficar preso. A resposta resolve o
+  receio por outro caminho, melhor: a saída deixa de morar no campo de
+  composição e passa a morar na pergunta, onde o usuário já está olhando. O
+  campo travado deixa de ser armadilha porque existe sempre uma opção que
+  destrava.
+
+  **"Digitar" e "cancelar" são sempre as duas últimas opções, quaisquer que
+  sejam as do agente** — não posições fixas 4 e 5. Se o agente mandar seis
+  opções, elas são a sétima e a oitava. Posição relativa, para que a barra de
+  espaço nunca caia sobre "cancelar" por acidente de contagem.
+
+- **Marcador de todo: quadrado com um quadrado menor dentro para feito.**
+  Identidade própria, não o checkbox do sistema.
+
+  **Leitura do executor, sujeita a correção:** é um **marcador de estado, não um
+  controle**. Não recebe clique, não recebe foco de teclado e não tem estado
+  próprio no unigma — porque não existe endpoint de escrita de todo e `Todo` não
+  tem `id` para endereçar um item. O que a resposta define é a **forma**, e a
+  forma escolhida cai bem com `D-046`: quadrado aninhado é do registro de bloco
+  e grade, e a regra de geometria diz que **arredondado é o que se clica**. Um
+  marcador quadrado, portanto, já diz por si que não é botão.
+
+  Se a intenção era um controle que aceita clique, esta decisão precisa voltar,
+  porque implicaria uma segunda fonte de verdade que a próxima substituição
+  integral do OpenCode apagaria sem aviso.
+
+- Mantidos da proposta, sem contestação: pergunta e permissão com tratamento
+  visual distinto e "sempre" só em permissão; uma decisão por vez, com fila;
+  substituição integral do todo sem animação de reordenação; status desconhecido
+  renderizado como texto; reconexão de SSE que não limpa transcrição nem
+  reenvia prompt; nada de "pensando" inferido de animação; chips de anexo com
+  tamanho sempre visível e recusa com motivo antes do envio.
+- Estas decisões definem desenho. **Não autorizam implementação** e não fecham
+  `AC-030`, `AC-032` nem qualquer aceite da onda 3.
+
 ## regra de atualização
 
 Após cada resposta do responsável, registrar a decisão com data, resposta,

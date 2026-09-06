@@ -1,7 +1,7 @@
 # proposta de identidade visual — leitura das referências
 
-**Estado: `[EM REVISÃO]`.** Proposta para o responsável corrigir. Não autoriza
-incorporar fonte, ícone ou ativo, e não fecha `T-003`/`T-034`.
+**Estado: `[EM REVISÃO]`, com as respostas de `D-046` incorporadas.** Não
+autoriza incorporar fonte, ícone ou ativo, e não fecha `T-003`/`T-034`.
 
 Cinco referências entregues pelo responsável em 2026-09-06. Elas **não são
 ativos distribuíveis** e nada aqui autoriza cópia de lettering, ícone,
@@ -122,16 +122,30 @@ construção, cápsula no acabamento.
 continua **pendente**: disponibilidade, licença, pesos e direitos de uso não
 foram verificados, e ela não entra antes disso.
 
-## 5. o que falta você responder
+## 5. o que `D-046` decidiu
 
-1. A separação da §3 — expressão nas superfícies de marca, só paleta e
-   geometria nas de trabalho — está certa, ou você quer a estética também no
-   editor?
-2. Roxo como acento estrutural sobre campo neutro (§4.2), ou roxo-escuro como
-   tema padrão?
-3. Dithering como linguagem de ilustração (§4.3) entra?
-4. Qual é a **segunda** cor? As referências mais fortes usam um acento único; o
-   projeto tem roxo, magenta e violeta na direção. Magenta como cor de estado
-   (erro, atenção) ou como segundo acento de marca?
-5. `Cinderblock` continua sendo a candidata a perseguir, ou parto para uma
-   construção própria de lettering sem depender de licenciar face nenhuma?
+1. **Fundo neutro; roxo e magenta em realce.** Preto, cinza e os demais fundos
+   já nomeados carregam a área. Roxo e magenta são realce — fio, marcador, foco,
+   estado ativo — nunca banho de tela. "Roxo predominante" é predominância na
+   identidade, não em área.
+2. **Magenta é cor de estado**: erro, atenção, permissão pendente. Recusadas as
+   alternativas de segundo acento de marca e de acento único. Quando magenta
+   aparece, ele significa alguma coisa.
+3. **Separar, com uma exceção.** Expressão completa nas superfícies de marca; só
+   paleta e geometria nas de trabalho — **exceto a barra de status e o painel do
+   agente**, que podem carregar o registro de micro-rótulo desde que ele traga
+   fato verificável. Número não medido não aparece.
+4. **Lettering por construção própria**, em blocos com terminais de canto
+   arredondado. `Cinderblock` sai do caminho: sem licença a verificar, sem
+   dependência, sem risco de cópia. Só o logotipo; a UI usa a fonte do sistema.
+
+## 6. o que ainda falta você responder
+
+1. **Dithering como linguagem de ilustração** (§4.3) entra para Welcome e
+   walkthrough? Não foi perguntado ainda e é a única das ideias da §4 sem
+   resposta.
+2. Os quatro fundos já nomeados eram branco, lilás, preto e roxo-escuro.
+   `D-046` diz "preto, cinza e os demais": **branco e lilás continuam na
+   matriz de temas**, ou o produto passa a ser só escuro?
+3. O logotipo por blocos: quantas letras? `unigma` inteiro, ou uma marca curta
+   que funcione em 16 px na barra de tarefas?
