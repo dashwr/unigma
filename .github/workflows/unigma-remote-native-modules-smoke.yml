@@ -1,0 +1,102 @@
+name: unigma remote native modules smoke
+
+# Reads the native addon state of a version that is already activated on the
+# host. It never stages, installs or removes anything there, so it can be run
+# against the server a window smoke just used.
+
+on:
+  workflow_dispatch:
+    inputs:
+      alias:
+        description: SSH config alias of the external VPS
+        type: string
+        required: true
+        default: unigma-vps
+      artifact_commit:
+        description: Commit of the activated server; defaults to the local server pointer
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: unigma-remote-smoke
+  cancel-in-progress: false
+
+jobs:
+  remote-native-modules-smoke:
+    name: remote native modules smoke in Ubuntu WSL2
+    runs-on: self-hosted
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: prepare WSL paths
+        env:
+          VPS_ALIAS: ${{ inputs.alias }}
+          ARTIFACT_COMMIT: ${{ inputs.artifact_commit }}
+        run: |
+          $workspace = $env:GITHUB_WORKSPACE -replace '\\', '/'
+          if ($workspace -notmatch '^([A-Za-z]):/(.+)$') { throw "Unsupported Windows workspace path: $env:GITHUB_WORKSPACE" }
+          $drive = $matches[1].ToLowerInvariant()
+          $path = $matches[2]
+          [System.IO.File]::AppendAllText($env:GITHUB_ENV, "WSL_SOURCE=/mnt/$drive/$path`n")
+          [System.IO.File]::AppendAllText($env:GITHUB_ENV, "WSL_BUILD=/home/dasher/unigma-remote-native-modules-smoke-build`n")
+          if (-not $env:VPS_ALIAS) { throw 'UNIGMA_VPS_ALIAS is required' }
+          if ($env:ARTIFACT_COMMIT -and ($env:ARTIFACT_COMMIT -notmatch '^[0-9a-f]{40}$')) { throw 'artifact_commit must be a full commit hash' }
+
+      - name: compile extension and probe native modules in WSL
+        env:
+          VPS_ALIAS: ${{ inputs.alias }}
+          ARTIFACT_COMMIT: ${{ inputs.artifact_commit }}
+        run: |
+          $scriptPath = Join-Path $env:RUNNER_TEMP 'unigma-remote-native-modules-smoke.sh'
+          $script = @'
+          set -euo pipefail
+          source="$1"
+          build="$2"
+          alias="$3"
+          commit="${4:-}"
+          if [ -z "$alias" ]; then echo 'UNIGMA_VPS_ALIAS is required' >&2; exit 2; fi
+          export UNIGMA_VPS_ALIAS="$alias"
+          export UNIGMA_ARTIFACT_ROOT=/home/dasher/.local/share/unigma-artifacts
+          if [ -n "$commit" ]; then export UNIGMA_ARTIFACT_COMMIT="$commit"; fi
+          report="$source/.build/unigma-remote-native-modules-smoke.txt"
+          node_version="$(tr -d '[:space:]' < "$source/.nvmrc")"
+          toolchain="/home/dasher/.local/share/unigma-toolchains/node-$node_version"
+          if [ ! -x "$toolchain/bin/node" ]; then echo "missing Node $node_version toolchain" >&2; exit 1; fi
+          export PATH="$toolchain/bin:$PATH"
+          command -v ssh >/dev/null || { echo 'ssh is required' >&2; exit 1; }
+          rm -rf "$build"
+          mkdir -p "$build"
+          tar --exclude=.git --exclude=node_modules --exclude=.build -C "$source" -cf - . | tar --no-same-owner --no-same-permissions -C "$build" -xf -
+          git -C "$build" init --quiet
+          cd "$build"
+          node build/azure-pipelines/common/disableFoundryLocalInstall.ts
+          npm ci --no-audit --no-fund
+          node --experimental-strip-types ./node_modules/gulp/bin/gulp.js compile-extension:unigma-remote-ssh
+          node --experimental-strip-types build/unigma/smoke-remote-native-modules.ts "$report"
+          '@
+          $script = $script -replace "`r`n?", "`n"
+          [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))
+          $scriptPathWsl = "/mnt/$($scriptPath.Substring(0, 1).ToLowerInvariant())/$($scriptPath.Substring(3).Replace('\', '/'))"
+          & wsl.exe -d Ubuntu --user dasher -- bash $scriptPathWsl $env:WSL_SOURCE $env:WSL_BUILD $env:VPS_ALIAS $env:ARTIFACT_COMMIT
+          $exitCode = $LASTEXITCODE
+          Remove-Item -Force $scriptPath -ErrorAction SilentlyContinue
+          if ($exitCode -ne 0) { exit $exitCode }
+
+      - name: upload remote native modules smoke report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unigma-remote-native-modules-smoke-${{ github.run_id }}
+          path: |
+            .build/unigma-remote-native-modules-smoke.txt
+            .build/unigma-remote-native-modules-smoke.txt.ssh-trace.log
+          if-no-files-found: warn
+          retention-days: 7
