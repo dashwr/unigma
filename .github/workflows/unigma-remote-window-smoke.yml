@@ -34,7 +34,9 @@ permissions:
 
 jobs:
   remote-window-smoke:
-    if: inputs.reconnect_only == false
+    # Both guards are deliberate: this job provisions and then always cleans the
+    # host, so asking for a read-only probe must never be able to select it.
+    if: inputs.reconnect_only == false && inputs.native_modules_only == false
     name: remote window smoke in Ubuntu WSL2
     runs-on: self-hosted
     timeout-minutes: 60
@@ -187,7 +189,7 @@ jobs:
       artifact_commit: ${{ inputs.artifact_commit }}
 
   reconnect-only:
-    if: inputs.reconnect_only == true && inputs.native_modules_only == false
+    if: inputs.reconnect_only == true && inputs.native_modules_only != true
     name: remote reconnect smoke without provisioning
     uses: ./.github/workflows/unigma-remote-reconnect-smoke.yml
     with:
