@@ -273,7 +273,8 @@ da medição. **Não objetivo:** otimizar sem baseline ou supor causa sandbox/GP
 
 ## [BLOQUEADO] T-024/T-031–034 — validar agente local integrado
 
-**Dependência:** provider/modelo autorizado e contratos T-010–012/T-020–023.
+**Dependência:** credencial do provider de D-043 no repositório e contratos
+T-010–012/T-020–023.
 **O quê:** exercitar envio, streaming, diff, permissão, cancelamento e reconexão.
 **Como:** UI em `src/vs/workbench/contrib/unigmaAgent/`, RPC privado e runtime em
 `extensions/unigma-agent-runtime/`; usar o binário fixado, não documentação dev
@@ -287,7 +288,7 @@ prompt ou segredo. **Não objetivo:** declarar UI inteira pronta com testes puro
 ## [BLOQUEADO] T-054/055 — agente no extension host remoto
 
 **Dependência:** transporte/abertura T-053 provados e contratos de runtime local;
-autorização do host e provider. **O quê:** executar o único OpenCode do extension
+autorização do host e credencial do provider de D-043. **O quê:** executar o único OpenCode do extension
 host no host correto e projetar sessão no cliente. **Como:** preservar Code Server,
 RPC e escopo de workspace; validar que filesystem/processo são remotos e HTTP é
 loopback daquele host. **Parar:** duplicação de runtime por sessão, listener
@@ -386,10 +387,10 @@ grupos inteiros de uma vez. ACs são revisões próprias, nunca efeito colateral
 
 | Estado / ID / board | O quê e como no menor alvo | Parar / prova exigida |
 | --- | --- | --- |
-| [BLOQUEADO] T-002 / E00, TD1 | Classificar 695 manifest-only root no inventário; obter artefato CG para regenerar notice; revisar `remote/LICENSE` por proveniência | Sem CG/direito confirmado, preservar avisos; auditor do pacote + revisão legal |
-| [BLOQUEADO] T-004 / E00 | Responsável decide titularidade/notices com THIRD-PARTY-REVIEW e BRANDING-CLEARANCE | Executor não decide licença; registro humano e artefato auditado |
+| [BLOQUEADO] T-002 / E00, TD1 | Classificar 695 manifest-only root no inventário; obter artefato CG para regenerar notice; `remote/LICENSE` já revisado em [LEGAL-DRAFT.md](LEGAL-DRAFT.md) §3 | Bloqueio é o artefato CG ausente, não decisão; auditor do pacote + revisão legal |
+| [EM REVISÃO] T-004 / E00 | Rascunho D-044 escrito: [LEGAL-DRAFT.md](LEGAL-DRAFT.md) propõe copyright duplo, NOTICE e política de cabeçalho | Rascunho não é clearance; faltam titular, escolha de cabeçalho, THIRD-PARTY-REVIEW e BRANDING-CLEARANCE |
 | [PENDENTE] T-010 / E01 | Completar browser/E2E da bridge usando runner existente; common já tem run33948717879 | Não recontar common como browser; cenário de RPC serializável real |
-| [BLOQUEADO] T-011 / E01 | Definir provider/modelo autorizado e validar contrato do binário fixado; perfil service-only separado D-026 | Sem autorização de custo/configuração, não enviar prompt; `/doc` e cenário real |
+| [BLOQUEADO] T-011 / E01 | Provider autorizado por D-043 (OpenRouter, modelos gratuitos); validar contrato do binário fixado; perfil service-only separado D-026 | Bloqueio agora é credencial ausente no repositório, não autorização; `/doc` e cenário real |
 | [BLOQUEADO] T-012 / E01 | Exercitar inventário/preflight com OpenCode real, origens permitidas/recusadas | Não instalar plugin/MCP implicitamente; refusas e execução autorizada no runner |
 | [PENDENTE] T-022/T-032 / E02,E03 | Testar chunks/IDs, queda e recuperação sem duplicação, preservando retry limitado | Não presumir replay ou reenviar prompt; integração comparando transcript antes/depois |
 | [PENDENTE] T-040 dívida / E02 | Conectar recarga HTTP ao estado: hoje sessão/mensagem/diff são buscados e descartados; adaptar cliente→runtime→RPC→reducer existente | Sem schema/scoping, parar; teste de lacuna SSE, estado canônico e idempotência |
@@ -401,7 +402,7 @@ grupos inteiros de uma vez. ACs são revisões próprias, nunca efeito colateral
 | [BLOQUEADO] T-043 / E04 | Provar fontes de referências do catálogo `@`/`/`, preservar contrato e distinguir anexos D-038 | Colisão de sintaxe exige pergunta; resolução e erros via RPC/runtime no runner |
 | [BLOQUEADO] T-044 / E04 | Projeção de mensagens intersessão/chips a partir de eventos confirmados | Não inferir thinking de animação; parent-child, ciclo e acessibilidade integrados |
 | [PENDENTE] T-045 / E04 | Validar protocolo já tipado no artefato final, mantendo-o dormente | Listener/conta/cloud é regressão; serialização e ausência de ativação no pacote |
-| [BLOQUEADO] T-056 / E05 | Comparar alternativas de forwarding Windows previstas no BACKLOG e levar escolha ao humano | Não inferir capacidade pela sintaxe aceita; conexão real e revisão de D-034 |
+| [EM REVISÃO] T-056 / E05 | Alternativas levantadas em [WINDOWS-TRANSPORT.md](WINDOWS-TRANSPORT.md) (O-1…O-5) por D-045; escolha pendente do responsável | Não inferir capacidade pela sintaxe aceita; conexão real e revisão de D-034 |
 | [BLOQUEADO] T-057 / E05 | Após contrato de transporte, Welcome orienta identidade SSH gerida externamente | Não gerar/ler/guardar chave; fluxo renderizado e autenticação delegada |
 | [PENDENTE] dívida payload / E05,E07 | Exercitar auditor existente T-082 no payload montado, inclusive addons e entrypoints | `/version` não prova módulo; hashes, proveniência, symbols e carga real |
 | [PENDENTE] dívida push / E05,TD1 | Separar smoke de conexão prepopulada de smoke que entrega o payload pelo fluxo oficial | Staging requer confirmação específica; prova push→ativação→conexão sem falso verde |

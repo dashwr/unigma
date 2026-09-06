@@ -125,6 +125,11 @@ interface Run {
 	 */
 	readonly probeIntervalMs: number;
 	readonly samples: readonly ProcessSample[];
+	/**
+	 * The product's own clock, first log line to window-ready. Absent when the
+	 * log carries no parseable timestamp.
+	 */
+	readonly logReadyMs?: number;
 }
 
 interface Options {
@@ -261,7 +266,7 @@ function describeOutput(text: string, label = 'launch'): string {
  * process refused the profile or a modal is holding startup. Only the product's
  * log separates those, so a failed measurement carries it.
  */
-function describeProductLogs(logsDir: string, limit = 8): string {
+function collectLogFiles(logsDir: string): { readonly path: string; readonly mtimeMs: number }[] {
 	const files: { readonly path: string; readonly mtimeMs: number }[] = [];
 	const walk = (directory: string, depth: number): void => {
 		if (depth > 3) {
@@ -288,6 +293,71 @@ function describeProductLogs(logsDir: string, limit = 8): string {
 		}
 	};
 	walk(logsDir, 0);
+	return files;
+}
+
+/**
+ * The line the main process writes when the renderer calls back to say it is
+ * up: `WindowImpl.setReady`, `windowImpl.ts:764`, at trace level — which is why
+ * the launch passes `--log=trace`. It is the product's own statement about the
+ * event this baseline is trying to time, and reading it costs a file read
+ * rather than a second launch of the executable.
+ */
+const LOG_READY = /window#load: window reported ready \(id: \d+\)/;
+
+/** The spdlog prefix the product writes ahead of every line. */
+const LOG_TIMESTAMP = /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})/;
+
+/** Concatenates the product's log files so readiness can be read from them. */
+function readProductLogText(logsDir: string): string {
+	const parts: string[] = [];
+	for (const file of collectLogFiles(logsDir)) {
+		try {
+			parts.push(readFileSync(file.path, 'utf8'));
+		} catch {
+			// A log can be rotated while the product is running.
+			continue;
+		}
+	}
+	return parts.join('\n');
+}
+
+/**
+ * The interval the product's own clock puts between its first log line and the
+ * line that reports the window ready.
+ *
+ * Reported alongside `ready-ms` because it is independent of this harness: it
+ * has no polling quantisation and no process-spawn cost in it. It measures a
+ * strictly shorter interval than `ready-ms` — the first log line is already
+ * some way into startup — so the two are not interchangeable, and a large
+ * disagreement between them is a signal that the wall-clock number is picking
+ * up something other than the product.
+ */
+function logReadyMs(text: string): number | undefined {
+	const lines = text.split('\n');
+	let first: number | undefined;
+	let ready: number | undefined;
+	for (const line of lines) {
+		const stamp = LOG_TIMESTAMP.exec(line);
+		if (!stamp) {
+			continue;
+		}
+		const at = Date.parse(stamp[1].replace(' ', 'T'));
+		if (Number.isNaN(at)) {
+			continue;
+		}
+		if (first === undefined || at < first) {
+			first = at;
+		}
+		if (ready === undefined && LOG_READY.test(line)) {
+			ready = at;
+		}
+	}
+	return first === undefined || ready === undefined ? undefined : ready - first;
+}
+
+function describeProductLogs(logsDir: string, limit = 8): string {
+	const files = collectLogFiles(logsDir);
 	if (files.length === 0) {
 		return '; product logs: none written';
 	}
@@ -311,36 +381,51 @@ function describeProductLogs(logsDir: string, limit = 8): string {
 }
 
 /**
- * The role whose presence defines readiness.
+ * Why readiness is no longer polled with `--status`.
  *
- * Answering `--status` at all is not readiness: the first run to get real
- * numbers (`34043447622`) returned as soon as any row appeared, and reported
- * `renderer.present=no` in both scenarios — it had measured the moment the main
- * process started answering, before the window existed. In `idle-folder` even
- * the extension host and the shared process were still absent. A startup
- * baseline that stops before the window is up is measuring the wrong event.
+ * `--status` is not a passive read of a running instance. `main.ts:436` reaches
+ * the diagnostics path only after connecting to that profile's IPC handle; when
+ * the handle is not listening yet, the same executable goes down the
+ * claim-instance path instead, prints the `statusWarning` at `main.ts:469` and
+ * terminates. So every probe was a full second launch of the product against
+ * the profile being measured, racing the instance it was supposed to observe.
+ *
+ * That single fact explains three separate observations that had been recorded
+ * as unrelated:
+ *
+ * - the resolution. Run `34047514749` measured a real gap of 2596 ms between
+ *   probes on a 6408 ms measurement, because the gap is a process launch, not
+ *   the 250 ms sleep.
+ * - `34043447622` reporting `renderer.present=no` in both scenarios.
+ * - the `idle-folder` failure in `34047514749`: `connect ENOENT` on the
+ *   profile's `-main.sock` followed by `Lifecycle#kill()` is the probe failing
+ *   to find the handle and shutting itself down — the signature of the race,
+ *   and the scenario that opens a folder is the one that leaves the handle
+ *   unlistened for longest.
+ *
+ * Reading the product's own log removes the second process entirely. `--status`
+ * is still used, once, after readiness, for the memory samples it is the only
+ * source of — at that point the handle is up and the race is over.
  */
-const READY_ROLE = 'renderer';
+const READY_MARKER_NOTE = 'log marker, not --status polling';
 
 /**
  * How long the loop sleeps between readiness probes.
  *
- * This is **not** the resolution of `ready-ms`. Each probe launches the product
- * executable again to ask `--status`, which costs far more than the sleep, so
- * the real gap between two probes is the sleep plus that launch. Reporting the
- * sleep as the resolution understated it, and run `34045994035` showed the
- * consequence: `clean-profile` came back with a spread of 21 ms across three
- * repetitions, which does not mean the product starts that consistently — it
- * means all three needed the same number of probes. The resolution is measured
- * per run and reported from observation instead.
+ * A probe is now a read of the product's log files, so the gap between two
+ * probes really is about this sleep — unlike the previous design, where each
+ * probe launched the executable and the measured gap reached 2596 ms on a
+ * 6408 ms measurement (`34047514749`). The resolution is still measured per run
+ * and published from observation rather than assumed from this constant: the
+ * constant is what the harness asks for, and `ready-resolution-ms` is what it
+ * got.
  */
-const POLL_SLEEP_MS = 250;
+const POLL_SLEEP_MS = 100;
 
 /**
- * Launches the product against a throwaway profile and waits until `--status`
- * reports a window. The renderer row is the closest observable event to "the
- * window responds" that does not require instrumenting the product; the main
- * process answering is strictly earlier than that.
+ * Launches the product against a throwaway profile and waits until the product
+ * logs that the window reported ready. See `READY_MARKER_NOTE` for why this is
+ * read from the log instead of polled with `--status`.
  */
 async function measureOnce(options: Options, profile: string): Promise<Run> {
 	const userDataDir = join(profile, 'user-data');
@@ -400,51 +485,57 @@ async function measureOnce(options: Options, profile: string): Promise<Run> {
 	child.stderr?.on('data', keep);
 	child.on('exit', () => { exited = true; });
 
-	let lastCode: number | null = null;
-	let lastOutput = '';
-	const rolesSeen = new Set<string>();
 	let previousProbeAt = started;
 	let probeIntervalMs = 0;
 	let probes = 0;
 	try {
 		while (Date.now() - started < options.timeoutMs) {
 			if (exited) {
-				throw new Error(`the product exited before it answered --status${describeOutput(launchOutput)}${describeProductLogs(logsDir)}`);
+				throw new Error(`the product exited before it reported a window${describeOutput(launchOutput)}${describeProductLogs(logsDir)}`);
 			}
 			probes++;
 			const probeAt = Date.now();
 			probeIntervalMs = Math.max(probeIntervalMs, probeAt - previousProbeAt);
 			previousProbeAt = probeAt;
-			const status = spawnSync(options.executable, ['--user-data-dir', userDataDir, '--extensions-dir', extensionsDir, '--status'], {
-				encoding: 'utf8',
-				timeout: 30000
-			});
-			lastCode = status.status;
-			lastOutput = `${status.stdout ?? ''}${status.stderr ?? ''}`;
-			if (status.status === 0 && STATUS_READY.test(status.stdout ?? '')) {
-				const samples = parseStatus(status.stdout, options.applicationName);
-				if (samples.some(sample => sample.role === READY_ROLE)) {
-					return { readyMs: Date.now() - started, probes, probeIntervalMs, samples };
-				}
-				// Keep the roles seen so a timeout can say how far startup got
-				// instead of repeating that nothing answered.
-				for (const sample of samples) {
-					rolesSeen.add(sample.role);
-				}
+			const text = readProductLogText(logsDir);
+			if (LOG_READY.test(text)) {
+				const readyMs = Date.now() - started;
+				// One `--status`, after readiness, for the only thing the log
+				// does not carry. It is allowed to fail without discarding the
+				// measurement: memory is published as a refusal in that case,
+				// and `ready-ms` stands on the log alone.
+				const status = spawnSync(options.executable, ['--user-data-dir', userDataDir, '--extensions-dir', extensionsDir, '--status'], {
+					encoding: 'utf8',
+					timeout: 30000
+				});
+				const samples = status.status === 0 && STATUS_READY.test(status.stdout ?? '')
+					? parseStatus(status.stdout, options.applicationName)
+					: [];
+				return { readyMs, probes, probeIntervalMs, samples, logReadyMs: logReadyMs(text) };
 			}
 			await sleep(POLL_SLEEP_MS);
 		}
 		// Whether the launched process was still alive separates "the window never
-		// came up" from "the instance is up but does not answer", and the previous
+		// came up" from "the instance is up but never said so", and the previous
 		// failure could not tell those apart.
-		const seen = rolesSeen.size === 0 ? 'none' : [...rolesSeen].sort().join(', ');
-		throw new Error(`the product did not report a ${READY_ROLE} within ${options.timeoutMs} ms (roles seen: ${seen}; last --status exit=${lastCode ?? 'none'}; launched process ${exited ? 'exited' : 'still running'})${describeOutput(lastOutput, 'status')}${describeOutput(launchOutput)}${describeProductLogs(logsDir)}`);
+		throw new Error(`the product did not log a ready window within ${options.timeoutMs} ms (launched process ${exited ? 'exited' : 'still running'})${describeOutput(launchOutput)}${describeProductLogs(logsDir)}`);
 	} finally {
 		if (!exited) {
 			child.kill();
-			await sleep(2000);
+			// Wait for the process to actually go, rather than for a fixed
+			// interval: a launch that is slow to exit and a launch that ignores
+			// SIGTERM look identical to a sleep, and the next repetition starts
+			// on a profile the previous one may still hold.
+			const deadline = Date.now() + 5000;
+			while (!exited && Date.now() < deadline) {
+				await sleep(50);
+			}
 			if (!exited) {
 				child.kill('SIGKILL');
+				const hard = Date.now() + 2000;
+				while (!exited && Date.now() < hard) {
+					await sleep(50);
+				}
 			}
 		}
 	}
@@ -487,7 +578,7 @@ function report(options: Options, runs: readonly Run[]): string {
 	lines.push(`repetitions=${runs.length}`);
 
 	const readyValues = runs.map(run => run.readyMs);
-	lines.push(`ready-definition=first --status reporting a ${READY_ROLE} row`);
+	lines.push(`ready-definition=first product log line reporting a ready window (${READY_MARKER_NOTE})`);
 	// Minimum and maximum, not only the spread: two runs at the extremes and one
 	// in the middle read the same as three clustered runs when only the
 	// difference is published.
@@ -500,6 +591,16 @@ function report(options: Options, runs: readonly Run[]): string {
 	// have.
 	lines.push(`ready-resolution-ms=${Math.max(...runs.map(run => run.probeIntervalMs))}`);
 	lines.push('ready-ms.note=overstates by at most one probe interval; a spread below that interval means the runs took the same number of probes, not that startup varied less');
+	// Published only when every run produced it, so the line never mixes runs
+	// that had the product's own clock with runs that did not.
+	const logReady = runs.map(run => run.logReadyMs);
+	if (logReady.every((value): value is number => typeof value === 'number')) {
+		lines.push(`ready-log-ms.min=${Math.min(...logReady)}`);
+		lines.push(`ready-log-ms.max=${Math.max(...logReady)}`);
+		lines.push('ready-log-ms.note=the product\'s own clock, first log line to ready window; strictly shorter than ready-ms because startup is already under way when the first line is written, so it is a cross-check and not a replacement');
+	} else {
+		lines.push('ready-log-ms=unreported: at least one run wrote no parseable log timestamp');
+	}
 	lines.push(`ready-ms.median=${median(readyValues)}`);
 	lines.push(`ready-ms.spread=${spread(readyValues)}`);
 

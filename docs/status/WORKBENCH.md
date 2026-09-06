@@ -81,6 +81,48 @@ ser medida por observação e o relatório carrega a ressalva. Foi o quarto defe
 do dia da mesma família — um número ou uma string que descrevia a intenção em vez
 do que acontecia.
 
+**2026-09-06 — a sonda era a causa das três coisas, e a suspeita anterior estava
+errada.** `--status` **não é uma leitura passiva** de uma instância viva.
+`main.ts:436` só chega ao caminho de diagnóstico depois de conectar ao handle IPC
+daquele perfil; quando o handle ainda não está escutando, o mesmo executável cai
+no caminho de reivindicar a instância, imprime o `statusWarning` de `main.ts:469`
+e encerra. Cada sonda era, portanto, **um segundo lançamento completo do produto
+contra o perfil que estava sendo medido**, disputando com a instância que deveria
+observar.
+
+Esse único fato explica três observações que estavam registradas como separadas:
+
+- a resolução de 2596 ms: o intervalo entre sondas é um lançamento de processo,
+  não o `sleep` de 250 ms;
+- `34043447622` reportando `renderer.present=no` nos dois cenários;
+- **a falha do `idle-folder` em `34047514749`**: `connect ENOENT` no
+  `-main.sock` do perfil seguido de `Lifecycle#kill()` é a própria sonda não
+  encontrando o handle e se encerrando. O cenário que abre uma pasta é o que
+  deixa o handle sem escutar por mais tempo, que é por que ele falha e o
+  `clean-profile` não.
+
+**A suspeita anterior — o teardown esperar 2 s fixos — não era a causa.** Ela foi
+corrigida assim mesmo, porque esperar um intervalo fixo confunde um processo lento
+com um processo que ignora `SIGTERM`, mas ela não explicava a falha.
+
+A prontidão passou a ser lida do log do próprio produto: a linha trace de
+`WindowImpl.setReady` (`windowImpl.ts:764`), que o lançamento já habilita com
+`--log=trace`. Uma sonda passou a custar uma leitura de arquivo, o `sleep` caiu
+para 100 ms, e `--status` é chamado **uma vez, depois da prontidão**, só para a
+tabela de processos — quando o handle já subiu e a disputa acabou. Se esse
+`--status` falhar, a memória sai como recusa e `ready-ms` continua de pé sozinho.
+
+O relatório passou a publicar `ready-log-ms`: o intervalo entre a primeira linha
+de log e a linha de janela pronta, **pelo relógio do produto**, sem quantização
+nem custo de processo. Ele mede um intervalo estritamente menor que `ready-ms` —
+a primeira linha já está dentro da inicialização — então é conferência, não
+substituto. Divergência grande entre os dois é sinal de que o relógio de parede
+está pegando outra coisa.
+
+Ainda **sem prova de runner**: o que existe é a suíte (18 testes, era 16) e a
+leitura da fonte. O número muda de significado pela terceira vez, e o anterior
+fica como histórico, não como comparável.
+
 **2026-09-06, run `34047514749` — a quantização está confirmada e o instrumento
 é grosso demais.** Com cinco repetições, as cinco precisaram **exatamente do
 mesmo número de sondas** (`ready-probes` 3/3): o spread não mede consistência do

@@ -374,6 +374,47 @@ licença, pesos e direitos de uso antes de qualquer incorporação.
   [contrato de worktree](WORKTREE-CONTRACT.md).
 - Destrava a etapa W-2; não autoriza implementação por si e não fecha `AC-031`.
 
+### D-043 — provider e modelo autorizados — 2026-09-06
+
+- Resposta do responsável: **OpenRouter com modelos gratuitos** é o provider
+  oficial das provas. A credencial entra como **secret do repositório**, criada
+  pelo próprio responsável (`gh secret set`); o agente nunca lê nem manipula o
+  valor.
+- A alternativa apresentada — autenticar OpenAI na instalação local do OpenCode
+  — foi recusada como caminho oficial pelo motivo decisivo: prova feita nesta
+  máquina não é prova de runner e, pela disciplina de evidência do projeto, não
+  fecha `AC` nenhum. O que não roda no runner autolocado permanece `[EM REVISÃO]`.
+- O que esta decisão autoriza: **definir** provider e modelo autorizados, e
+  escrever o workflow que os consome. Não autoriza, por si, anunciar suporte,
+  fechar `AC-003/004/006/008` nem marcar `[FEITO]` qualquer linha — cada uma
+  continua exigindo prova citada.
+- Modelo gratuito implica limite de taxa e disponibilidade variável. A prova
+  precisa distinguir **recusa do provider** de **defeito do produto**: falha de
+  quota é categoria de erro própria, nunca falha de contrato silenciosa.
+- Enquanto o secret não existir no repositório, as linhas dependentes seguem
+  `[BLOQUEADO]` por credencial ausente, não mais por falta de autorização.
+
+### D-044 — rascunho legal proposto antes da decisão — 2026-09-06
+
+- Resposta do responsável: o agente **propõe um rascunho** de `NOTICE`, `LICENSE`
+  e política de cabeçalho, marcado `[EM REVISÃO]`, para aprovação posterior.
+- O rascunho **não afirma clearance**. Titularidade do copyright, licença final e
+  destino dos notices herdados do Code-OSS continuam sendo decisão do
+  responsável; o texto proposto é ponto de partida, não conclusão jurídica.
+- `T-002`/`T-004` não fecham com o rascunho. Saem de `[BLOQUEADO]` apenas na
+  medida em que passa a haver o que revisar.
+
+### D-045 — transporte do cliente Windows investigado antes de escolher — 2026-09-06
+
+- Resposta do responsável: **levantar as alternativas reais e registrar**; não
+  implementar sem escolha explícita.
+- O fato que origina a questão: o OpenSSH que acompanha o Windows não oferece
+  `ControlMaster`, então o reuso de conexão assumido no caminho Linux não existe
+  lá. Aceitar isso em silêncio produziria um cliente que abre conexão por
+  operação sem que ninguém tenha decidido esse custo.
+- Produto desta decisão: um documento de opções com custo e prova de cada uma.
+  `T-056` permanece sem implementação autorizada até a decisão seguinte.
+
 ## regra de atualização
 
 Após cada resposta do responsável, registrar a decisão com data, resposta,

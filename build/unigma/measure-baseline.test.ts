@@ -113,6 +113,19 @@ test('refuses arguments it cannot attribute to an option', () => {
  * failure the baseline could not diagnose, and reproducing it here is cheap
  * because it needs no package.
  */
+/**
+ * The log the harness now reads to decide readiness: the trace line
+ * `WindowImpl.setReady` writes, with the spdlog timestamps that let the report
+ * publish the product's own clock alongside the wall-clock measurement.
+ */
+const READY_LOG = [
+	'const logsPath = (argv.find(a => a.startsWith("--logsPath=")) ?? "").slice("--logsPath=".length);',
+	'if (logsPath) {',
+	'\tmkdirSync(logsPath, { recursive: true });',
+	'\twriteFileSync(join(logsPath, "main.log"), "2026-09-06 00:00:00.000 [info] starting up\\n2026-09-06 00:00:00.400 [trace] window#load: window reported ready (id: 1)\\n");',
+	'}'
+].join('\n');
+
 function writeStandInProduct(root: string): string {
 	const executable = join(root, 'unigma');
 	writeFileSync(executable, [
@@ -135,13 +148,12 @@ function writeStandInProduct(root: string): string {
 	return executable;
 }
 
-test('a launch that never answers --status carries the product log, not only the stopwatch', () => {
+test('a launch that never logs a ready window carries the product log, not only the stopwatch', () => {
 	const root = mkdtempSync(join(tmpdir(), 'unigma-baseline-test-'));
 	try {
 		const result = run(['--exe', writeStandInProduct(root), '--scenario', 'clean-profile', '--repeat', '1', '--timeout', '3000']);
 		assert.equal(result.status, 1);
-		assert.match(result.stderr, /did not report a renderer within 3000 ms/);
-		assert.match(result.stderr, /roles seen: none/);
+		assert.match(result.stderr, /did not log a ready window within 3000 ms/);
 		assert.match(result.stderr, /launched process still running/);
 		assert.match(result.stderr, /product logs: main\.log: the stand-in never opened a window/);
 	} finally {
@@ -167,7 +179,7 @@ test('a launch that dies carries the product log too', () => {
 		chmodSync(executable, 0o700);
 		const result = run(['--exe', executable, '--scenario', 'clean-profile', '--repeat', '1', '--timeout', '10000']);
 		assert.equal(result.status, 1);
-		assert.match(result.stderr, /exited before it answered --status/);
+		assert.match(result.stderr, /exited before it reported a window/);
 		assert.match(result.stderr, /product logs: main\.log: refused the profile/);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
@@ -209,6 +221,11 @@ test('a product that answers --status the way the real one does is measured', ()
 			`\tprocess.stdout.write(${JSON.stringify(REAL_STATUS_TABLE)} + "\\n");`,
 			'\tprocess.exit(0);',
 			'}',
+			// A stand-in that is supposed to be measured has to say what the real
+			// product says: readiness is now read from the log, not from --status.
+			'const { mkdirSync, writeFileSync } = require("node:fs");',
+			'const { join } = require("node:path");',
+			READY_LOG,
 			'setTimeout(() => { }, 60000);'
 		].join('\n') + '\n');
 		chmodSync(executable, 0o700);
@@ -245,6 +262,11 @@ test('the report publishes memory when the processes fit in the machine', () => 
 			`\tprocess.stdout.write(${JSON.stringify(REAL_STATUS_TABLE)} + "\\n");`,
 			'\tprocess.exit(0);',
 			'}',
+			// A stand-in that is supposed to be measured has to say what the real
+			// product says: readiness is now read from the log, not from --status.
+			'const { mkdirSync, writeFileSync } = require("node:fs");',
+			'const { join } = require("node:path");',
+			READY_LOG,
 			'setTimeout(() => { }, 60000);'
 		].join('\n') + '\n');
 		chmodSync(executable, 0o700);
@@ -287,14 +309,25 @@ test('a product whose window never comes up is not measured, and says how far it
 			`\tprocess.stdout.write(${JSON.stringify(withoutWindow)} + "\\n");`,
 			'\tprocess.exit(0);',
 			'}',
+			// The window-ready line is exactly what this stand-in never writes:
+			// under log readiness, that is what "the window never came up" is.
+			'const { mkdirSync, writeFileSync } = require("node:fs");',
+			'const { join } = require("node:path");',
+			'const logsPath = (argv.find(a => a.startsWith("--logsPath=")) ?? "").slice("--logsPath=".length);',
+			'if (logsPath) {',
+			'\tmkdirSync(logsPath, { recursive: true });',
+			'\twriteFileSync(join(logsPath, "main.log"), "2026-09-06 00:00:00.000 [info] starting up\\n");',
+			'}',
 			'setTimeout(() => { }, 60000);'
 		].join('\n') + '\n');
 		chmodSync(executable, 0o700);
 
 		const result = run(['--exe', executable, '--scenario', 'clean-profile', '--repeat', '1', '--timeout', '3000']);
 		assert.equal(result.status, 1);
-		assert.match(result.stderr, /did not report a renderer within 3000 ms/);
-		assert.match(result.stderr, /roles seen: main, shared-process/);
+		assert.match(result.stderr, /did not log a ready window within 3000 ms/);
+		// The product's own log travels with the failure: without it, "no ready
+		// window" reads the same whether startup stalled or never began.
+		assert.match(result.stderr, /product logs: main\.log: .*starting up/);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}
@@ -313,6 +346,11 @@ test('the report states which event ready-ms measures', () => {
 			`\tprocess.stdout.write(${JSON.stringify(REAL_STATUS_TABLE)} + "\\n");`,
 			'\tprocess.exit(0);',
 			'}',
+			// A stand-in that is supposed to be measured has to say what the real
+			// product says: readiness is now read from the log, not from --status.
+			'const { mkdirSync, writeFileSync } = require("node:fs");',
+			'const { join } = require("node:path");',
+			READY_LOG,
 			'setTimeout(() => { }, 60000);'
 		].join('\n') + '\n');
 		chmodSync(executable, 0o700);
@@ -321,7 +359,7 @@ test('the report states which event ready-ms measures', () => {
 		const result = run(['--exe', executable, '--scenario', 'clean-profile', '--repeat', '1', '--timeout', '20000', '--out', out]);
 		assert.equal(result.status, 0, result.stderr);
 		const report = readFileSync(out, 'utf8');
-		assert.match(report, /ready-definition=first --status reporting a renderer row/);
+		assert.match(report, /ready-definition=first product log line reporting a ready window/);
 		// The resolution has to be measured, not the sleep constant echoed back:
 		// each probe relaunches the executable, which costs more than the sleep.
 		const resolution = Number(/ready-resolution-ms=([0-9]+)/.exec(report)?.[1]);
@@ -333,6 +371,77 @@ test('the report states which event ready-ms measures', () => {
 		assert.match(report, /ready-ms\.max=[0-9]+/);
 		assert.match(report, /ready-probes\.min=[0-9]+/);
 		assert.match(report, /ready-probes\.max=[0-9]+/);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test('the report carries the product\'s own clock next to the wall clock', () => {
+	const root = mkdtempSync(join(tmpdir(), 'unigma-baseline-test-'));
+	try {
+		const executable = join(root, 'unigma');
+		mkdirSync(join(root, 'resources', 'app'), { recursive: true });
+		writeFileSync(join(root, 'resources', 'app', 'product.json'), JSON.stringify({ applicationName: 'unigma' }));
+		writeFileSync(executable, [
+			'#!/usr/bin/env node',
+			'const { mkdirSync, writeFileSync } = require("node:fs");',
+			'const { join } = require("node:path");',
+			'const argv = process.argv.slice(2);',
+			'if (argv.includes("--status")) {',
+			`\tprocess.stdout.write(${JSON.stringify(REAL_STATUS_TABLE)} + "\\n");`,
+			'\tprocess.exit(0);',
+			'}',
+			READY_LOG,
+			'setTimeout(() => { }, 60000);'
+		].join('\n') + '\n');
+		chmodSync(executable, 0o700);
+
+		const out = join(root, 'report.txt');
+		const result = run(['--exe', executable, '--scenario', 'clean-profile', '--repeat', '1', '--timeout', '20000', '--out', out]);
+		assert.equal(result.status, 0, result.stderr);
+		const report = readFileSync(out, 'utf8');
+		// The stand-in's log puts 400 ms between its first line and the ready
+		// line. The harness has to read that interval from the product rather
+		// than substitute its own polling, which is the whole point of the
+		// cross-check: a wall clock that drifts away from this number is
+		// measuring something other than startup.
+		assert.match(report, /^ready-log-ms\.min=400$/m);
+		assert.match(report, /^ready-log-ms\.max=400$/m);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test('a product that logs no timestamp is reported without the product clock, not with a guess', () => {
+	const root = mkdtempSync(join(tmpdir(), 'unigma-baseline-test-'));
+	try {
+		const executable = join(root, 'unigma');
+		mkdirSync(join(root, 'resources', 'app'), { recursive: true });
+		writeFileSync(join(root, 'resources', 'app', 'product.json'), JSON.stringify({ applicationName: 'unigma' }));
+		writeFileSync(executable, [
+			'#!/usr/bin/env node',
+			'const { mkdirSync, writeFileSync } = require("node:fs");',
+			'const { join } = require("node:path");',
+			'const argv = process.argv.slice(2);',
+			'if (argv.includes("--status")) {',
+			`\tprocess.stdout.write(${JSON.stringify(REAL_STATUS_TABLE)} + "\\n");`,
+			'\tprocess.exit(0);',
+			'}',
+			'const logsPath = (argv.find(a => a.startsWith("--logsPath=")) ?? "").slice("--logsPath=".length);',
+			'mkdirSync(logsPath, { recursive: true });',
+			'writeFileSync(join(logsPath, "main.log"), "window#load: window reported ready (id: 1)\\n");',
+			'setTimeout(() => { }, 60000);'
+		].join('\n') + '\n');
+		chmodSync(executable, 0o700);
+
+		const out = join(root, 'report.txt');
+		const result = run(['--exe', executable, '--scenario', 'clean-profile', '--repeat', '1', '--timeout', '20000', '--out', out]);
+		assert.equal(result.status, 0, result.stderr);
+		const report = readFileSync(out, 'utf8');
+		assert.match(report, /^ready-log-ms=unreported: /m);
+		// The measurement itself still stands: the product clock is a
+		// cross-check, and losing it must not silently withhold the baseline.
+		assert.match(report, /^ready-ms\.median=[0-9]+$/m);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}
@@ -357,6 +466,11 @@ test('memory is refused when the processes do not fit in the machine', () => {
 			`\tprocess.stdout.write(${JSON.stringify(impossible)} + "\\n");`,
 			'\tprocess.exit(0);',
 			'}',
+			// A stand-in that is supposed to be measured has to say what the real
+			// product says: readiness is now read from the log, not from --status.
+			'const { mkdirSync, writeFileSync } = require("node:fs");',
+			'const { join } = require("node:path");',
+			READY_LOG,
 			'setTimeout(() => { }, 60000);'
 		].join('\n') + '\n');
 		chmodSync(executable, 0o700);
@@ -385,6 +499,15 @@ test('a failed measurement writes the reason into the evidence file too', () => 
 			'#!/usr/bin/env node',
 			'const argv = process.argv.slice(2);',
 			'if (argv.includes("--status")) { process.stdout.write("Version: stand-in\\n"); process.exit(0); }',
+			// The window-ready line is exactly what this stand-in never writes:
+			// under log readiness, that is what "the window never came up" is.
+			'const { mkdirSync, writeFileSync } = require("node:fs");',
+			'const { join } = require("node:path");',
+			'const logsPath = (argv.find(a => a.startsWith("--logsPath=")) ?? "").slice("--logsPath=".length);',
+			'if (logsPath) {',
+			'\tmkdirSync(logsPath, { recursive: true });',
+			'\twriteFileSync(join(logsPath, "main.log"), "2026-09-06 00:00:00.000 [info] starting up\\n");',
+			'}',
 			'setTimeout(() => { }, 60000);'
 		].join('\n') + '\n');
 		chmodSync(executable, 0o700);
@@ -398,7 +521,7 @@ test('a failed measurement writes the reason into the evidence file too', () => 
 		const report = readFileSync(out, 'utf8');
 		assert.match(report, /^scenario=clean-profile$/m);
 		assert.match(report, /^measured=absent$/m);
-		assert.match(report, /^absent-reason=.*did not report a renderer/m);
+		assert.match(report, /^absent-reason=.*did not log a ready window/m);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}
@@ -413,13 +536,17 @@ test('the launch disables the trust dialog, which would hold startup under Xvfb'
 		writeFileSync(join(root, 'resources', 'app', 'product.json'), JSON.stringify({ applicationName: 'unigma' }));
 		writeFileSync(executable, [
 			'#!/usr/bin/env node',
-			'const { writeFileSync } = require("node:fs");',
+			'const { mkdirSync, writeFileSync } = require("node:fs");',
+			'const { join } = require("node:path");',
 			'const argv = process.argv.slice(2);',
 			'if (argv.includes("--status")) {',
 			`\tprocess.stdout.write(${JSON.stringify(REAL_STATUS_TABLE)} + "\\n");`,
 			'\tprocess.exit(0);',
 			'}',
 			`writeFileSync(${JSON.stringify(seen)}, argv.join("\\n"));`,
+			// A stand-in that is supposed to be measured has to say what the real
+			// product says: readiness is now read from the log, not from --status.
+			READY_LOG,
 			'setTimeout(() => { }, 60000);'
 		].join('\n') + '\n');
 		chmodSync(executable, 0o700);
