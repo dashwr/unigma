@@ -57,18 +57,30 @@ const ROLES: ReadonlyArray<{ readonly role: string; readonly match: RegExp }> = 
 ];
 
 /**
- * Why the memory column of `--status` is not published as a baseline number.
+ * The memory column of `--status` used to be scaled by `totalmem() / 100` twice
+ * — `ps.ts` already converts the percentage `ps` reports into bytes, and
+ * `formatProcessItem` applied that same conversion again — so it was not
+ * megabytes on Linux or macOS. The product side is fixed, and the column is
+ * published again.
  *
- * `ps.ts` already turns the percentage `ps` reports into bytes
- * (`totalMemory * (mem / 100)`), and `DiagnosticsService.formatProcessItem`
- * then applies the very same conversion to that result before dividing by a
- * megabyte. The column is scaled by `totalmem() / 100` twice, so it is not a
- * memory figure in any unit. A baseline that published it would be inventing a
- * number, which is the one thing this harness exists to refuse.
- *
- * Presence and CPU are unaffected and stay in the report.
+ * It is published behind a plausibility gate rather than on trust. The harness
+ * cannot tell a correct megabyte figure from a wrong one by looking at it, but
+ * it can tell that the product's processes do not add up to more memory than
+ * the machine has. If they do, the number is refused with what was observed,
+ * because a baseline that publishes an impossible figure is worse than one that
+ * publishes none.
  */
-const MEMORY_UNREPORTED = 'unreported: the --status memory column is scaled by totalmem()/100 twice (src/vs/base/node/ps.ts and src/vs/platform/diagnostics/node/diagnosticsService.ts), so it is not megabytes';
+function memoryRefusal(samples: readonly ProcessSample[]): string | undefined {
+	const totalMb = totalmem() / 1024 / 1024;
+	const sum = samples.reduce((total, sample) => total + sample.memoryMb, 0);
+	if (!samples.every(sample => Number.isFinite(sample.memoryMb) && sample.memoryMb >= 0)) {
+		return 'unreported: the --status memory column contained a value that is not a number';
+	}
+	if (sum > totalMb) {
+		return `unreported: the product's processes reported ${Math.round(sum)} MB together, more than the ${Math.round(totalMb)} MB this machine has, so the column is not megabytes`;
+	}
+	return undefined;
+}
 
 type ScenarioName = 'clean-profile' | 'idle-folder' | 'agent-session' | 'ssh-session';
 
@@ -290,6 +302,14 @@ function describeProductLogs(logsDir: string, limit = 8): string {
 const READY_ROLE = 'renderer';
 
 /**
+ * How often readiness is polled, and therefore the resolution of `ready-ms`:
+ * the number can only be as precise as the gap between two probes. The first
+ * real run polled every 500 ms and reported a spread of 2011 ms, where a fifth
+ * of the spread was the probe interval itself.
+ */
+const POLL_INTERVAL_MS = 250;
+
+/**
  * Launches the product against a throwaway profile and waits until `--status`
  * reports a window. The renderer row is the closest observable event to "the
  * window responds" that does not require instrumenting the product; the main
@@ -372,7 +392,7 @@ async function measureOnce(options: Options, profile: string): Promise<Run> {
 					rolesSeen.add(sample.role);
 				}
 			}
-			await sleep(500);
+			await sleep(POLL_INTERVAL_MS);
 		}
 		// Whether the launched process was still alive separates "the window never
 		// came up" from "the instance is up but does not answer", and the previous
@@ -428,19 +448,30 @@ function report(options: Options, runs: readonly Run[]): string {
 
 	const readyValues = runs.map(run => run.readyMs);
 	lines.push(`ready-definition=first --status reporting a ${READY_ROLE} row`);
+	lines.push(`ready-resolution-ms=${POLL_INTERVAL_MS}`);
 	lines.push(`ready-ms.median=${median(readyValues)}`);
 	lines.push(`ready-ms.spread=${spread(readyValues)}`);
 
-	lines.push(`memory=${MEMORY_UNREPORTED}`);
+	const refusal = runs.map(run => memoryRefusal(run.samples)).find(reason => reason !== undefined);
+	if (refusal) {
+		lines.push(`memory=${refusal}`);
+	}
 
-	// `main` is not in ROLES because it is matched by name from the package, not
-	// by pattern; it still has to be reported, and first.
-	for (const role of ['main', ...ROLES.map(entry => entry.role)]) {
+	// `main` is matched by name from the package rather than by pattern, and
+	// `other` collects what the product prints but the mapping does not name —
+	// `zygote` and `utility-network-service` in the observed table. Reporting it
+	// keeps those processes from being invisible in a memory total.
+	for (const role of ['main', ...ROLES.map(entry => entry.role), 'other']) {
 		const cpu = runs.map(run => run.samples.filter(sample => sample.role === role).reduce((sum, sample) => sum + sample.cpuPercent, 0));
+		const memory = runs.map(run => run.samples.filter(sample => sample.role === role).reduce((sum, sample) => sum + sample.memoryMb, 0));
 		const present = runs.some(run => run.samples.some(sample => sample.role === role));
 		lines.push(`process.${role}.present=${present ? 'yes' : 'no'}`);
 		if (present) {
 			lines.push(`process.${role}.cpu-percent.median=${median(cpu)}`);
+			if (!refusal) {
+				lines.push(`process.${role}.memory-mb.median=${median(memory)}`);
+				lines.push(`process.${role}.memory-mb.spread=${spread(memory)}`);
+			}
 		}
 	}
 

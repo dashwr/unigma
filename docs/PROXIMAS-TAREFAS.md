@@ -181,6 +181,28 @@ como outro evento. Dois testes novos cobrem os dois casos (13/13 local,
 `test-build-scripts` 345/345, eslint limpo). **Falta o run** que produza o
 primeiro `ready-ms` medido até a janela.
 
+**Lote adicional preparado antes desse run**, para não gastar dois ciclos:
+
+1. **Memória corrigida no produto.** `ProcessItem.mem` já é bytes em toda
+   plataforma — `listProcesses` converte o percentual do `ps` e o Windows já
+   reporta bytes — e `formatProcessItem` aplicava a mesma conversão de novo.
+   `processExplorerControl.ts:274` sempre leu o campo corretamente, o que
+   confirma qual dos dois consumidores estava errado. Corrigido em
+   `diagnosticsService.ts`.
+2. **A memória volta ao relatório atrás de uma guarda.** O harness não sabe
+   distinguir um megabyte certo de um errado olhando para ele, mas sabe que os
+   processos do produto não podem somar mais do que a máquina tem. Somando
+   mais, o número é recusado com o observado. Publicar figura impossível é pior
+   que não publicar.
+3. **Papel `other`.** `zygote` e `utility-network-service` não tinham papel e
+   sumiam de qualquer total; agora aparecem.
+4. **Resolução de `ready-ms`.** O intervalo de sondagem era 500 ms e o spread
+   observado 2011 ms — um quinto do spread era o próprio instrumento. Passou a
+   250 ms, e o valor entra no relatório como `ready-resolution-ms`.
+
+Verificação local: `node --test` 14/14, `test-build-scripts` 346/346, eslint
+limpo em `diagnosticsService.ts` e nos dois arquivos do harness.
+
 **Instrumentação aplicada antes disso, e foi ela que entregou a causa:** o
 lançamento passou a usar `--log=trace` como o smoke, e as duas mensagens de
 falha passaram a citar a cauda dos logs do produto. A mensagem de timeout já

@@ -551,8 +551,14 @@ export class DiagnosticsService implements IDiagnosticsService {
 			}
 		}
 
-		const memory = process.platform === 'win32' ? item.mem : (osLib.totalmem() * (item.mem / 100));
-		output.push(`${item.load.toFixed(0).padStart(5, ' ')}\t${(memory / ByteSize.MB).toFixed(0).padStart(6, ' ')}\t${item.pid.toFixed(0).padStart(6, ' ')}\t${name}`);
+		// `ProcessItem.mem` is already bytes on every platform: `listProcesses`
+		// converts the percentage `ps` reports (`totalMemory * (mem / 100)`) and
+		// Windows reports bytes to begin with. Applying that same conversion here
+		// scaled the column by `totalmem() / 100` a second time, so the `Mem MB`
+		// of `--status` was not megabytes on Linux or macOS. The process explorer
+		// has always read the field correctly, which is why only this column was
+		// wrong.
+		output.push(`${item.load.toFixed(0).padStart(5, ' ')}\t${(item.mem / ByteSize.MB).toFixed(0).padStart(6, ' ')}\t${item.pid.toFixed(0).padStart(6, ' ')}\t${name}`);
 
 		// Recurse into children if any
 		if (Array.isArray(item.children)) {

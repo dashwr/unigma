@@ -1699,7 +1699,13 @@ estiverem medidos, `T-071` não começa — publicar baseline parcial como se fo
 > harness devolvia antes de a janela existir. A prontidão passou a exigir a linha
 > `renderer` e o relatório passou a declarar qual evento mede; 13/13 local,
 > `test-build-scripts` 345/345. Os números anteriores estão em `EVIDENCE.md`
-> marcados como não sendo baseline de inicialização.
+> marcados como não sendo baseline de inicialização. No mesmo lote, antes do run
+> seguinte: a dupla conversão de memória corrigida em `diagnosticsService.ts`
+> (`ProcessItem.mem` já é bytes; o process explorer sempre leu certo), a memória
+> de volta ao relatório atrás de uma guarda de plausibilidade contra a memória
+> da máquina, o papel `other` para `zygote`/`utility-network-service` e a
+> sondagem de prontidão de 500 ms para 250 ms com a resolução declarada.
+> 14/14 local, `test-build-scripts` 346/346.
 
 > parcial anterior em 2026-09-06: a comparação de flags pedida pela fila foi
 > feita por leitura de código. O smoke que abre janela lê os logs do produto e semeia

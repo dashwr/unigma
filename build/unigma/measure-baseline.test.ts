@@ -232,7 +232,7 @@ test('a product that answers --status the way the real one does is measured', ()
 	}
 });
 
-test('the report refuses to publish the --status memory column as megabytes', () => {
+test('the report publishes memory when the processes fit in the machine', () => {
 	const root = mkdtempSync(join(tmpdir(), 'unigma-baseline-test-'));
 	try {
 		const executable = join(root, 'unigma');
@@ -254,10 +254,13 @@ test('the report refuses to publish the --status memory column as megabytes', ()
 		assert.equal(result.status, 0, result.stderr);
 		const report = readFileSync(out, 'utf8');
 
-		assert.match(report, /^memory=unreported: .*twice/m);
-		// `total-memory-mb` is the machine's, not the product's; no process row
-		// may carry a megabyte figure.
-		assert.doesNotMatch(report, /process\..*memory-mb/);
+		assert.doesNotMatch(report, /^memory=unreported/m);
+		assert.match(report, /process\.main\.memory-mb\.median=412/);
+		assert.match(report, /process\.renderer\.memory-mb\.median=289/);
+		// zygote and utility-network-service have no role of their own and must
+		// still be visible rather than silently dropped from the totals.
+		assert.match(report, /process\.other\.present=yes/);
+		assert.match(report, /process\.other\.memory-mb\.median=59/);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}
@@ -318,6 +321,43 @@ test('the report states which event ready-ms measures', () => {
 		const result = run(['--exe', executable, '--scenario', 'clean-profile', '--repeat', '1', '--timeout', '20000', '--out', out]);
 		assert.equal(result.status, 0, result.stderr);
 		assert.match(readFileSync(out, 'utf8'), /ready-definition=first --status reporting a renderer row/);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test('memory is refused when the processes do not fit in the machine', () => {
+	const root = mkdtempSync(join(tmpdir(), 'unigma-baseline-test-'));
+	try {
+		const executable = join(root, 'unigma');
+		mkdirSync(join(root, 'resources', 'app'), { recursive: true });
+		writeFileSync(join(root, 'resources', 'app', 'product.json'), JSON.stringify({ applicationName: 'unigma' }));
+		// The shape the double conversion produced: eleven-digit "megabytes".
+		const impossible = [
+			'CPU %\tMem MB\t   PID\tProcess',
+			'    0\t1463166029\t 20262\tunigma',
+			'    3\t32189652638\t 20424\twindow [1] (unigma)'
+		].join('\n');
+		writeFileSync(executable, [
+			'#!/usr/bin/env node',
+			'const argv = process.argv.slice(2);',
+			'if (argv.includes("--status")) {',
+			`\tprocess.stdout.write(${JSON.stringify(impossible)} + "\\n");`,
+			'\tprocess.exit(0);',
+			'}',
+			'setTimeout(() => { }, 60000);'
+		].join('\n') + '\n');
+		chmodSync(executable, 0o700);
+
+		const out = join(root, 'report.txt');
+		const result = run(['--exe', executable, '--scenario', 'clean-profile', '--repeat', '1', '--timeout', '20000', '--out', out]);
+		assert.equal(result.status, 0, result.stderr);
+		const report = readFileSync(out, 'utf8');
+
+		assert.match(report, /^memory=unreported: .*more than the .* MB this machine has/m);
+		assert.doesNotMatch(report, /process\..*memory-mb/);
+		// CPU and presence survive a refused memory column.
+		assert.match(report, /process\.renderer\.cpu-percent\.median=3/);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}

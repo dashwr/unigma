@@ -64,8 +64,20 @@ processo principal começando a responder, não a janela. Os números
 (`ready-ms.median` 3156 e 3118) estão registrados em `EVIDENCE.md` **como não
 sendo baseline de inicialização**. A prontidão passou a exigir a linha
 `renderer`, o timeout passou a nomear os papéis vistos e o relatório passou a
-declarar qual evento mede. Falta o run que produza o primeiro `ready-ms` de
-janela de verdade.
+declarar qual evento mede.
+
+**Lote preparado para o próximo run.** A dupla conversão de memória foi corrigida
+no produto: `ProcessItem.mem` já é bytes em toda plataforma, e
+`formatProcessItem` aplicava a conversão do `ps` uma segunda vez — o Process
+Explorer sempre leu o campo certo, então só a coluna do `--status` estava
+errada. Com isso a memória volta ao relatório, mas **atrás de uma guarda de
+plausibilidade**: se os processos do produto somarem mais memória do que a
+máquina tem, o número é recusado com o que foi observado, em vez de publicado.
+Entraram também o papel `other` — `zygote` e `utility-network-service` não
+tinham papel e sumiam de qualquer total — e a resolução de `ready-ms`, que era
+o próprio intervalo de sondagem: 500 ms para um spread de 2011 ms, agora 250 ms
+e declarada no relatório. `node --test` 14/14, `test-build-scripts` 346/346,
+eslint limpo nos três arquivos.
 
 **o que esses contratos destravaram e o que não destravaram.** Cada um termina
 com a decomposição e a lista de provas do aceite. As duas decisões humanas que ficaram na
@@ -155,9 +167,10 @@ esperam uma de três decisões.
 **dívidas conhecidas:** o smoke de conexão pré-popula o servidor em vez de
 exercitar o push, por decisão explícita; `remote/LICENSE` ainda carrega copyright
 herdado; o auditor cobre desktop e servidor, não o payload montado;
-`src/vs/platform/log/node/spdlogLog.ts` devolve `null` sem logger alternativo e
-nunca drena o buffer de `log()`, ou seja perde log em silêncio mesmo com o addon
-são; cinco testes da trilha de notices só rodam sob `tsc` e falham com
+~~`src/vs/platform/log/node/spdlogLog.ts` devolve `null` sem logger alternativo e
+nunca drena o buffer~~ — **fechado por `3d37d0d2`** e verificado em 2026-09-06:
+existe fallback de console, o buffer é drenado nos dois caminhos e `log()`
+respeita o fallback. A linha ficava aqui como dívida aberta sem ser mais; cinco testes da trilha de notices só rodam sob `tsc` e falham com
 `ERR_MODULE_NOT_FOUND` sob `node --experimental-strip-types`; e a linha cliente
 Windows da matriz continua sem caminho, porque o transporte depende de
 `ControlMaster` — decisão agora rastreada como `T-056`.
