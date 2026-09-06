@@ -489,6 +489,89 @@ test('memory is refused when the processes do not fit in the machine', () => {
 	}
 });
 
+test('memory is refused when a process in the table reports zero megabytes', () => {
+	const root = mkdtempSync(join(tmpdir(), 'unigma-baseline-test-'));
+	try {
+		const executable = join(root, 'unigma');
+		mkdirSync(join(root, 'resources', 'app'), { recursive: true });
+		writeFileSync(join(root, 'resources', 'app', 'product.json'), JSON.stringify({ applicationName: 'unigma' }));
+		// The shape run 34051073811 published: extension-host and
+		// shared-process with memory-mb.median=0 next to spread=130. A process
+		// that is in the table is running, and a running process does not
+		// occupy zero megabytes — the ceiling gate could not see this, because
+		// zero fits under any ceiling.
+		const withZero = [
+			'CPU %\tMem MB\t   PID\tProcess',
+			'    4\t   412\t 20262\tunigma',
+			'    0\t     0\t 20480\tshared-process'
+		].join('\n');
+		writeFileSync(executable, [
+			'#!/usr/bin/env node',
+			'const { mkdirSync, writeFileSync } = require("node:fs");',
+			'const { join } = require("node:path");',
+			'const argv = process.argv.slice(2);',
+			'if (argv.includes("--status")) {',
+			`\tprocess.stdout.write(${JSON.stringify(withZero)} + "\\n");`,
+			'\tprocess.exit(0);',
+			'}',
+			READY_LOG,
+			'setTimeout(() => { }, 60000);'
+		].join('\n') + '\n');
+		chmodSync(executable, 0o700);
+
+		const out = join(root, 'report.txt');
+		const result = run(['--exe', executable, '--scenario', 'clean-profile', '--repeat', '1', '--timeout', '20000', '--out', out]);
+		assert.equal(result.status, 0, result.stderr);
+		const report = readFileSync(out, 'utf8');
+		assert.match(report, /^memory=unreported: shared-process appeared in the process table reporting 0 MB/m);
+		// The refusal withholds the memory column and nothing else: readiness
+		// was measured and stays published.
+		assert.doesNotMatch(report, /process\..*memory-mb/);
+		assert.match(report, /^ready-ms\.median=[0-9]+$/m);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test('the report names the processes the table printed, without their titles', () => {
+	const root = mkdtempSync(join(tmpdir(), 'unigma-baseline-test-'));
+	try {
+		const executable = join(root, 'unigma');
+		mkdirSync(join(root, 'resources', 'app'), { recursive: true });
+		writeFileSync(join(root, 'resources', 'app', 'product.json'), JSON.stringify({ applicationName: 'unigma' }));
+		// `mapProcessToName` renders a window as `window [N] (title)`, and the
+		// title can carry a workspace path. The role question is answered by
+		// the word `window`; the path is not published.
+		const titled = [
+			'CPU %\tMem MB\t   PID\tProcess',
+			'    4\t   412\t 20262\tunigma',
+			'    3\t   289\t 20399\twindow [1] (/home/someone/secret-project)'
+		].join('\n');
+		writeFileSync(executable, [
+			'#!/usr/bin/env node',
+			'const { mkdirSync, writeFileSync } = require("node:fs");',
+			'const { join } = require("node:path");',
+			'const argv = process.argv.slice(2);',
+			'if (argv.includes("--status")) {',
+			`\tprocess.stdout.write(${JSON.stringify(titled)} + "\\n");`,
+			'\tprocess.exit(0);',
+			'}',
+			READY_LOG,
+			'setTimeout(() => { }, 60000);'
+		].join('\n') + '\n');
+		chmodSync(executable, 0o700);
+
+		const out = join(root, 'report.txt');
+		const result = run(['--exe', executable, '--scenario', 'clean-profile', '--repeat', '1', '--timeout', '20000', '--out', out]);
+		assert.equal(result.status, 0, result.stderr);
+		const report = readFileSync(out, 'utf8');
+		assert.match(report, /^process\.names-seen=unigma window$/m);
+		assert.doesNotMatch(report, /secret-project/);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
 test('a failed measurement writes the reason into the evidence file too', () => {
 	const root = mkdtempSync(join(tmpdir(), 'unigma-baseline-test-'));
 	try {

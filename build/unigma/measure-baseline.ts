@@ -87,6 +87,17 @@ function memoryRefusal(samples: readonly ProcessSample[]): string | undefined {
 	if (sum > totalMb) {
 		return `unreported: the product's processes reported ${Math.round(sum)} MB together, more than the ${Math.round(totalMb)} MB this machine has, so the column is not megabytes`;
 	}
+	// Zero is the other impossible value, and the ceiling gate could not see
+	// it. Run `34051073811` published `extension-host` and `shared-process`
+	// with `memory-mb.median=0` next to `spread=130`: a process that is in the
+	// table is running, and a running process does not occupy zero megabytes.
+	// Whatever produced those rows, the column was not measuring them, and a
+	// median of zero is exactly the kind of figure that gets quoted later as if
+	// it meant something.
+	const zeroed = samples.filter(sample => sample.memoryMb === 0).map(sample => sample.role);
+	if (zeroed.length > 0) {
+		return `unreported: ${[...new Set(zeroed)].sort().join(', ')} appeared in the process table reporting 0 MB, which no running process does`;
+	}
 	return undefined;
 }
 
@@ -626,6 +637,23 @@ function report(options: Options, runs: readonly Run[]): string {
 			}
 		}
 	}
+
+	// Run `34051073811` logged a ready window in every repetition and then
+	// reported `renderer.present=no` in both scenarios. Those two statements
+	// cannot both describe the same process tree, and nothing in the report
+	// said which one to doubt. The names the table actually printed are what
+	// separates "the mapping missed the row" from "the row was not there".
+	//
+	// First token only: `mapProcessToName` renders a window as
+	// `window [N] (title)`, and the title can carry a workspace path. The role
+	// question is answered by the word `window`; the rest is not published.
+	const namesSeen = new Set<string>();
+	for (const run of runs) {
+		for (const sample of run.samples) {
+			namesSeen.add(sample.process.split(/[\s[(]/)[0]);
+		}
+	}
+	lines.push(`process.names-seen=${[...namesSeen].sort().join(' ') || 'none'}`);
 
 	return `${lines.join('\n')}\n`;
 }

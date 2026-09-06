@@ -508,3 +508,63 @@ o que funcionou:  todos os mecanismos adicionados neste dia fizeram o que foram
                  `continue-on-error` impediu que uma medição derrubasse um pacote
                  já auditado; e `ready-probes` tornou a quantização legível em
                  vez de deixá-la passar por precisão.
+
+### baseline por log — a prontidão passa a valer, a memória não — 2026-09-06
+
+data:            2026-09-06
+tarefa/gate:     `T-070`/`T-071` — baseline por cenário
+run id:          `34051073811`
+workflow:        `unigma-linux-wsl-validation.yml`
+commit/head:     `14d1e072fd6c4d356889762d1d387405af764675`
+resultado:       job verde; **os dois cenários mediram**, 5 repetições cada
+
+| campo | `clean-profile` | `idle-folder` |
+| --- | --- | --- |
+| `ready-ms.median` | 1708 | 1709 |
+| `ready-ms.min` / `max` | 1705 / 1812 | 1707 / 1808 |
+| `ready-ms.spread` | 107 | 101 |
+| `ready-probes.min` / `max` | 18 / 19 | 18 / 19 |
+| `ready-resolution-ms` | **101** | **102** |
+| `ready-log-ms.min` / `max` | 1305 / 1390 | 1321 / 1378 |
+
+prova:           **a prontidão está medida.** A resolução caiu de 2596 ms para
+                 101 ms — o instrumento deixou de pesar metade do que mede — e
+                 o `idle-folder`, ausente no run anterior, mediu nas cinco
+                 repetições. O relógio do próprio produto (`ready-log-ms`) fica
+                 consistentemente ~380 ms abaixo do relógio de parede, que é
+                 exatamente a relação prevista: a primeira linha de log já está
+                 dentro da inicialização. As duas medidas independentes
+                 concordam, e é isso que sustenta o número.
+
+                 A causa registrada no commit está confirmada por consequência:
+                 a sonda `--status` **era** o custo. Os 5394/6580 ms anteriores
+                 mediam sobretudo o relançamento do executável, não o produto.
+
+não prova:       **a memória por processo continua não estabelecida, e piorou
+                 de forma informativa.** Duas contradições no mesmo relatório:
+
+                 1. `process.renderer.present=no` nos **dois** cenários, num run
+                    em que o log registrou janela pronta em todas as cinco
+                    repetições. As duas afirmações não descrevem a mesma árvore
+                    de processos, e nada no relatório dizia de qual duvidar.
+                 2. `extension-host` e `shared-process` com
+                    `memory-mb.median=0` ao lado de `spread=130`, no
+                    `idle-folder`. Processo que está na tabela está rodando, e
+                    processo rodando não ocupa zero megabytes. O portão de
+                    plausibilidade existente não via isso, porque zero cabe
+                    embaixo de qualquer teto.
+
+                 **Nenhum número de memória deste run deve ser citado.** O
+                 `ready-ms` não depende da tabela de processos e permanece.
+
+ação tomada:     o portão passou a recusar zero, com a razão, e o relatório
+                 passou a publicar `process.names-seen` — o primeiro token de
+                 cada nome impresso pela tabela, sem o título da janela, que
+                 pode carregar caminho de workspace. É o que separa "o mapeamento
+                 perdeu a linha" de "a linha não estava lá", e o run seguinte
+                 responde isso.
+
+comparabilidade: **o número muda de significado pela terceira vez.** `5394`/`6580`
+                 e `6408` foram medidos com a sonda que se relançava; `1708` é
+                 outro instrumento. Os anteriores ficam como histórico, não como
+                 série comparável.

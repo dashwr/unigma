@@ -81,6 +81,29 @@ ser medida por observação e o relatório carrega a ressalva. Foi o quarto defe
 do dia da mesma família — um número ou uma string que descrevia a intenção em vez
 do que acontecia.
 
+**2026-09-06, run `34051073811` — a prontidão passou a valer; a memória não.**
+Os dois cenários mediram, 5 repetições cada. Resolução **101 ms**, era 2596.
+`ready-ms` 1708 (`clean-profile`) e 1709 (`idle-folder`), spread ~100 — o
+spread está no piso do instrumento. O `idle-folder`, ausente no run anterior,
+mediu nas cinco. `ready-log-ms` ficou ~380 ms abaixo do relógio de parede nos
+dois cenários, que é a relação prevista, e são duas medidas independentes
+concordando. A causa diagnosticada está confirmada por consequência: os
+5394/6580 ms anteriores mediam sobretudo o relançamento do executável.
+
+**E o mesmo relatório trouxe duas contradições que ninguém deve citar.**
+`process.renderer.present=no` nos dois cenários, num run em que o log registrou
+janela pronta em todas as repetições — as duas afirmações não descrevem a mesma
+árvore de processos. E `extension-host`/`shared-process` com
+`memory-mb.median=0` ao lado de `spread=130`: processo que está na tabela está
+rodando, e processo rodando não ocupa zero megabytes. O portão de
+plausibilidade não via isso porque zero cabe embaixo de qualquer teto.
+
+Nenhum número de memória deste run vale. O `ready-ms` não depende da tabela de
+processos e permanece. O portão passou a recusar zero, e o relatório passa a
+publicar `process.names-seen` — primeiro token de cada nome, sem o título da
+janela, que pode carregar caminho de workspace — para separar "o mapeamento
+perdeu a linha" de "a linha não estava lá". O run seguinte responde.
+
 **2026-09-06 — a sonda era a causa das três coisas, e a suspeita anterior estava
 errada.** `--status` **não é uma leitura passiva** de uma instância viva.
 `main.ts:436` só chega ao caminho de diagnóstico depois de conectar ao handle IPC
