@@ -1,5 +1,129 @@
 # unigma — backlog implementável
 
+## revisão operacional de 2026-09-05
+
+### T-053 — inspeção de execução após revisão documental
+
+- **atualização de execução:** autorizado commit/push somente dos ajustes do
+  smoke em branch dedicada, sem staging/install/cleanup remoto. Commit
+  `cf6cb5b6`, branch `test/t053-owned-reconnect`; quatro arquivos de código/CI,
+  documentação preservada fora do commit. Hygiene passou com Node 24.18.0.
+- **run:** https://github.com/dashwr/unigma/actions/runs/34008859142 — falhou no
+  gate de par antes de abrir desktop ou conectar: desktop
+  `6e973c67b407c5045c4e9dc4b7bee5c1bf8a6689`, servidor
+  `493dcfe76117e759058a28e69cb6c956a780f952`;
+  `result=artifact-commit-mismatch`. Job legado de staging/cleanup pulado.
+- **runs seguintes, mesmo caminho sem provisionamento:** `34010310240` com par
+  explícito `493dcfe7` passou os gates de artefato, produto e trust e parou em
+  `ssh.client-unavailable`: o proxy de teste exigia variável que o probe restrito
+  `ssh -V` remove. Corrigido em `56584d93` delegando `-V` sem exigir controle.
+  `34010391641` alcançou o host e falhou em `ssh.remote-server-unavailable`,
+  `observed-reason=missing-version`, após 3115 ms de resolver.
+- **feito: 2026-09-06** — com staging autorizado, o run `34011376887` (commit
+  `ed8b224c`, par `493dcfe7`) abriu a janela, derrubou apenas o processo SSH do
+  próprio teste e observou reconexão das conexões de gerenciamento e de extension
+  host com o mesmo desktop vivo (`smoke=pass`). Evidência em `status/EVIDENCE.md`
+  e `.build/t053-34011376887/`. Não fecha AC-007: sessão de agente remota e
+  matriz de módulos nativos continuam sem exercício, conforme os `info` do run.
+- **conclusão dos runs anteriores:** o transporte SSH real é exercitado e recusa
+  fail-closed quando o servidor daquele commit não está presente no host; o
+  servidor `493dcfe7` não está mais preparado na VPS, porque o fluxo legado
+  removia a versão ao final. Queda/reconexão exigem servidor preparado, ou seja,
+  staging autorizado; não relaxar o gate nem reutilizar servidor de outro commit.
+- **prova/limite:** relatório sanitizado em
+  `.build/t053-34008859142/unigma-remote-reconnect-smoke.txt`; recusa de par
+  divergente comprovada, queda/reconexão não exercitadas. Próximo recorte:
+  selecionar explicitamente um par existente do mesmo commit e confirmar servidor
+  preparado, ou obter autorização para reconstrução/provisionamento. Não afrouxar
+  gate nem sobrescrever ponteiros `latest` para forçar verde.
+
+- **autorização humana:** inspecionar/preparar e testar queda/reconexão no runner
+  contra a VPS configurada; excluídos staging, instalação, cleanup remoto,
+  commit/push e provider.
+- **fato observado:** workflow `unigma-remote-window-smoke.yml` faz staging,
+  `npm ci` e cleanup remoto `if: always()`. O script `smoke-remote-window.ts`
+  encerra após handshake inicial, sem cenário de queda. A orientação anterior
+  de tratá-lo como conexão sem staging estava incorreta.
+- **bloqueio:** nenhum workflow disparado. Preparar cenário isolado e caminho de
+  execução compatível com a autorização; alterações locais não chegam ao runner
+  via `workflow_dispatch` sem publicação autorizada.
+- **evidência:** leitura estática dos dois arquivos; `gh run list` confirmou que
+  o último run desse workflow segue `33949936848`, sucesso de abertura apenas.
+
+Leia [PROXIMAS-TAREFAS](PROXIMAS-TAREFAS.md) para ordem, recortes e mapa de
+**todos os itens abertos** E00–E09/TD1–2. Essa fila complementa os contratos T
+abaixo, não cria implementações duplicadas. Registros datados antigos são história;
+D-026 e D-038–040 prevalecem sobre propostas anteriores.
+
+### DOC-ROADMAP-001 — documentação e roadmap
+
+- **origem/board:** expansão do levantamento, TD-2; seis produtos pesquisados em
+  [referências oficiais](planos/2026-09-05-referencias-oficiais.md).
+- **entrega:** reconciliar normas, status, fila, decisões humanas e nomes do board,
+  preservando evidências e checkboxes históricos. Não altera código de produto.
+- **como/prova:** revisar diff, links e rastreabilidade RQ/AC/D; reler cartões
+  alterados. Suporte de produto continua condicionado aos runners de cada AC.
+- **estado:** revisão documental; não marcar entrega de implementação pelo diff.
+- **feito em 2026-09-05:** comparação oficial, D-038–040, RQ-029–031/AC-030–032,
+  fila com cobertura E00–E09/TD1–2 e índices reconciliados. Revisão independente
+  validou links locais; quatro conflitos corrigidos; `git diff --check` passou.
+  Cartões alterados relidos; nomes corrigidos e cinco novos itens TD-2 registrados,
+  sem mudar checkboxes. Nenhum build, prompt de provider, commit ou AC fechado.
+
+### DOC-CONTEXT-001 — contrato de contexto (D-038, RQ-029, AC-030)
+
+- **o quê:** definir anexos transitórios de arquivo/seleção/documento sem índice.
+- **como:** especificar origem/URI/versão/range, tamanho, trust, symlink, buffer
+  dirty, mudança durante envio, autoridade remota, cancelamento e materialização
+  no boundary; confrontar `SendInput` e `/doc` do binário fixado.
+- **saída:** contrato e matriz de falhas revisados pelo planejador; decomposição
+  futura RPC→runtime→UI→integração, com arquivos e testes específicos.
+- **parar:** limite indefinido, colisão `@`/`/`, API não provada ou persistência
+  extra. Perguntar antes de escolher parâmetros de produto. Sem feature agora.
+- **estado/board:** pendente, TD-2; execução depende da revisão do contrato.
+
+### DOC-WORKTREE-001 — contrato de tarefa isolada (D-039, RQ-030, AC-031)
+
+- **o quê:** definir base, dirty/untracked, criação, scoping, revisão, integração
+  e retenção usando Git/OpenCode como fontes de verdade.
+- **como:** provar localização de sessões num único processo por extension host;
+  explicitar conflitos de branch, mudanças externas/buffers, duas tarefas,
+  cancelamento, falha parcial e retomada. HEAD não contém mudanças dirty.
+- **saída/prova:** contrato de integração e matriz de falhas aprovados antes de
+  implementação; escolhas merge/cherry-pick e tratamento dirty voltam ao humano.
+- **parar:** isolamento incerto, auto-copy/commit/cleanup, escritor compartilhado
+  ou promessa de undo concorrente. Worktree não é sandbox.
+- **estado/board:** pendente, TD-2; T-041 reutiliza este contrato, não o duplica.
+
+### DOC-PROJECTIONS-001 — contrato de projeções (D-040, RQ-031, AC-032)
+
+- **o quê:** definir todo, perguntas e sessões filhas de leitura; escritores só
+  após prova do contrato de worktree.
+- **como:** verificar HTTP/eventos do binário, estados pending/reply/reject,
+  parent-child e recuperação HTTP; projetar via RPC/UI sem segundo scheduler.
+- **saída/prova:** contratos e casos positivos/negativos do artefato revisados;
+  distinguir pergunta de permissão, estado real de animação e task de isolamento.
+- **parar:** API apenas dev, histórico paralelo, scoping incerto ou ferramenta
+  de escrita em filho read-only. Sem adaptação Claude/Codex nem browser/cloud.
+- **estado/board:** pendente, TD-2; detalha T-041/T-044 e não autoriza execução.
+
+AC-030–032 estão definidos em ACCEPTANCE e registrados separadamente no TD-2.
+T-100–107 já aparecem em plano histórico; não reciclar esses identificadores.
+
+## DOC-CURSOR-001 — proposta Cursor × OpenCode
+
+- **origem:** pedido de 2026-09-05; [TD-2](https://trello.com/c/qgsY104f).
+- **feito:** pesquisa documental/estática consolidada em
+  [proposta técnica](planos/2026-09-05-cursor-opencode.md), com capacidades,
+  embates, fronteiras, sequência e gates; nenhuma implementação de produto.
+- **status:** pesquisa entregue para revisão; D-038–040 aprovadas, detalhes de
+  interação/contratos permanecem abertos. Não fecha AC nem
+  muda a prioridade operacional de `T-053`.
+- **verificação documental:** conferir links locais e caminhos citados, executar
+  `git diff --check` e revisar a separação entre upstream, código e evidência.
+- **próximo passo:** revisar as seis decisões da seção 8 antes de converter a
+  proposta em tarefas de implementação; itens do board não ganham aceite por docs.
+
 ## como este backlog conversa com o board
 
 O board Trello `PROJETO UNIGMA` guarda **somente nomes**. Objetivo, passos,
@@ -922,7 +1046,8 @@ estão pendentes.
   limpeza de referência.
 - **riscos:** sessão de workspace errado ou estado obsoleto; mitigação: chave
   composta e validação com OpenCode.
-- **paralelo:** pode rodar em paralelo com T-041 e T-042 após T-024.
+- **paralelo:** pode rodar em paralelo com T-042 após T-024; T-041 só inicia
+  após os contratos DOC-WORKTREE-001/DOC-PROJECTIONS-001.
 - **bloqueia:** AC-004 e integração MVP.
 
 ### T-041 — integrar subagentes e worktrees
@@ -930,17 +1055,21 @@ estão pendentes.
 - **objetivo:** expor somente as operações suportadas de subagente/worktree,
   delegando execução ao OpenCode e Git.
 - **responsável lógico:** runtime + integração Git.
-- **dependências:** T-010, T-011, T-024 e T-030; T-033 para revisão/efeitos.
+- **dependências:** T-010, T-011, T-024 e T-030; T-033 para revisão/efeitos;
+  DOC-WORKTREE-001 e DOC-PROJECTIONS-001 para o contrato e a ordem de escritores.
 - **arquivos/módulos prováveis:** `application/worktree/`, `application/subagent/`,
   `infrastructure/git/`, UI de sessão e comandos.
-- **critérios de aceite:** lista/cria/seleciona worktree por Git; ciclo de
-  subagente é observável; caminhos não são copiados para banco; efeitos exigem
-  confiança/aprovação conforme política.
+- **critérios de aceite:** lista/cria/seleciona worktree isolado e revisável por
+  Git; base, dirty/untracked, conflitos e integração são explícitos; ciclo de
+  subagente é observável; caminhos não são copiados para banco nem integrados,
+  commitados ou limpos automaticamente; efeitos exigem confiança/aprovação
+  conforme política, e escritores só avançam após os contratos DOC aprovados.
 - **testes necessários:** Git temporário, worktree inválido, subagente concluído,
   falha e limpeza.
 - **riscos:** conflito de branches, processos órfãos ou escopo de subagente não
   suportado; mitigação: conjunto inicial explícito e ownership.
-- **paralelo:** pode rodar em paralelo com T-040 e T-042 após T-024.
+- **paralelo:** pode rodar em paralelo com T-040 e T-042 após T-024 e os
+  contratos DOC-WORKTREE-001/DOC-PROJECTIONS-001.
 - **bloqueia:** AC-006.
 
 ### T-042 — integrar providers, MCP, plugins e regras autorizados
@@ -964,7 +1093,8 @@ estão pendentes.
   fonte recusada, configuração inválida e workspace não confiável.
 - **riscos:** execução de código arbitrário, segredo duplicado ou catálogo
   acidental; mitigação: allowlist/política local e revisão de fronteira.
-- **paralelo:** pode rodar em paralelo com T-040 e T-041 após T-024.
+- **paralelo:** pode rodar em paralelo com T-040 após T-024; T-041 só inicia
+  após os contratos DOC-WORKTREE-001/DOC-PROJECTIONS-001.
 - **bloqueia:** AC-005, AC-008 e gate de segurança.
 
 ### T-043 — integrar atalhos de ferramentas e skills
@@ -994,7 +1124,8 @@ estão pendentes.
   acessibilidade e sessão indisponível.
 - **riscos:** duplicar catálogo do OpenCode ou criar execução paralela;
   mitigação: referências transitórias e OpenCode como fonte de verdade.
-- **paralelo:** pode rodar com T-044 após T-031, sem editar o mesmo contrato.
+- **paralelo:** pode rodar com T-044 após T-031 e os contratos
+  DOC-WORKTREE-001/DOC-PROJECTIONS-001, sem editar o mesmo contrato.
 - **bloqueia:** AC-027.
 
 ### T-044 — integrar mensagens intersessão e chips de agentes
@@ -1002,17 +1133,20 @@ estão pendentes.
 - **objetivo:** expor mensagens entre sessões locais e chips de agente/subagente
   com estados `thinking`, `typing` e `idle`.
 - **responsável lógico:** runtime + workbench nativo.
-- **dependências:** T-024, T-031, T-032 e T-041.
+- **dependências:** T-024, T-031, T-032 e T-041; DOC-WORKTREE-001 e
+  DOC-PROJECTIONS-001 para projeção e ordem de escritores.
 - **arquivos/módulos prováveis:** `application/subagent/`, eventos RPC e
   `unigmaAgent/browser/`.
 - **critérios de aceite:** a relação pai/filha usa IDs do OpenCode; mensagens
-  respeitam a sessão e a autoridade corretas; chips não inventam estado nem
-  persistem conteúdo; a UI permanece incremental e responsiva.
+  respeitam a sessão e a autoridade corretas; perguntas não são permissões;
+  chips não inventam estado nem persistem conteúdo; a UI permanece incremental
+  e responsiva, sem liberar escritores antes dos contratos DOC e de T-041.
 - **testes necessários:** sessão pai/filha, mensagem entregue/recusada, mudança
   de estado, encerramento, reconexão e ausência de duplicação de histórico.
 - **riscos:** criar um bus paralelo ou confundir colaboração com sincronização;
   mitigação: transporte local, fonte OpenCode e estado transitório.
-- **paralelo:** pode rodar com T-043 após T-031; T-045 é independente no contrato.
+- **paralelo:** pode rodar com T-043 após T-031, T-041 e os contratos
+  DOC-WORKTREE-001/DOC-PROJECTIONS-001; T-045 é independente no contrato.
 - **bloqueia:** AC-027.
 
 ### T-045 — definir protocolo de controle remoto dormente
@@ -2054,33 +2188,34 @@ exemplos numéricos da direção, inclusive `~49`, não são valores normativos.
   evidências pode ser distribuída por critério depois que os testes terminarem.
 - **bloqueia:** T-085, AC-024 e declaração de suporte do E-08.
 
-## E-09 — perfil OpenCode service-only e bundle
+## E-09 — perfil OpenCode service-only opcional e bundle
 
-**status:** direção confirmada em 2026-08-26 e refinada em 2026-08-27; `opencode
-serve` já é headless, mas o perfil bundled, o decepador e a atualização atômica
-ainda não foram implementados ou aceitos. Não fazer poda ampla sem auditoria de
-superfícies alcançáveis/empacotadas. Ver
+**status:** direção confirmada em 2026-08-26 e refinada em 2026-08-27; conforme
+D-026, E-09 é a trilha opcional do perfil service-only. `opencode serve` já é
+headless; patchset, aplicador, workflow, troca/rollback e auditoria têm recortes
+implementados, mas nenhum artefato service-only foi aceito. Não fazer poda ampla
+sem auditoria de superfícies alcançáveis/empacotadas. Ver
 [`OPENCODE-SERVICE-ONLY.md`](OPENCODE-SERVICE-ONLY.md).
 
 ### T-095 — inventariar superfícies e fixar a fronteira service-only
 
 - **objetivo:** mapear no upstream OpenCode o harness que deve permanecer e as
   superfícies TUI/onboarding/interativas que serão removidas ou redirecionadas.
-- **estado factual em 2026-08-26:** além do inventário CLI de
+- **registro histórico de 2026-08-26:** além do inventário CLI de
   `/usr/bin/opencode` `1.18.23`, o checkout upstream
   `/home/dasher/projects/unigma/opencode` foi analisado em `dev`, HEAD
   `c2eacd72afc4a4984564c393e15ab30011057269`, com árvore limpa. O mapa de
   módulos, donos e decisões está em
-  [`OPENCODE-SERVICE-ONLY.md`](OPENCODE-SERVICE-ONLY.md). T-095 está concluída
-  no recorte estático pré-patch; o probe continua sendo do binário instalado,
-  não de um executável construído a partir desse commit. T-096 tem um rascunho
+  [`OPENCODE-SERVICE-ONLY.md`](OPENCODE-SERVICE-ONLY.md). T-095 estava concluída
+  no recorte estático pré-patch; o probe era do binário instalado,
+  não de um executável construído a partir desse commit. T-096 tinha um rascunho
   local não commitado no worktree candidato. O candidato passou typecheck,
   build Linux service-only, smoke, dois testes in-process, probe loopback e
   reaplicação em uma segunda árvore limpa; também passou os testes focados de
   sessão/evento/diff/autorização e os modos `coverage`/`auth` do exercício HTTP.
   O modo `effect` excedeu o timeout de 900 segundos. Segue sem patchset
   versionado no unigma, manifesto, pipeline, validação Windows ou artefato
-  aceito.
+  aceito naquele momento.
 - **responsável lógico:** mantenedor OpenCode + arquitetura de produto.
 - **dependências:** T-001, T-003 e T-011.
 - **arquivos/módulos prováveis:** checkout upstream OpenCode, matriz de
@@ -2285,10 +2420,13 @@ T-086/T-087/T-088/T-089/T-090 -> T-092
 T-024 + T-091 + T-092 -> T-093 -> T-094
 T-094 + T-085 -> gate final da frente E-08/MVP
 T-024 + T-030 + T-031 + T-012 -> T-043
-T-024 + T-031 + T-032 + T-041 -> T-044
+T-010 + T-011 + T-024 + T-030 + T-033
+  + DOC-WORKTREE-001 + DOC-PROJECTIONS-001 -> T-041
+T-024 + T-031 + T-032 + T-041
+  + DOC-WORKTREE-001 + DOC-PROJECTIONS-001 -> T-044
 T-010 + T-024 + T-061 -> T-045
 T-001 + T-003 + T-011 -> T-095 -> T-096 -> T-097 -> T-098 -> T-099
-T-099 + T-085 -> gate final do bundle E-09/MVP
+T-099 + T-085 -> gate final opcional do perfil service-only
 ```
 
 ## PODE RODAR EM PARALELO
@@ -2301,8 +2439,10 @@ T-099 + T-085 -> gate final do bundle E-09/MVP
   rodar em paralelo após T-020;
 - dentro do workbench: T-031, T-032, T-033 e T-034 podem ser distribuídas por
   área após o esqueleto e o contrato;
-- capacidades T-040, T-041 e T-042 podem rodar em paralelo após T-024;
+- capacidades T-040 e T-042 podem rodar em paralelo após T-024; T-041 só inicia
+  após T-024 e os contratos DOC-WORKTREE-001/DOC-PROJECTIONS-001;
 - T-043 e T-044 podem rodar em paralelo após seus contratos e dependências;
+  T-044 também exige T-041 e os dois contratos DOC;
 - T-045 pode rodar em paralelo com T-043/T-044, sem criar servidor ou listener;
 - remoto T-050/T-051 e a trilha local de UI/runtime podem avançar em paralelo;
 - T-061, T-070, T-080 e preparação de CI podem avançar assim que suas entradas
@@ -2338,11 +2478,12 @@ T-099 + T-085 -> gate final do bundle E-09/MVP
 - T-092 precisa aguardar T-086 a T-090; T-093 precisa aguardar T-091/T-092;
 - T-094 precisa aguardar T-062 e T-093.
 - T-043 precisa aguardar T-024/T-030/T-031/T-012; T-044 precisa aguardar
-  T-024/T-031/T-032/T-041; T-045 precisa aguardar T-010/T-024/T-061.
+  T-024/T-031/T-032/T-041 e DOC-WORKTREE-001/DOC-PROJECTIONS-001; T-045 precisa
+  aguardar T-010/T-024/T-061.
 - T-096 precisa aguardar T-095; T-097 precisa aguardar T-096; T-098 precisa
   aguardar T-097; T-099 precisa aguardar T-097/T-098 e as evidências de T-011.
-- T-085 precisa aguardar T-099 quando o bundle service-only fizer parte da
-  entrega.
+- T-085 precisa aguardar T-099 quando o perfil service-only opcional fizer parte
+  da entrega.
 
 ## BLOQUEIA OUTRA TAREFA
 
@@ -2365,7 +2506,7 @@ T-099 + T-085 -> gate final do bundle E-09/MVP
 - T-091/T-092 bloqueiam a integração e as métricas T-093;
 - T-093 bloqueia a revisão final T-094, que bloqueia T-085 e AC-016 a AC-024.
 - T-043/T-044 bloqueiam AC-027; T-045 bloqueia AC-028;
-- T-095 bloqueia todo o pipeline service-only; T-096 bloqueia T-097;
+- T-095 bloqueia todo o pipeline opcional service-only; T-096 bloqueia T-097;
   T-097 bloqueia T-098/T-099; T-099 bloqueia T-085 e AC-025/AC-026.
 
 ## ordem de execução recomendada
@@ -2374,14 +2515,15 @@ T-099 + T-085 -> gate final do bundle E-09/MVP
 2. T-002 → T-003, com T-004 em paralelo após a proveniência;
 3. T-020/T-030/T-050/T-070 em paralelo conforme contratos;
 4. T-021/T-022/T-023 e T-031/T-034 em paralelo;
-5. T-024 → T-040/T-041/T-042, enquanto T-051 avança na trilha remota;
+5. T-024 → T-040/T-042; T-041 após DOC-WORKTREE-001/DOC-PROJECTIONS-001,
+   enquanto T-051 avança na trilha remota;
 6. T-060/T-061, testes T-080 e coleta T-071 em paralelo;
 7. T-032/T-033/T-052, depois T-081 e T-053;
 8. T-072/T-073 → T-074, CI T-082 e empacotamento T-083;
 9. T-084;
 10. T-086 → (T-087 + T-088) → T-089 → T-090;
 11. T-091 + T-092 → T-093 → T-094;
-12. T-095 → T-096 → T-097 → T-098 → T-099;
+12. T-095 → T-096 → T-097 → T-098 → T-099 (trilha opcional service-only);
 13. T-043 + T-044 + T-045 e T-099 → T-085.
 
 Esse particionamento maximiza paralelismo por fronteira: runtime, workbench,

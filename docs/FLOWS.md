@@ -10,7 +10,7 @@ contratos detalhados de interface nem comportamento implementado.
 ```text
 usuário no IDE
   -> superfície unigma para agente
-  -> runtime interno inicia/reutiliza o bundle service-only `opencode serve` no extension host
+  -> runtime interno inicia/reutiliza `opencode serve` validado no extension host
   -> integração HTTP/SSE por loopback
   -> OpenCode executa a sessão
   -> eventos/resultado retornam à superfície do IDE
@@ -22,19 +22,24 @@ expõe servidor com OpenAPI e SSE. A arquitetura aprovada em
 workbench e comunicação HTTP/SSE. O perfil do processo bundled está em
 [OPENCODE-SERVICE-ONLY.md](OPENCODE-SERVICE-ONLY.md).
 
-## F-002 — revisão de alteração proposta pelo agente
+## F-002 — edição isolada e revisão de integração (D-039)
 
 ```text
-agente produz alteração
-  -> IDE apresenta diff
+usuário autoriza tarefa e efeitos conforme permissões do OpenCode
+  -> resolve base e checkout isolado conforme contrato Git
+  -> agente produz alteração no worktree da tarefa
+  -> IDE apresenta diff do worktree, não uma escrita já aplicada no principal
   -> usuário revisa
-  -> usuário aprova ou rejeita
-  -> ação correspondente é aplicada ou descartada
+  -> valida novamente base, buffers e conflitos do principal
+  -> integração explicitamente confirmada, ou mantém tarefa sem integrar
 ```
 
-**Base:** S-01 declara sessões, diffs e aprovações. A arquitetura aprovada
-exige aprovação explícita e não restaura aprovação pendente; granularidade e
-rollback continuam como especificação de implementação posterior.
+**Base:** D-039 aprova essa direção; ela ainda não está implementada. Base,
+dirty/untracked, mecanismo de integração e retenção precisam de contrato prévio.
+Rejeitar uma integração não autoriza apagar o worktree. O diff atual do runtime
+é revisão posterior a efeitos: não implica API transacional de aplicar/descartar.
+Permissões precedem efeitos e não são substituídas pela revisão. Não garantir
+undo compartilhado nem preservação concorrente com apenas comparação de hashes.
 
 ## F-003 — trabalho remoto por SSH
 
@@ -133,6 +138,25 @@ sessões e eventos.
 **Base:** S-18, D-021, RQ-026 a RQ-028.
 
 ## questões abertas por fluxo
+
+### F-008 — contexto explícito sem índice próprio (D-038)
+
+Usuário escolhe arquivo, seleção ou documento → boundary valida origem, URI,
+versão, trust e limites → materializa somente o contexto necessário para o
+contrato comprovado do OpenCode → envio → descarta estado transitório conforme
+o ciclo da interação. Busca do workspace é sob demanda, não indexação própria.
+Buffer alterado durante preparação exige tratamento explícito, não leitura
+silenciosa de outra versão. A sintaxe de anexos não redefine `@`/`/` por inferência.
+
+### F-009 — projeções de execução (D-040)
+
+OpenCode mantém todo, perguntas e sessões filhas → runtime valida estado/evento
+do binário suportado → RPC → UI nativa. Após queda, consultar estado atual por
+HTTP sem presumir replay SSE. Pergunta pendente não é aprovação pendente.
+Subagentes de leitura vêm primeiro; escritores dependem do isolamento de F-002.
+Sem duplicar histórico nem criar outro scheduler.
+
+### lacunas operacionais
 
 - F-001: tratamento de falhas, reinício e reconexão.
 - F-002: escopo de aprovação, visualização e aplicação de mudanças.

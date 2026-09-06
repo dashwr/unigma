@@ -6,6 +6,17 @@ plano histórico ou em um prompt antigo.
 
 ## ordem de leitura
 
+[PROXIMAS-TAREFAS.md](PROXIMAS-TAREFAS.md) é a fila operacional permanente:
+ordem, dependências, condições de parada e mapa de todos os itens abertos do board.
+[INDEX.md](INDEX.md) é a entrada curta, sem segundo catálogo concorrente.
+O confronto das seis fontes está em
+[referências oficiais](planos/2026-09-05-referencias-oficiais.md); as escolhas
+humanas aprovadas estão em D-038–040, não nas alternativas da pesquisa.
+
+Proposta em revisão: [experiência nativa Cursor × OpenCode](planos/2026-09-05-cursor-opencode.md)
+(`DOC-CURSOR-001`). Confronta o levantamento externo com contratos e embates;
+não altera decisões nem autoriza implementação.
+
 1. [`status/WORKBENCH.md`](status/WORKBENCH.md) — foco, tarefas, fase, estado,
    próximo passo e bloqueios atuais;
 2. [`../AGENTS.md`](../AGENTS.md) — regras persistentes do projeto;

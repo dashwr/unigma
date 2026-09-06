@@ -15,6 +15,11 @@
   caminho alternativo tomado na hora vira to-do.
 - O board guarda **somente nomes**. Passo a passo, critério de pronto e comando
   de verificação vivem em `docs/BACKLOG.md`, nunca no cartão.
+- Leia sempre `docs/PROXIMAS-TAREFAS.md`: é a fila operacional, com recortes,
+  dependências e condições de parada; o backlog mantém o detalhe canônico de T/AC.
+  Ao concluir um recorte com a prova exigida, marque `[FEITO]` nessa fila,
+  registre a evidência no backlog e atualize o item correspondente no Trello.
+  Sem prova, use `[EM REVISÃO]` ou `[BLOQUEADO]`; nunca feche o AC por aproximação.
 - Item marcado significa **entregue com evidência**: existe implementação e
   existe prova reproduzível — run do runner, suíte ou smoke — citada no backlog.
   Compile e teste local não marcam item. Aceite formal é item próprio, escrito
@@ -45,9 +50,9 @@
   OpenSSH (`T-051`), staging com ativação atômica (`T-052`) e a fiação do
   resolver, que devolve `ResolvedAuthority` e nomeia o comando de staging quando
   o servidor não está no host.
-- **Cuidado ao ler esse verde:** nenhum smoke exercita o resolver nem o
-  workbench. Eles provam as camadas que ele consome. Enquanto a matriz não for
-  colhida, o remoto está implementado, não suportado.
+- **Cuidado ao ler esse verde:** o run `33949936848` exercitou resolver,
+  workbench e abertura da primeira janela remota. Não provou sessão de agente,
+  queda e reconexão. `AC-007` continua parcial, sem suporte remoto completo.
 - Depois da matriz vêm o passo de Welcome que sugere uma identidade SSH sem
   gerar nem guardar chave, e os épicos de produto.
 - **Não remova o Code Server** (`cli/src/tunnels/code_server.rs`,

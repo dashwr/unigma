@@ -8,6 +8,27 @@
 
 ## 1. premissas e limites
 
+### revisão de 2026-09-05 — D-038–040
+
+Direção aprovada após confronto com seis documentações oficiais: contexto
+explícito transitório sem índice próprio; edição em worktree revisável antes
+de integrar no principal; OpenCode único harness, subagentes de leitura antes
+de escritores isolados. [Pesquisa e limites](planos/2026-09-05-referencias-oficiais.md)
+não são declaração de paridade com concorrentes. [Fila operacional](PROXIMAS-TAREFAS.md)
+separa contratos a definir, implementação e prova.
+
+O runtime continua proprietário de um `opencode serve` por extension host;
+suporte a múltiplos diretórios/worktrees nesse processo precisa ser provado
+contra o binário fixado antes de permitir escritores paralelos. UI não acessa
+HTTP, processo ou filesystem diretamente. Git/editor/OpenCode conservam suas
+fontes de verdade; não criar snapshot, índice, tool loop ou scheduler paralelo.
+Trust, permissão, revisão de diff e isolamento de checkout são controles
+distintos; nenhum deles sozinho constitui sandbox de processo.
+
+D-026 prevalece sobre descrições antigas de bundle obrigatório service-only:
+binário configurado validado e bundle upstream atendem à trilha básica; poda
+service-only é perfil opcional com gate próprio, não pré-requisito do painel.
+
 ### confirmados
 
 - unigma é um IDE open-source derivado de Code - OSS, para Windows x64 e Linux

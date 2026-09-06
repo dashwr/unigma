@@ -1,5 +1,19 @@
 # unigma — formato de evidência
 
+> **2026-09-06 — queda e reconexão na mesma janela remota.** Run `34011376887`,
+> branch `test/t053-owned-reconnect`, commit `ed8b224c`, par `493dcfe7`
+> selecionado explicitamente e servidor preparado no host com autorização
+> específica. O smoke abriu a janela (resolver em 923 ms, handshake do extension
+> host em 331 ms), derrubou apenas o processo SSH criado por ele mesmo e observou
+> `ssh.connection-lost` seguido de reconexão das conexões de gerenciamento e de
+> extension host, com o mesmo processo de desktop vivo: `check.remote-reconnect`,
+> `check.owned-ssh-drop-confirmed` e `check.same-desktop-process-alive` passaram,
+> `smoke=pass`. **Limites declarados pelo próprio relatório:** sessão de agente e
+> matriz de módulos nativos não foram exercitadas (`agent-session-not-tested`,
+> `native-module-matrix-not-tested`); AC-007 continua parcial. O servidor
+> permanece preparado na VPS por escolha explícita. Evidência sanitizada em
+> `.build/t053-34011376887/`.
+
 > **status:** normativo desde 2026-08-28.
 > **fonte:** item 0.5 da onda 0 em
 > [`../planos/2026-08-28-ondas-refundacao.md`](../planos/2026-08-28-ondas-refundacao.md);

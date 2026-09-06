@@ -34,16 +34,26 @@ não são especificação implícita de implementação.
 | RQ-019 | Quando configurado e disponível no OpenCode, o roteador deve usar `Luna medium` sem contexto, sem pensamento longo e somente com saída estruturada curta; não deve depender de credenciais ou endpoints ocultos. | direção confirmada; disponibilidade e contrato pendentes | S-17 | pendente (AC a definir) |
 | RQ-020 | Em erro ou timeout do roteamento, o produto deve retornar com segurança ao modelo selecionado; a chamada adicional, seu custo e suas implicações de privacidade devem ser explícitos, e prompts, raciocínio e segredos não devem ser registrados. | direção confirmada; timeout, divulgação e logging pendentes | S-17 | pendente (AC a definir) |
 | RQ-021 | O toggle deve aparecer mais escuro quando desligado e usar a cor principal do tema quando ligado; o estado ligado deve usar movimento sutil quando a preferência de movimento reduzido não o impedir, deve respeitar essa preferência e não usar animação excessiva. | direção confirmada; tokens e acessibilidade visual pendentes | S-17 | pendente (AC a definir) |
-| RQ-022 | OpenCode deve ser o único harness/backend local oficial do produto, distribuído no bundle `unigma+opencode`; Codex e Claude Code não são harnesses oficiais. | direção confirmada; bundle e suporte pendentes | S-18 | AC-025 |
-| RQ-023 | O perfil bundled do OpenCode deve ser `service-only`, preservando o harness de execução e removendo ou redirecionando TUI, onboarding, prompts interativos, navegação e UI redundante para o unigma. | direção confirmada; patch pendente | S-18 | AC-025 |
-| RQ-024 | O decepador deve transformar um commit upstream em um artefato versionado por uma cadeia reproduzível de patch, testes, auditoria e manifesto de proveniência. | direção confirmada; pipeline pendente | S-18 | AC-026 |
+| RQ-022 | OpenCode deve ser o único harness/backend local oficial do produto, consumido pelo bundle `unigma+opencode` com o release upstream fixado ou com o perfil opcional `service-only` conforme D-026; Codex e Claude Code não são harnesses oficiais. | direção confirmada; bundle e suporte pendentes | S-18 | AC-025 |
+| RQ-023 | Quando o perfil opcional `service-only` for selecionado, ele deve preservar o harness de execução e remover ou redirecionar TUI, onboarding, prompts interativos, navegação e UI redundante para o unigma. | direção confirmada para o perfil opcional; patch pendente | S-18 | AC-025 |
+| RQ-024 | Na trilha opcional `service-only`, o decepador deve transformar um commit upstream em um artefato versionado por uma cadeia reproduzível de patch, testes, auditoria e manifesto de proveniência. | direção confirmada para o perfil opcional; pipeline pendente | S-18 | AC-026 |
 | RQ-025 | Atualizações autorizadas do bundle devem ser atômicas, ocorrer com o processo parado ou após reinício explícito, permitir rollback e preservar os dados do usuário fora do artefato. | direção confirmada; implementação e evidência pendentes | S-18 | AC-026 |
 | RQ-026 | A superfície nativa do agente deve oferecer `@` para ferramentas e `/` para skills, sem acesso direto da UI a processo, rede ou segredos. | direção confirmada; contrato da UI pendente | S-18 | AC-027 |
 | RQ-027 | O produto deve permitir mensagens entre sessões locais e apresentar chips de agentes/subagentes com estados `thinking`, `typing` e `idle`, mantendo o OpenCode como fonte de verdade. | direção confirmada; ciclo de vida e renderização pendentes | S-18 | AC-027 |
 | RQ-028 | O protocolo de controle remoto pode ser construído e versionado de forma dormente, mas não deve ativar listener, cloud, colaboração em tempo real ou backend no MVP. | direção confirmada; protocolo e testes pendentes | S-18 | AC-028 |
+| RQ-029 | Contexto deve usar anexos explícitos de arquivos/seleções com origem e versão, documentos e busca sob demanda via OpenCode, sem índice próprio persistente. | direção aprovada; contrato pendente | D-038, 2026-09-05 | AC-030 |
+| RQ-030 | Tarefas de edição devem ter direção de worktree isolado e revisão antes de integrar no checkout principal, sem prometer undo seguro sobre alterações concorrentes. | direção aprovada; base, dirty e integração a especificar | D-039, 2026-09-05 | AC-031 |
+| RQ-031 | Subagentes de leitura devem preceder escritores isolados, mantendo OpenCode como único harness e sem segundo scheduler. | direção aprovada; contrato e prova pendentes | D-040, 2026-09-05 | AC-032 |
 
 Os requisitos RQ-015 a RQ-028 registram direção confirmada, não implementação;
 os critérios associados só passam com evidência reproduzível.
+
+RQ-029–031 também são direção, não implementação. D-026 mantém a poda
+service-only opcional e fora do caminho crítico da integração básica: RQ-023–024
+descrevem essa trilha específica, RQ-025 governa atualizações do bundle
+selecionado, e nenhum deles obriga bloquear o uso do bundle upstream.
+Há implementações parciais de UI, router e pipeline; o estado vivo está em
+`status/WORKBENCH.md`, e não deve ser inferido da palavra “pendente” nesta tabela.
 
 ## requisitos de restrição
 
@@ -68,8 +78,8 @@ os critérios associados só passam com evidência reproduzível.
 Os requisitos declarados acima não autorizam inferir os seguintes detalhes, que
 continuam sem especificação ou evidência suficiente:
 
-- patchset, pipeline, manifesto, cadência operacional de atualização e release
-  do bundle `unigma+opencode`;
+- aceite do patchset/pipeline/manifesto existentes, cadência operacional de
+  atualização e release do bundle `unigma+opencode`;
 - fontes e integrações MCP/plugins permitidas, providers/modelos suportados e
   política de dados específica de cada provider;
 - granularidade de sessões, diffs, aprovações, subagentes e worktrees;
@@ -96,8 +106,8 @@ Essas lacunas estão detalhadas em [DECISIONS.md](DECISIONS.md).
 
 ## questões abertas
 
-Não há questão aberta de arquitetura ou na direção macro de produto: RQ-015 a
-RQ-028 registram a direção de roteamento, Autopilot!, harness, bundle e
-capacidades do agente. As lacunas restantes são contratos operacionais,
-evidência, medição, upstream ou distribuição e não autorizam ampliar o escopo
-aprovado.
+D-038–040 resultam da reabertura explícita das decisões em 2026-09-05. A direção
+aprovada mantém a fronteira local-first e harness único. Continuam abertos os
+contratos de anexos/sintaxe, worktree/base dirty/integração e projeções do harness;
+fast/deep não foi aprovado. A fila em `PROXIMAS-TAREFAS.md` distingue definição
+de contrato de implementação. Lacunas não autorizam ampliar o escopo.

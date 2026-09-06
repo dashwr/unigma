@@ -7,49 +7,64 @@ um artefato de implementação. Eles verificam os requisitos declarados; não
 criam comportamento adicional.
 
 RQ-015 a RQ-021 e D-016 registram direção de produto para Intelligence Index e
-Autopilot, não suporte implementado. As linhas AC-016 a AC-024 permanecem
-bloqueadas até haver implementação, testes e evidência reproduzível; nenhum
-exemplo numérico, inclusive `~49`, é um valor fixo ou normativo.
+Autopilot, não suporte implementado. Os recortes de domínio e testes de T-086 a
+T-092 já existem, mas as linhas AC-016 a AC-024 permanecem bloqueadas até haver
+integração E2E e evidência reproduzível; nenhum exemplo numérico, inclusive
+`~49`, é um valor fixo ou normativo.
 
 RQ-022 a RQ-028, RQ-105 e D-017 a D-022 registram a direção de harness, bundle e
-capacidades do agente. As linhas AC-025 a AC-028 permanecem bloqueadas até haver
-artefato, implementação, testes e evidência reproduzível; o probe de OpenCode
-`1.18.23` não prova o bundle service-only. AC-029 registra uma fronteira de
-suporte, não uma capacidade adicional do runtime.
+capacidades do agente. O bundle Linux com OpenCode `1.18.23` já existe e passa
+por saúde/listagem de sessões, mas as linhas AC-025 a AC-028 permanecem
+bloqueadas até haver artefato compatível com o critério, testes e evidência de suporte correspondentes;
+patchset, pipeline e auditoria implementados não equivalem a bundle
+`service-only` aceito. AC-029 registra uma fronteira de suporte, não uma
+capacidade adicional do runtime.
 
 | ID | Relacionado a | Critério objetivo e testável | Estado de execução |
 | --- | --- | --- | --- |
-| AC-001 | RQ-001, RQ-102 | Para toda distribuição que incorpore código de Code - OSS, a revisão de entrega confirma a presença dos avisos, licenças e copyrights aplicáveis. | bloqueado: o auditor encontrou 1.321 entradas `manifest-only` e sete notices sem licença declarada; os artefatos finais preservam os notices conhecidos, mas a classificação completa ainda está pendente |
+| AC-001 | RQ-001, RQ-102 | Para toda distribuição que incorpore código de Code - OSS, a revisão de entrega confirma a presença dos avisos, licenças e copyrights aplicáveis. | bloqueado: os artefatos finais preservam os notices conhecidos, mas o inventário completo de terceiros/licenças e a classificação do escopo root ainda estão pendentes; o escopo root atual registra 695 entradas `manifest-only` e os sete avisos de licença são falso positivo do parser |
 | AC-002 | RQ-001, RQ-101 | A revisão de identidade e artefatos de distribuição não encontra marca, ícones, binários oficiais, endpoints/chaves Microsoft ou uso do Visual Studio Marketplace sem direito documentado. | parcial/bloqueado: os dois pacotes finais têm metadados próprios, gallery nula e não contêm as quatro extensões externas nem caminhos de Copilot/MSAL; a revisão ampla de referências upstream e direitos ainda não terminou |
-| AC-003 | RQ-002 | Em um ambiente de teste, o IDE inicia uma interação com o CLI `opencode serve` por HTTP/SSE documentados e apresenta um resultado ou erro observável ao usuário. | bloqueado: há supervisor/cliente e fixture local provisórios, mas não há sessão integrada à UI nem binário OpenCode fixado |
-| AC-004 | RQ-003 | A especificação de implementação define e o teste demonstra: criação/retomada de sessão, apresentação de diff e uma ação explícita de aprovação ou rejeição. | bloqueado: contrato T-010 implementado e validado; UI/runtime e teste integrado ausentes |
-| AC-005 | RQ-004 | A especificação de implementação identifica as integrações MCP/plugin/regra aceitas e o teste demonstra carregamento ou recusa conforme essa política. | parcial/bloqueado: workbench classifica MCP instalado/permitido, a bridge de produção workbench↔extension host é serializável e os smokes confirmam gate obrigatório antes de `ProcessManager.ensureStarted()`; o inventário de plugin/regra foi conectado em `072d55f6` e `sourceInventoryComplete` passou a refletir a enumeração real em vez de ficar preso em `false`; falta evidência contra OpenCode real com plugins instalados e a suíte compilada continua bloqueada |
+| AC-003 | RQ-002 | Em um ambiente de teste, o IDE inicia uma interação com o CLI `opencode serve` por HTTP/SSE documentados e apresenta um resultado ou erro observável ao usuário. | parcial/bloqueado: o runtime e o cliente iniciam o bundle Linux com OpenCode `1.18.23`, e o smoke de pacote (`33721970575`) comprovou saúde e listagem de sessões; falta prompt real com resultado/erro observável na UI, streaming e permissão, bloqueados por provider/modelo autorizado |
+| AC-004 | RQ-003 | A especificação de implementação define e o teste demonstra: criação/retomada de sessão, apresentação de diff e uma ação explícita de aprovação ou rejeição. | parcial/bloqueado: contrato T-010, superfícies nativas de sessão/diff/aprovação e a ligação inicial do runtime existem e têm testes de recorte; retomada de conteúdo, prompt real e teste integrado E2E continuam pendentes |
+| AC-005 | RQ-004 | A especificação de implementação identifica as integrações MCP/plugin/regra aceitas e o teste demonstra carregamento ou recusa conforme essa política. | parcial/bloqueado: workbench classifica MCP instalado/permitido, a bridge de produção workbench↔extension host é serializável e os smokes confirmam gate obrigatório antes de `ProcessManager.ensureStarted()`; o inventário de plugin/regra foi conectado em `072d55f6` e `sourceInventoryComplete` passou a refletir a enumeração real; a suíte compilada do runtime passou nos runs finais, mas falta evidência contra OpenCode real com plugins instalados |
 | AC-006 | RQ-005 | A especificação de implementação define e o teste demonstra o ciclo de vida de um subagente ou worktree suportado. | bloqueado: contrato T-010 cobre a mensagem; ciclo de vida e teste integrado ausentes |
 | AC-007 | RQ-006 | A especificação de implementação define o fluxo SSH suportado e um teste estabelece ou recusa a conexão conforme a política definida. | parcial/bloqueado: transporte, staging e ativação têm smoke no runner com payload real e confirmação fail-closed, o resolver devolve `ResolvedAuthority` e **a primeira janela remota abriu contra a VPS externa** (`unigma-remote-window-smoke` run `33949936848`, commit `493dcfe7`, doze checks, resolver em 725 ms e handshake do extension host em 261 ms, registrado em `EVIDENCE.md`); falta o resto da matriz — sessão, queda de conexão e reconexão —, e uma janela que abre não é um caminho que se recupera |
-| AC-008 | RQ-007 | A especificação de implementação enumera providers/modelos suportados e testes demonstram a seleção de ao menos uma integração aprovada. | bloqueado: T-011 não anuncia provider/modelo suportado; não há suporte funcional, seleção ou teste |
+| AC-008 | RQ-007 | A especificação de implementação enumera providers/modelos suportados e testes demonstram a seleção de ao menos uma integração aprovada. | bloqueado: T-011/T-042 descobrem e sanitizam providers/modelos, mas nenhum provider/modelo é anunciado como suportado; seleção e integração real dependem de provider/modelo autorizado |
 | AC-009 | RQ-103, RQ-104 | Revisão de código, configuração e documentação não encontra coleta/extração de tokens ou caches OAuth, interceptação de tráfego nem bypass de entitlement; integrações apontam apenas a meios autorizados/documentados. | bloqueado: o slice possui fronteiras/redaction estruturais, mas a revisão integrada e a evidência reproduzível ainda não foram executadas |
 | AC-010 | RQ-009 | Em uma distribuição de teste, a interface inicia em inglês e o pacote `pt-BR` pode ser instalado ou ativado pelo mecanismo documentado. | bloqueado: mecanismo pendente |
 | AC-011 | RQ-010 | A especificação de tokens define valores verificáveis para roxo, magenta, violeta e cada fundo declarado; a revisão visual de cada tema confirma o uso exclusivo desses tokens para a identidade. | parcial: `unigma Dark`, `unigma Light` e `unigma High Contrast` existem, são contribuídos por `theme-unigma` e têm contraste verificado por `build/unigma/verify-theme-contrast.ts` localmente; falta a revisão visual humana e validação do pacote no runner |
 | AC-012 | RQ-011 | A identidade distribuída não deve copiar deliberadamente elementos identificáveis do OpenCode. | escopo ajustado por D-030: não é gate formal de entrega; preservar direitos, copyright, licenças e notices aplicáveis |
 | AC-013 | RQ-012 | A entrega do MVP fornece artefatos de teste ou distribuição para Windows x64 e Linux x64; a mesma suíte mínima de inicialização é executada com sucesso em ambas as plataformas. | passou no recorte de núcleo: os runs finais `32930950550` (Windows x64) e `32929454545` (Linux x64), head `838ca94e`, publicaram artefatos e executaram a mesma suíte de smoke; o smoke exclui `Terminal Profiles`, `Chat` e `Agents Window` por escopo declarado |
-| AC-014 | RQ-013 | Em ambiente de teste, o painel de agente é contribuição nativa do workbench e inicia/controla uma sessão OpenCode sem exigir que o usuário opere uma ferramenta de agente separada. | bloqueado: a contribuição nativa (recorte T-030) compila e o teste browser focado passou localmente, mas sessão/controle integrado, matriz oficial e runner ainda não estão comprovados |
-| AC-015 | RQ-014 | O pipeline mede tempo de inicialização e RSS por processo em perfil limpo, idle e sessão ativa; cada regressão é comparada ao baseline versionado da mesma plataforma. | bloqueado: baseline e implementação ausentes |
-| AC-016 | RQ-015, RQ-016, RQ-017, RQ-018, RQ-020 | **Direção documental:** o contrato/configuração versionado do router separa Autopilot, modelo selecionado, `persistSelectedModel`, `routerModel`, `maxModel`, referências de índice/custo, bypass, timeout, fallback e privacidade. **Implementação real:** o runtime valida versão e campos, produz decisão/evento observável, respeita trust e política do OpenCode e não registra prompt, raciocínio ou segredo. | bloqueado: T-086 é frente futura; não há schema implementado, runtime ou teste executado |
-| AC-017 | RQ-015, RQ-016 | **Direção documental:** o `intelligence index` e o custo têm fonte, versão, proveniência, unidade, revisão e tratamento de ausência/ambiguidade; o índice é aproximado, não é ranking universal e não cria catálogo remoto. `~49` permanece ilustrativo. **Implementação real:** somente referência local explícita e compatível é carregada; dados insuficientes são recusados sem inventar ranking, sincronizar catálogo ou registrar prompt, raciocínio ou segredo. | bloqueado: T-087 é frente futura; não há índice/custo carregado nem evidência |
-| AC-018 | RQ-019 | **Direção documental:** quando configurado e disponível, `Luna medium` é chamado sem contexto adicional de sessão, workspace ou histórico, sem pensamento longo e com schema curto, sem endpoint ou credencial oculta. **Implementação real:** fixture/integração controlada comprova payload mínimo e saída validada, com falha observável e nenhum log de prompt, raciocínio ou segredo. | bloqueado: T-088 é frente futura; disponibilidade, chamada e contrato não foram testados |
-| AC-019 | RQ-016 | **Direção documental:** a seleção compara somente modelos configurados/autorizados, exige índice suficiente, aplica o teto explícito de `maxModel` e usa custo comparável; `maxModel` não é ranking universal nem valor numérico fixo. **Implementação real:** teste determinístico escolhe o modelo elegível de menor custo e recusa dados ausentes/ambíguos, sem autoescalada e sem log de prompt, raciocínio ou segredo. | bloqueado: T-089 é frente futura; não há seletor, fixture ou evidência |
-| AC-020 | RQ-017, RQ-018, RQ-020 | **Direção documental:** Autopilot desligado e `persistSelectedModel` fazem bypass; erro, indisponibilidade, privacidade restritiva, ausência de candidato e timeout retornam ao `selectedModel` validado, com chamada adicional, custo e implicação de privacidade explícitos, sem contornar trust, aprovação, política ou entitlement. **Implementação real:** testes demonstram timeout limitado, fallback seguro/observável ou erro bloqueante quando o modelo selecionado não é válido, sem retry ilimitado e sem log de prompt, raciocínio ou segredo. | bloqueado: T-090 é frente futura; matriz de falhas e implementação ausentes |
-| AC-021 | RQ-017, RQ-021 | **Direção documental:** a UI nativa especifica toggle opt-in, estados desligado/pronto/roteando/selecionado/bypass/fallback/timeout/erro/bloqueado, foco, teclado, nome acessível, contraste, estado desligado mais escuro, ligado na cor principal e `prefers-reduced-motion`. **Implementação real:** a contribuição do workbench renderiza os estados sem Webview ou acesso direto a rede/processo, respeita movimento reduzido e fornece evidência renderizada do build/teste real quando a UI existir. | bloqueado: T-091 é frente futura; não há UI, teste de acessibilidade ou evidência renderizada |
-| AC-022 | RQ-015, RQ-016, RQ-018, RQ-019, RQ-020 | **Direção documental:** a matriz separa testes unitários, de contrato, recusas, redaction e limites de privacidade. **Implementação real:** o harness existente executa testes determinísticos para schema/versão, índice/custo, payload curto Luna, seleção, bypass, fallback e timeout, sem segundo runner e sem log de prompt, raciocínio ou segredo. | bloqueado: T-092 é frente futura; suíte e fixtures não foram executadas |
+| AC-014 | RQ-013 | Em ambiente de teste, o painel de agente é contribuição nativa do workbench e inicia/controla uma sessão OpenCode sem exigir que o usuário opere uma ferramenta de agente separada. | parcial/bloqueado: contribuição nativa, superfície de sessão/streaming/diff/aprovação e ligação inicial do runtime existem; compile e teste browser focado passaram, mas sessão/controle integrado, prompt real, matriz oficial e runner ainda não estão comprovados |
+| AC-015 | RQ-014 | O pipeline mede tempo de inicialização e RSS por processo em perfil limpo, idle e sessão ativa; cada regressão é comparada ao baseline versionado da mesma plataforma. | bloqueado: o medidor existe e o run `33950524239` executou a etapa, mas `--status` retornou `Version`/`OS Version`/`CPUs` sem `Process Info`, indicando ausência de instância viva; não há baseline numérico válido |
+| AC-016 | RQ-015, RQ-016, RQ-017, RQ-018, RQ-020 | **Direção documental:** o contrato/configuração versionado do router separa Autopilot, modelo selecionado, `persistSelectedModel`, `routerModel`, `maxModel`, referências de índice/custo, bypass, timeout, fallback e privacidade. **Implementação real:** o runtime valida versão e campos, produz decisão/evento observável, respeita trust e política do OpenCode e não registra prompt, raciocínio ou segredo. | bloqueado: T-086 implementou contrato/schema local versionado e testes de validação; decisão/evento no runtime integrado e evidência E2E continuam pendentes, em especial por provider/modelo não autorizado |
+| AC-017 | RQ-015, RQ-016 | **Direção documental:** o `intelligence index` e o custo têm fonte, versão, proveniência, unidade, revisão e tratamento de ausência/ambiguidade; o índice é aproximado, não é ranking universal e não cria catálogo remoto. `~49` permanece ilustrativo. **Implementação real:** somente referência local explícita e compatível é carregada; dados insuficientes são recusados sem inventar ranking, sincronizar catálogo ou registrar prompt, raciocínio ou segredo. | bloqueado: T-087 implementou carregamento/validação de índice e custo local e seus testes; integração com a seleção/router e evidência E2E permanecem pendentes, sem fixar valores ou ranking |
+| AC-018 | RQ-019 | **Direção documental:** quando configurado e disponível, `Luna medium` é chamado sem contexto adicional de sessão, workspace ou histórico, sem pensamento longo e com schema curto, sem endpoint ou credencial oculta. **Implementação real:** fixture/integração controlada comprova payload mínimo e saída validada, com falha observável e nenhum log de prompt, raciocínio ou segredo. | bloqueado: o domínio e os testes do recorte T-088 existem, mas chamada/payload contra OpenCode real, disponibilidade e falha observável continuam sem E2E; provider/modelo autorizado ainda não foi definido |
+| AC-019 | RQ-016 | **Direção documental:** a seleção compara somente modelos configurados/autorizados, exige índice suficiente, aplica o teto explícito de `maxModel` e usa custo comparável; `maxModel` não é ranking universal nem valor numérico fixo. **Implementação real:** teste determinístico escolhe o modelo elegível de menor custo e recusa dados ausentes/ambíguos, sem autoescalada e sem log de prompt, raciocínio ou segredo. | bloqueado: T-089 implementou o seletor determinístico e testes de domínio; falta costura E2E com índice, router, provider/modelo autorizado e OpenCode real |
+| AC-020 | RQ-017, RQ-018, RQ-020 | **Direção documental:** Autopilot desligado e `persistSelectedModel` fazem bypass; erro, indisponibilidade, privacidade restritiva, ausência de candidato e timeout retornam ao `selectedModel` validado, com chamada adicional, custo e implicação de privacidade explícitos, sem contornar trust, aprovação, política ou entitlement. **Implementação real:** testes demonstram timeout limitado, fallback seguro/observável ou erro bloqueante quando o modelo selecionado não é válido, sem retry ilimitado e sem log de prompt, raciocínio ou segredo. | bloqueado: T-090 implementou o plano de bypass/fallback/timeout/privacidade e testes de domínio; matriz integrada e E2E com provider/modelo autorizado continuam ausentes |
+| AC-021 | RQ-017, RQ-021 | **Direção documental:** a UI nativa especifica toggle opt-in, estados desligado/pronto/roteando/selecionado/bypass/fallback/timeout/erro/bloqueado, foco, teclado, nome acessível, contraste, estado desligado mais escuro, ligado na cor principal e `prefers-reduced-motion`. **Implementação real:** a contribuição do workbench renderiza os estados sem Webview ou acesso direto a rede/processo, respeita movimento reduzido e fornece evidência renderizada do build/teste real quando a UI existir. | parcial/bloqueado: T-091 implementou a redução dos estados e teste de `prefers-reduced-motion`; a superfície renderizada, foco, nome acessível, contraste e evidência visual continuam pendentes |
+| AC-022 | RQ-015, RQ-016, RQ-018, RQ-019, RQ-020 | **Direção documental:** a matriz separa testes unitários, de contrato, recusas, redaction e limites de privacidade. **Implementação real:** o harness existente executa testes determinísticos para schema/versão, índice/custo, payload curto Luna, seleção, bypass, fallback e timeout, sem segundo runner e sem log de prompt, raciocínio ou segredo. | bloqueado: T-092 implementou a matriz e os testes determinísticos do domínio/harness; execução integrada/E2E, provider/modelo real e evidência final continuam pendentes |
 | AC-023 | RQ-015, RQ-016, RQ-017, RQ-018, RQ-019, RQ-020, RQ-021 | **Direção documental:** a integração define cenários controlados e métrica versionada para custo/latência da chamada adicional e do modelo final, distinguindo estimativa local de cobrança e proibindo telemetria. **Implementação real:** IDE/runtime/OpenCode controlados demonstram bypass, roteamento, fallback e timeout, com métricas e referências permitidas, nenhum prompt/raciocínio/segredo em artefatos e evidência renderizada quando a UI existir. | bloqueado: T-093 é frente futura; não há integração, métricas ou evidência renderizada |
 | AC-024 | RQ-015, RQ-016, RQ-017, RQ-018, RQ-019, RQ-020, RQ-021, RQ-103, RQ-104 | **Direção documental:** a revisão final separa direção, implementação, suporte testado e lacunas. **Implementação real:** a revisão de código, configuração, logs, testes e artefatos confirma fallback seguro, privacidade explícita, nenhum bypass de autorização e nenhum log de prompt, raciocínio ou segredo; qualquer lacuna bloqueia a aceitação e exige evidência renderizada real quando houver UI. | bloqueado: T-094 é frente futura; nenhuma revisão ou evidência final foi executada |
-| AC-025 | RQ-022, RQ-023 | **Direção documental:** a matriz identifica `unigma+opencode` como único harness oficial, preserva o harness de execução do OpenCode e redireciona as superfícies service-only para o unigma. **Implementação real:** o artefato empacotado inicia o perfil service-only, sem TUI/onboarding/UI redundante no caminho oficial, e mantém o fluxo HTTP/SSE exigido. | bloqueado: o perfil bundled e sua validação ainda não existem |
-| AC-026 | RQ-024, RQ-025 | **Direção documental:** o decepador registra upstream, patchset, hashes, testes, auditoria e manifesto; a atualização troca o bundle atomicamente, permite rollback e não toca os dados do usuário. **Implementação real:** dois artefatos versionados demonstram build reproduzível, rejeição de candidato inválido, troca com processo parado, rollback e preservação de configuração/credenciais/sessões. | bloqueado: T-096 a T-099 são frentes futuras; não há pipeline de bundle aceito |
-| AC-027 | RQ-026, RQ-027 | **Direção documental:** o contrato nativo define `@` para ferramentas, `/` para skills, mensagens entre sessões locais e chips `thinking`/`typing`/`idle`, com OpenCode como fonte de verdade. **Implementação real:** testes de UI/runtime demonstram resolução, troca de mensagens, ciclo de vida e acessibilidade sem Webview, rede ou processo na UI. | bloqueado: T-043 e T-044 são frentes futuras |
-| AC-028 | RQ-028 | **Direção documental:** o protocolo remoto é versionado e explicitamente dormente. **Implementação real:** testes demonstram serialização/validação dos tipos e inspeção do artefato confirma ausência de listener, cloud, sincronização, colaboração ativa e backend próprio. | bloqueado: T-045 é frente futura |
+| AC-025 | RQ-022, RQ-023 | **Direção documental:** a matriz identifica `unigma+opencode` como único harness oficial, preserva o harness de execução do OpenCode e redireciona as superfícies service-only para o unigma. **Implementação real:** o artefato empacotado inicia o perfil service-only, sem TUI/onboarding/UI redundante no caminho oficial, e mantém o fluxo HTTP/SSE exigido. | parcial/bloqueado: o bundle Linux executável com OpenCode `1.18.23` inicia pelo pacote e passou saúde/listagem de sessões no run `33721970575`; T-096/T-097/T-098/T-099 implementaram gates da trilha, mas não há artefato `service-only` aceito nem validação completa de suporte |
+| AC-026 | RQ-024, RQ-025 | **Direção documental:** o decepador registra upstream, patchset, hashes, testes, auditoria e manifesto; a atualização troca o bundle atomicamente, permite rollback e não toca os dados do usuário. **Implementação real:** dois artefatos versionados demonstram build reproduzível, rejeição de candidato inválido, troca com processo parado, rollback e preservação de configuração/credenciais/sessões. | parcial/bloqueado: T-096 tem patchset/aplicador, T-097 input/proveniência do pipeline, T-098 troca/rollback e T-099 auditoria implementados; faltam dois artefatos `service-only` versionados e a evidência de suporte correspondente |
+| AC-027 | RQ-026, RQ-027 | **Direção documental:** o contrato nativo define `@` para ferramentas, `/` para skills, mensagens entre sessões locais e chips `thinking`/`typing`/`idle`, com OpenCode como fonte de verdade. **Implementação real:** testes de UI/runtime demonstram resolução, troca de mensagens, ciclo de vida e acessibilidade sem Webview, rede ou processo na UI. | parcial/bloqueado: T-043 implementou parser/catálogo transitório e consulta a `/command`/`/skill` com testes; T-044, mensagens intersessão, chips e a evidência integrada de UI/runtime continuam pendentes |
+| AC-028 | RQ-028 | **Direção documental:** o protocolo remoto é versionado e explicitamente dormente. **Implementação real:** testes demonstram serialização/validação dos tipos e inspeção do artefato confirma ausência de listener, cloud, sincronização, colaboração ativa e backend próprio. | parcial/bloqueado: T-045 implementou protocolo versionado dormente e testes de serialização/recusa; falta inspeção de artefato e evidência final da ausência de ativação |
 | AC-029 | RQ-105 | A revisão do core e do artefato confirma ausência de adaptador, catálogo ou carregador oficial para Codex/Claude Code; extensões externas instaladas pelo usuário são identificadas como fora do suporte, e `unigma+pi` como experimental. | direção confirmada; revisão de artefato ainda não executada |
 
 ## regra de aprovação
+
+### direção aprovada em 2026-09-05 — critérios ainda bloqueados
+
+| ID | Relacionado a | Critério objetivo e testável | Estado de execução |
+| --- | --- | --- | --- |
+| AC-030 | RQ-029, D-038 | Contrato aprovado e teste integrado demonstram anexos com origem/versão/seleção, limites, recusa de drift e scoping local/remoto; busca sob demanda sem índice próprio, conteúdo fora dos logs e nenhuma redefinição implícita de `@`/`/`. | bloqueado: contrato e implementação pendentes |
+| AC-031 | RQ-030, D-039 | Contrato aprovado e cenário Git reproduzível demonstram isolamento, base e tratamento explícito de dirty/untracked, revisão antes de integrar e recusa de conflitos; sem copiar/commitar/limpar automaticamente nem prometer undo concorrente seguro. | bloqueado: contrato e implementação pendentes |
+| AC-032 | RQ-031, D-040 | Contra binário fixado, UI/runtime projetam estado de tarefas/perguntas/sessões filhas e recuperação HTTP; perguntas não viram permissões; subagentes de leitura precedem escritores, estes condicionados a AC-031; sem segundo scheduler ou histórico paralelo. | bloqueado: contrato e implementação pendentes |
+
+Esses critérios não fecham por aprovação da direção. Sua inclusão na matriz
+não dispensa o gate específico nem torna service-only obrigatório para a trilha
+básica (D-026).
 
 Um critério só passa com evidência reproduzível (teste automatizado, passo de
 reprodução registrado ou revisão de artefato). A documentação isolada não prova
@@ -81,17 +96,19 @@ restantes com evidência específica.
 
 ### E-01
 
-- `T-010`: produzir `DuplicateRequestId`/`SessionNotFound` no handler RPC real e
-  executar a suíte compilada;
-- `T-011`: fixar uma release OpenCode, verificar binários por SHA-256 e testar
-  health, `/doc`, `/path`, SSE, sessão, incompatibilidade e provider sem
-  credencial;
+- `T-010`: produzir `DuplicateRequestId`/`SessionNotFound` no handler RPC real;
+  a suíte compilada do workbench/runtime já passou no runner, mas a produção
+  semântica desses erros ainda está pendente;
+- `T-011`: manter a release OpenCode `1.18.23` fixada, verificar binários por
+  SHA-256 e preservar o probe de health, `/doc`, `/path`, SSE, sessão e
+  incompatibilidade; provider/modelo suportado e prompt real continuam
+  pendentes;
 - `T-012`: integrar preflight de trust/origem/configuração/aprovação para MCP,
   plugin e regra, com decisão sanitizada obrigatória nas duas rotas de startup,
   bridge serializável e recusas de instalação automática, path escape e segredo;
   MCP está conectado no workbench e o inventário de plugin/regra foi ligado ao
-  preflight em `072d55f6`; a suíte compilada no runner e a evidência contra um
-  OpenCode real permanecem pendentes;
+  preflight em `072d55f6`; a suíte compilada passou no runner, mas a evidência
+  contra um OpenCode real com plugins/regras instalados permanece pendente;
 - `T-013`: executar a matriz SSH contratual e manter transporte remoto em E-05,
   salvo ambiente remoto autorizado para o gate funcional.
 
@@ -113,8 +130,9 @@ reproduzível.
 
 ## evidência pré-aceite da E-00
 
-Esta evidência registra trabalho executado; só converte um critério quando a
-saída reproduzível correspondente está registrada:
+Os itens datados desta seção são registros históricos; esta evidência registra
+trabalho executado e só converte um critério quando a saída reproduzível
+correspondente está registrada:
 
 - o snapshot Code - OSS, a tag, o SHA, Node/Electron e os alvos foram registrados;
 - `LICENSE.txt`, `ThirdPartyNotices.txt`, `product.json`, README e revisão inicial
@@ -243,15 +261,15 @@ Portanto, a E-00 tem o gate técnico de build, pacote, auditoria e smoke
 reproduzido nos dois alvos, mas permanece parcialmente concluída: AC-001 ainda
 exige inventário completo de terceiros/licenças e AC-012 exige revisão
 independente de autoria, direitos e não colisão da marca. AC-003 a AC-008 têm
-contratos operacionais documentados pela E-01, mas continuam bloqueados por
-implementação e evidência integrada; AC-009 a AC-012 e AC-014/AC-015 continuam
-bloqueados conforme cada linha acima; AC-013 está atendido apenas no recorte de
-núcleo explicitado nesta evidência.
+contratos e recortes de implementação, mas continuam bloqueados por integração,
+provider/modelo quando aplicável e evidência integrada; AC-009 a AC-012 e
+AC-014/AC-015 continuam bloqueados conforme cada linha acima; AC-013 está
+atendido apenas no recorte de núcleo explicitado nesta evidência.
 
 ## evidência pré-aceite da E-01
 
-Esta evidência registra a revisão dos contratos, mas não converte critérios em
-aceitos:
+Os itens desta seção são registro histórico da revisão inicial dos contratos; não
+reescrevem as atualizações posteriores e não convertem critérios em aceitos:
 
 - T-010 tem contrato implementado e validado estruturalmente: define versão,
   comandos, eventos, estados, erros e `requestId`; a validação de fronteira
@@ -293,20 +311,23 @@ aceitos:
   reais.
 
 Os contratos e documentos da E-01 continuam especificações condicionais; T-010
-tem validação estrutural e código de aplicação compilado, mas a suíte dedicada
-da camada de workbench ainda não foi executada. Teste contra OpenCode real,
-integração, produção dos erros na camada de aplicação, SSH e evidência de
-segurança permanecem obrigatórios nas tarefas posteriores.
+tem validação estrutural, código de aplicação compilado e suíte dedicada do
+workbench/runtime executada no runner. Teste integrado contra OpenCode real,
+produção dos erros na camada de aplicação, SSH completo e evidência de segurança
+permanecem obrigatórios nas tarefas posteriores.
 
 ## pendências
 
-Os critérios AC-003 a AC-008 têm arquitetura e contratos operacionais aprovados,
-mas requerem implementação e evidência reproduzível; AC-008 também requer uma
-combinação provider/modelo efetivamente testada.
+Os critérios AC-003 a AC-008 têm arquitetura, contratos e recortes de
+implementação, mas requerem integração e evidência reproduzível; AC-008 também
+requer uma combinação provider/modelo efetivamente autorizada e testada.
 
 AC-016 a AC-024 correspondem à direção confirmada de RQ-015 a RQ-021, e AC-025 a
-AC-029 à direção de RQ-022 a RQ-028/RQ-105. Todos continuam bloqueados pelas
-respectivas tarefas, implementação, testes e evidência. A direção não fixa a
-fórmula ou os valores do índice/custo, não transforma `~49` em limite, não cria
-catálogo remoto, não autoriza telemetria ou persistência de prompt/raciocínio/
-segredo e não transforma o probe OpenCode em suporte do bundle.
+AC-029 à direção de RQ-022 a RQ-028/RQ-105. Os recortes de domínio e testes de
+T-086 a T-092 existem, mas os critérios continuam bloqueados por integração E2E,
+provider/modelo e evidência final, conforme cada linha. T-096 a T-099 também têm
+patchset, pipeline, troca/rollback e auditoria implementados, sem converter isso
+em aceite do perfil `service-only`. A direção não fixa a fórmula ou os valores
+do índice/custo, não transforma `~49` em limite, não cria catálogo remoto, não
+autoriza telemetria ou persistência de prompt/raciocínio/segredo e não transforma
+o probe OpenCode em suporte do bundle.

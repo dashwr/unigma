@@ -35,8 +35,9 @@ não instala nem configura o `sshd`.
 ## 2. Matriz mínima
 
 As linhas locais são alvos de plataforma. As linhas remotas Linux são o menor
-alvo remoto contratual, ainda sem suporte implementado. A evidência de suporte
-remoto só poderá ser declarada após T-050, T-051 e T-053. Windows x64 continua
+alvo remoto contratual; a implementação e a evidência de abertura são parciais,
+mas o suporte remoto ainda não foi publicado. A evidência de suporte remoto só
+poderá ser declarada após T-050, T-051 e T-053. Windows x64 continua
 sendo um cliente local válido, mas não é declarado como host remoto neste MVP.
 
 | cliente desktop | host do workspace | modo | extension host do runtime | `opencode serve` | decisão de T-013 |
@@ -74,6 +75,15 @@ Os estados `unknown`, `mismatched` e `revoked` de host key são todos recusados
 como `ssh.host-key-untrusted`. A política não resolve aliases, executa OpenSSH,
 acessa `known_hosts`, solicita credenciais, tenta fallback local nem reconecta.
 
+### 2.2 Resolver antes do trust (D-037)
+
+Por decisão D-037, a resolução inicial da autoridade remota pode ocorrer antes
+de a pasta abrir e de o estado de Workspace Trust estar disponível. Isso produz
+somente uma autoridade/destino para o workbench: não autoriza sessão de agente,
+ferramentas, `opencode`, provisionamento, integração ou qualquer efeito em
+workspace não confiável. Os gates desta seção continuam obrigatórios antes de
+conectar, iniciar processo ou executar qualquer operação.
+
 ## 3. Local de execução
 
 | contexto | workbench e autoridade | extension host | runtime e processo OpenCode |
@@ -89,6 +99,11 @@ instância por extension host permanece válida.
 O caminho, Git, worktrees, terminal e ferramentas do agente pertencem ao host
 que contém o workspace. A UI local não acessa processo, segredo ou filesystem
 remoto diretamente; usa as fronteiras do Code-OSS e do runtime.
+
+Workspace Trust não é sandbox: ele é um gate de contexto e carregamento, não uma
+fronteira adicional de privilégios. Worktree também não é sandbox: é uma
+separação de checkout administrada pelo Git, não um limite para processos,
+rede, ferramentas ou permissões do host.
 
 ## 4. OpenSSH, `known_hosts` e autenticação
 
@@ -332,7 +347,7 @@ Referências de sessão, estado transitório e diagnóstico seguem as fontes de
 verdade e os limites descritos no modelo de dados do produto; este contrato não
 cria armazenamento SSH próprio.
 
-## 10. Evidência futura e limites desta tarefa
+## 10. Evidência futura e limites desta tarefa (escopo histórico de T-013)
 
 T-013 deixa os seguintes casos definidos para T-050/T-051/T-053, mas não os
 executa:
@@ -355,6 +370,10 @@ bootstrap executável, alteração de `known_hosts`, solicitação de credenciai
 instalação de OpenCode, atualização de documentos compartilhados, build, teste
 de integração ou deploy.
 
+Esta delimitação registra o escopo original de T-013; a implementação posterior
+de T-050/T-051/T-052 e a abertura parcial de T-053 estão registradas no
+`WORKBENCH` e em `EVIDENCE`, sem transformar a matriz incompleta em suporte.
+
 ## Referências
 
 - [ARCHITECTURE.md](ARCHITECTURE.md)
@@ -365,3 +384,5 @@ de integração ou deploy.
 - [ACCEPTANCE.md](ACCEPTANCE.md)
 - [BACKLOG.md](BACKLOG.md)
 - [UPSTREAM.md](UPSTREAM.md)
+- [Fila operacional](PROXIMAS-TAREFAS.md)
+- [Pesquisa de referências oficiais](planos/2026-09-05-referencias-oficiais.md)

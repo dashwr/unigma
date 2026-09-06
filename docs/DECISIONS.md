@@ -267,7 +267,8 @@ plano de 2026-08-29:
 
 - valor final de `constants::PROTOCOL_VERSION` no CLI após a remoção do Agent
   Host (`Q-1`);
-- estratégia de entrega do `unigma-server` ao host remoto (`Q-2`, ver D-028);
+- `Q-2` resolvida por D-032: push confirmado e ativação atômica; não é mais
+  escolha de produto aberta, embora a matriz SSH continue parcial;
 - destino do `code tunnel` e das dependências `@microsoft/dev-tunnels-*` (`Q-3`).
 
 ## validação de identificadores
@@ -309,6 +310,40 @@ fontes/suportes concretos de MCP/plugin/provider, baselines numéricos de
 performance e os detalhes abertos de D-016. `Cinderblock`
 permanece candidata não incorporada e exige verificação de disponibilidade,
 licença, pesos e direitos de uso antes de qualquer incorporação.
+
+### D-038 — contexto explícito sem índice próprio — 2026-09-05
+
+- Resposta do responsável: **sem índice próprio**. Anexos de arquivos/seleções
+  com origem e versão, documentos e busca sob demanda via OpenCode.
+- Não criar armazenamento paralelo do workspace, embeddings persistentes ou
+  serviço de indexação. Contexto transitório necessário ao envio não é cache
+  persistente; limites, materialização e contrato do binário precisam de prova.
+- A sintaxe dos anexos ainda não foi escolhida: não substituir o `@` de
+  ferramentas ou `/` de skills silenciosamente.
+
+### D-039 — worktree revisável como direção de edição — 2026-09-05
+
+- Resposta do responsável: **worktree revisável**. Planejar tarefas isoladas e
+  revisão antes de integrar no checkout principal.
+- Git é a fonte de verdade. Antes de implementar, definir base, buffers sujos,
+  untracked, integração, conflitos e retenção. Não copiar alterações locais,
+  commitar, integrar ou limpar worktrees automaticamente por esta decisão.
+- Revisão no worktree ocorre depois das escritas naquele checkout e antes da
+  integração no principal; permissões de ferramentas continuam prévias aos efeitos.
+- Não prometer undo seguro sobre mudanças concorrentes. Worktree separa arquivos,
+  não é sandbox; a sessão OpenCode precisa provar escopo correto de diretório.
+
+### D-040 — preservar harness único e expansão progressiva — 2026-09-05
+
+- Resposta do responsável: **manter fronteira**. OpenCode continua único harness,
+  com experiência local-first. Subagentes de leitura precedem escritores isolados.
+- Browser agent, backend/cloud e adaptadores Claude/Codex não entram no roadmap
+  executável. A pesquisa desses produtos informa UX e limites, não dependências.
+- Perfis fast/deep não foram aprovados nesta escolha; manter seleção explícita e
+  Autopilot conforme D-016 até detalhamento e aprovação separados.
+- Fontes e alternativas: [pesquisa oficial](planos/2026-09-05-referencias-oficiais.md).
+  D-038–040 aprovam direção, não implementação, teste ou aceite. Afetam produto,
+  requisitos, fluxos, dados, arquitetura, compatibilidade e tarefas de execução.
 
 ## regra de atualização
 

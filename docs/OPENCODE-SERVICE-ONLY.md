@@ -1,8 +1,9 @@
 # OpenCode — perfil service-only
 
-> **status:** direção de produto confirmada em 2026-08-26; pipeline e artefato
-> ainda não implementados. Este documento define o alvo do backend local do
-> agente, não declara suporte de uma release empacotada.
+> **status:** direção de produto confirmada em 2026-08-26; a implementação do
+> pipeline é parcial: T-096 tem patchset versionado, T-097 tem input de workflow
+> e T-099 tem auditoria implementada. Isso não equivale a artefato service-only
+> aceito nem declara suporte de uma release empacotada.
 
 > **esclarecimento em 2026-08-27:** `opencode serve` já é um servidor headless.
 > Portanto, o decepador não é necessário para “tirar a UI” do processo em tempo
@@ -210,33 +211,29 @@ Permanecem explícitas, para o patch e seus testes, estas fronteiras técnicas:
 
 Com isso, T-095 está **concluída no recorte de inventário estático pré-patch**:
 cada superfície observada tem decisão, evidência de CLI ou fonte e dono
-explícito. T-096 está **em preparação, mas não aceita**: existe um rascunho
-local não commitado em `/home/dasher/projects/unigma/opencode-service-only-candidate`
-com entrypoint/build e corte de `uiRoute`, porém ainda não há patchset
-versionado no unigma, manifesto ou bundle aceito. Depois da instalação
-autorizada somente nesse worktree, o candidato passou `bun typecheck`,
-`bun run script/build.ts --service-only --single --skip-install`, smoke de
-`--version`, os testes in-process `httpapi-ui` (12) e
-`httpapi-public-openapi` (18), além de probe loopback de health, `/doc`,
-`/path`, SSE `server.connected`, 404 no fallback web e shutdown limpo. O diff
-de 4 arquivos também foi reaplicado em uma segunda árvore limpa. Os testes
-focados de sessão, evento, ações, diff, listen e autorização passaram (49 casos,
-193 asserções); `test:httpapi` passou nos modos `coverage` e `auth` (208 casos
-cada), mas o modo `effect` não terminou dentro de 900 segundos. O patch
-temporário tem SHA-256
-`a8190af0ab7dfa0ee01e4f4cf0b752f382253a019545da365aa468b88feae6c2`.
+explícito. T-096 está **implementada no recorte de patchset versionado**: o
+patchset e o aplicador verificam o commit base e todos os patches antes de
+alterar o checkout. T-097 está **implementada no recorte de workflow**: o input
+`service_only` aplica o patchset versionado antes da compilação e o
+`PROVENANCE.txt` registra o perfil e os hashes dos patches. T-098 tem a troca
+atômica e o rollback implementados. T-099 tem a auditoria que exige a recusa
+das superfícies removidas e verifica a ausência da Web UI nos bytes.
 
-Essa evidência continua limitada ao candidato Linux: não houve teste completo
-de prompt/provider real ou do modo `effect` completo, validação Windows,
-manifesto ou pipeline versionado. O clone upstream principal e o unigma não
-receberam esse código; nenhuma remoção adicional deve ser feita por varredura ou
-inferência do binário.
+Essas implementações não equivalem a um artefato service-only aceito. O estado
+de E09 permanece `partial`: a evidência de candidato Linux continua limitada,
+sem validação Windows, sem o modo `effect` completo e sem a matriz completa que
+fecha suporte; auditoria, workflow e patchset são gates da cadeia, não o aceite
+do artefato. O rascunho local não commitado e seus resultados de 2026-08-26 são
+registro histórico de desenvolvimento, não a fonte do patchset atual. Nenhuma
+remoção adicional deve ser feita por varredura ou inferência do binário.
 
-## 8. implementação futura
+## 8. estado e próximos gates
 
 O trabalho executável está dividido em T-095 a T-099 no
-[`BACKLOG.md`](BACKLOG.md). Até a conclusão dessas tarefas, o estado correto é
-“direção confirmada, artefato service-only não suportado”.
+[`BACKLOG.md`](BACKLOG.md). Até a conclusão dos gates dessas tarefas, o estado
+correto é “implementação parcial, artefato service-only não aceito ou suportado”.
+Conforme D-026, a poda `service-only` é opcional e fica fora do caminho crítico;
+isso não reduz os gates exigidos caso o bundle podado venha a ser aceito.
 
 ## referências
 

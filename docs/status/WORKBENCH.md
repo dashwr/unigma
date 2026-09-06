@@ -1,10 +1,33 @@
 # unigma — workbench operacional
 
+**T-053 — execução mais recente:** branch `test/t053-owned-reconnect`, commit
+`cf6cb5b6`, run `34008859142`. Caminho sem staging/install/cleanup publicado e
+disparado; falhou antes de conectar por par divergente (`6e973c67` desktop,
+`493dcfe7` servidor). Próximo passo: selecionar par existente do mesmo commit;
+preparo novo exige autorização. Queda/reconexão e AC-007 continuam não provados
+por esse run. Detalhes no BACKLOG; documentação segue não commitada.
+Runs `34010310240` e `34010391641` (commits `5c9d3d97`/`56584d93`) avançaram até o
+host com o par `493dcfe7` e pararam em `ssh.remote-server-unavailable`. Com
+staging autorizado, o run `34011376887` (commit `ed8b224c`) **provou queda e
+reconexão na mesma janela**; ver `EVIDENCE.md`. Restam sessão de agente remota
+(T-054/055) e matriz de módulos nativos; AC-007 continua parcial. O servidor
+segue preparado na VPS.
+
 > quadro vivo das frentes de trabalho. O histórico detalhado fica nos arquivos
 > datados desta pasta; este quadro responde **o que está ativo, onde parou e qual
 > é o próximo passo**.
 
-**última atualização:** 2026-09-04
+**última atualização:** 2026-09-05
+
+**nota documental de 2026-09-05:** `DOC-CURSOR-001` em revisão, proposta
+[Cursor × OpenCode](../planos/2026-09-05-cursor-opencode.md) solicitada pelo
+responsável. Pesquisa e desenho apenas; não altera o foco `T-053`, não autoriza
+implementação nem promove capacidades a suporte.
+
+**fila e pesquisa:** [fila operacional](../PROXIMAS-TAREFAS.md) e [pesquisa de
+referências oficiais](../planos/2026-09-05-referencias-oficiais.md). Registros
+datados abaixo preservam o estado observado em cada data; não substituem o
+quadro atual nem promovem implementação a suporte.
 
 ## onde estamos, em uma leitura
 
@@ -24,11 +47,13 @@ código**. Verde só vale pelo que a asserção realmente toca.
 publicado conectou a uma VPS externa real: o resolver devolveu
 `ResolvedAuthority` em 725 ms, a conexão de gerenciamento o consumiu, o token foi
 aceito e o extension host remoto completou o handshake em 261 ms. Os doze checks
-do smoke passaram. É a primeira vez que o caminho inteiro executa fim a fim —
-todo verde anterior do E-05 provava apenas as camadas que o resolver consome.
+do smoke passaram. É a primeira vez que o resolver e o workbench abrem uma janela
+remota de verdade — todo verde anterior do E-05 provava apenas as camadas que o
+resolver consome.
 
 **Isso ainda não fecha `AC-007`.** A matriz pede janela, sessão, queda de conexão
-e reconexão; só a primeira está colhida. O remoto saiu de "implementado" para
+e reconexão; só a abertura da janela está colhida. O run não prova sessão de
+agente, queda de conexão ou reconexão. O remoto saiu de "implementado" para
 "abre", não para "suportado".
 
 Custou quatro runs falhos, e a causa foi de diagnóstico: o lock de bootstrap é
@@ -56,9 +81,10 @@ o OpenSSH do Windows não tem `ControlMaster`) e `T-054`/`T-055`, que levam o
 runtime do agente para dentro da sessão remota.
 
 **também aberto:** o medidor de baseline já roda no runner mas o produto não
-respondeu `--status` sob Xvfb dentro de 120 s; a medição agora reporta o exit
-code e a saída do processo, então o próximo run diz o motivo em vez de só
-cronometrar.
+respondeu com uma instância viva em `--status` sob Xvfb no run `33950524239`:
+houve `exit=0` e cabeçalhos `Version`/`OS Version`/`CPUs`, mas não `Process Info`.
+Isso não é baseline numérico; o próximo passo é comparar as flags do smoke
+funcional antes de supor causa ou otimizar.
 
 **o que não avança por decisão e não por código:** os épicos de agente
 (`AC-003`, `AC-004`, `AC-006`, `AC-008`) param todos na mesma parede, que é a
@@ -129,6 +155,11 @@ adiciona uma asserção negativa. `compile-client`, `typecheck-client`, 60 teste
 | id | escopo | fase | estado | próximo passo verificável | depende de | fonte principal |
 | --- | --- | --- | --- | --- | --- | --- |
 | `DOC-001` | adaptar o workflow e reorganizar `docs/` | documentação final | `done` | manter este quadro na próxima solicitação multi-tarefa | nenhuma | [`README.md`](../README.md), [`fontes/MODELO-DE-TAREFAS.pdf`](../fontes/MODELO-DE-TAREFAS.pdf) |
+| `DOC-ROADMAP-001` | consolidar documentação, fila e board | documentação | `review` | revisar diff, links, rastreabilidade e correspondência dos itens abertos | `TD-2`; documentos atuais | [`../PROXIMAS-TAREFAS.md`](../PROXIMAS-TAREFAS.md), [`../BACKLOG.md`](../BACKLOG.md) |
+| `DOC-CURSOR-001` | proposta Cursor × OpenCode | documentação/pesquisa | `review` | revisar decisões da proposta sem autorizar implementação ou aceite | `TD-2`; D-038–040 | [`../planos/2026-09-05-cursor-opencode.md`](../planos/2026-09-05-cursor-opencode.md), [`../planos/2026-09-05-referencias-oficiais.md`](../planos/2026-09-05-referencias-oficiais.md) |
+| `DOC-CONTEXT-001` | contrato de contexto explícito D-038 | contrato | `backlog` | definir origem, versão, limites, dirty buffer, autoridade remota e materialização antes da implementação | D-038; RQ-029; AC-030 bloqueado | [`../BACKLOG.md`](../BACKLOG.md), [`../PROXIMAS-TAREFAS.md`](../PROXIMAS-TAREFAS.md) |
+| `DOC-WORKTREE-001` | contrato de worktree revisável D-039 | contrato | `backlog` | definir base, dirty/untracked, scoping, conflitos, integração e retenção antes de T-041 | D-039; RQ-030; AC-031 bloqueado | [`../BACKLOG.md`](../BACKLOG.md), [`../PROXIMAS-TAREFAS.md`](../PROXIMAS-TAREFAS.md) |
+| `DOC-PROJECTIONS-001` | contrato de projeções D-040 | contrato | `backlog` | confirmar todo, perguntas, parent-child e recovery no binário antes de T-044 | D-040; RQ-031; AC-032 bloqueado | [`../BACKLOG.md`](../BACKLOG.md), [`../PROXIMAS-TAREFAS.md`](../PROXIMAS-TAREFAS.md) |
 | `OVN-001` | triagem, delegação e consolidação do overnight E00–E03 | implementação/verificação | `in_progress` | consolidar resultados de 1A–1F e dos recortes 2A/2B, desbloquear ambiente/gates humanos e não iniciar onda 3 | nenhum; sem colisão de arquivos | [`planos/2026-08-27-e00-e03-ondas.md`](../planos/2026-08-27-e00-e03-ondas.md), [`BACKLOG.md`](../BACKLOG.md) |
 | `OVN-D024` | retirada do Agent Host herdado e do CAPI | implementação/review | `review` | executar compile/typecheck/testes e auditor de notices no runner após publicar a ref | T-100–T-104 locais; runner | [`../planos/2026-08-28-ondas-refundacao.md`](../planos/2026-08-28-ondas-refundacao.md), [`../DECISIONS.md`](../DECISIONS.md) |
 | `CLI-001` | etapa A: desacoplar o Agent Host do CLI Rust, preservando Code Server, bridge, multiplexer, protocolo e `command-shell` | implementação/review | `review` | colher Node 24/runner, revisar notices e decidir tratamento do baseline clippy; não promover por teste local | auditoria CLI; `D-027`; `D-029` | [`../planos/2026-08-29-cli-ssh-remoto.md`](../planos/2026-08-29-cli-ssh-remoto.md), [`2026-08-29-cli-audit.md`](2026-08-29-cli-audit.md) |
@@ -141,12 +172,13 @@ adiciona uma asserção negativa. `compile-client`, `typecheck-client`, 60 teste
 | `E00-A` / `T-002/T-004` | notices, terceiros e identidade de distribuição | release candidate | `blocked` | concluir inventário legal e classificar lacunas antes de release | revisão independente | [`2026-08-26-third-party-inventory.md`](2026-08-26-third-party-inventory.md), [`THIRD-PARTY-REVIEW.md`](THIRD-PARTY-REVIEW.md) |
 | `E00-B` / `AC-012` | autoria, direitos e não colisão do branding | decisão de escopo | `partial` | manter obrigações legais e remover identidade upstream; prova formal não é gate por D-030 | D-030 | [`BRANDING-CLEARANCE.md`](BRANDING-CLEARANCE.md), [`../DECISIONS.md`](../DECISIONS.md) |
 | `E01-A` / `T-010` | contrato RPC e erros sanitizados | regressão | `review` | executar/registrar a suíte integrada do workbench quando o alvo existir | build e harness do runner | [`BACKLOG.md`](../BACKLOG.md), [`2026-08-26-campanha.md`](2026-08-26-campanha.md) |
-| `E01-B` / `T-011` | compatibilidade HTTP/SSE do OpenCode | evidência | `partial` | obter provider/modelo autorizado para prompt/streaming/diff real; depois validar bundle service-only | bundle service-only; provider autorizado | [`OPENCODE-COMPATIBILITY.md`](../OPENCODE-COMPATIBILITY.md) |
+| `E01-B` / `T-011` | compatibilidade HTTP/SSE do OpenCode | evidência | `partial` | obter provider/modelo autorizado para prompt/streaming/diff real; depois validar o bundle selecionado, upstream fixado ou service-only opcional | bundle selecionado; provider autorizado | [`OPENCODE-COMPATIBILITY.md`](../OPENCODE-COMPATIBILITY.md) |
 | `E01-C` / `T-012` | preflight local e bridge workbench↔extension host | regressão/runner | `review` | rodar validação oficial e obter prova contra OpenCode real; o inventário de plugin/regra deixou de ser pendência em `072d55f6`, que ligou a enumeração ao preflight e fez `sourceInventoryComplete` refletir a fonte em vez de ficar falso | `E01-B`, runner sequencial | [`LOCAL-INTEGRATIONS-POLICY.md`](../LOCAL-INTEGRATIONS-POLICY.md), [`2026-08-26-campanha.md`](2026-08-26-campanha.md) |
 | `E01-D` / `T-013` | contrato SSH fail-closed | implementação/review | `partial` | provisionar fora do agente `sshd` + host key + `unigma-server` de teste; então executar matriz sem replay ou segredo | host Linux x64 e `unigma-server` autorizados | [`SSH-CONTRACT.md`](../SSH-CONTRACT.md) |
 | `E01-E` | evidência e fechamento de E-00/E-01 | backlog | `blocked` | consolidar runs, artefatos, aceite e status após as frentes acima | E00/E01 pendentes | [`planos/2026-08-26-e00-e01.md`](../planos/2026-08-26-e00-e01.md) |
 | `E02/E03` | runtime OpenCode e workbench nativo funcional | implementação | `in_progress` | fechar streaming incremental, permissões reais e contrato nativo de `@`/`/`; só então colher runner | E-00/E-01 em review/partial; provider/modelo autorizado para prompt real | [`BACKLOG.md`](../BACKLOG.md), [`OPENCODE-COMPATIBILITY.md`](../OPENCODE-COMPATIBILITY.md) |
-| `E09` / `T-095..T-099` | perfil service-only e bundle `unigma+opencode` | backlog | `partial` | auditar superfícies do `serve` e transformar o resultado em patch mínimo, manifesto e artefato aceitos | E-00/T-011 | [`OPENCODE-SERVICE-ONLY.md`](../OPENCODE-SERVICE-ONLY.md) |
+| `E08` / `T-086..T-092` | domínio do router e seleção Autopilot | implementação/verificação | `partial` | ligar domínio ao envio real e colher E2E com provider/modelo autorizado; não promover os testes de domínio a suporte | provider/modelo autorizado; contrato OpenCode | [`BACKLOG.md`](../BACKLOG.md), [`../planos/2026-09-05-referencias-oficiais.md`](../planos/2026-09-05-referencias-oficiais.md) |
+| `E09` / `T-095..T-099` | perfil service-only opcional e bundle `unigma+opencode` | implementação/verificação | `partial` | se selecionado, produzir artefato aceito e colher evidência de suporte; patchset, workflow, troca/rollback e auditoria já têm recortes implementados | E-00/T-011; D-026 | [`OPENCODE-SERVICE-ONLY.md`](../OPENCODE-SERVICE-ONLY.md), [`../PROXIMAS-TAREFAS.md`](../PROXIMAS-TAREFAS.md) |
 | `THEME-001` | temas embarcados `theme-unigma` | implementação/review | `review` | colher validação de pacote no runner e revisão visual; dark/light/alto contraste próprio estão implementados | auditoria e runner | `DECISIONS.md`, `REQUIREMENTS.md`, `ACCEPTANCE.md` |
 
 ## estados
@@ -192,13 +224,21 @@ adiciona uma asserção negativa. `compile-client`, `typecheck-client`, 60 teste
 | decisão/poda | `Q-3` / `CLI-003` | poda concluída e validada no runner em 2026-09-02; o que resta é decisão futura, não trabalho pendente | concluído |
 | autorização | `E00-A` / `E00-B` / notices | `remote/LICENSE` distribuído com o pacote do servidor ainda carrega o copyright herdado; titularidade, notices de terceiros e clearance continuam decisão humana | pendente |
 
-## transições recentes
+## transições recentes (histórico datado)
+
+As linhas desta seção são registros históricos, mantidos para preservar a
+sequência de evidências. Uma linha anterior pode descrever um estado que já foi
+superado; o quadro acima é a leitura atual.
 
 | data | id | transição | evidência |
 | --- | --- | --- | --- |
+| 2026-09-05 | `E09` / `T-096..T-099` | gates do perfil service-only implementados → artefato aceito pendente | `b03c3964` versionou o patchset e o aplicador; `2629b1e0` adicionou o input de workflow e a proveniência; `a92c6454` implementou troca/rollback; `c8b07354` implementou a auditoria. Isso não equivale a bundle `service-only` aceito ou suporte publicado |
+| 2026-09-05 | `E08` / `T-086..T-092` | domínio do router implementado → integração E2E pendente | `c7c16a91`, `b86d7bb3`, `e5582fd2`, `a6423f3c` e `8112d3b9` cobrem contrato, índice/custo, seleção, plano e suíte de propriedades; falta a costura com envio real, provider/modelo autorizado e OpenCode real |
+| 2026-09-05 | `T-071` / `AC-015` | medição executada → baseline numérico inválido | run `33950524239`: `--status` respondeu `exit=0` com `Version`/`OS Version`/`CPUs`, sem `Process Info`; não há instância viva nem baseline numérico |
+| 2026-09-05 | `T-053` / `AC-007` | primeira janela remota aberta → matriz restante pendente | run `33949936848`: resolver, workbench, conexão de gerenciamento, token e handshake do extension host remoto; não provou sessão de agente, queda de conexão ou reconexão |
 | 2026-09-04 | documentação / board | o backlog voltou a medir trabalho, não só aceite | rodada de reconciliação entre `docs/` e o código no head `0f07ce49`, sem alterar código. Quatro divergências reais: o backlog afirmava que `extension.ts` devolvia `NotAvailable` para toda autoridade **dois dias depois** de `ac4e51ce` ter fiado o resolver; `T-012`, `T-024`, `T-031` e `T-042` estavam marcadas pendentes com implementação no repositório, sendo que `072d55f6` já havia conectado o inventário de plugin/regra que `AC-005` dava como desconectado; `T-051`/`T-052` carregavam títulos do escopo antigo enquanto o entregue era transporte e staging, e a divergência vivia numa nota — os títulos passaram a nomear o executado e o escopo antigo virou `T-054`/`T-055`; e a lacuna do cliente Windows e o passo de Welcome existiam só nesta fila de intervenção, invisíveis para o backlog, virando `T-056` e `T-057`. A causa comum é a mesma: o critério de "feito" era aceite formal, então frente com dezenas de entregas provadas no runner aparecia vazia. O critério passou a ser **entregue com evidência**, com aceite formal como item separado |
 | 2026-09-03 | `CLI-002` / host externo | o transporte encostou numa máquina real pela primeira vez | `unigma-remote-vps-smoke` run `33747429799`, `smoke=pass`. Contra uma VPS externa, endereçada por alias do `ssh_config`: sessão aberta com `BatchMode`, sem prompt; `ControlMaster` estabelecida; `uname -sm` confirmando `Linux x86_64`, que é a matriz do contrato; e a recusa **correta** com `server-unavailable`, porque nada está staged naquele host — ou seja, o fluxo real falha fechado contra uma máquina de verdade em vez de provisionar sozinho. `dispose()` encerrou o processo e removeu o `ControlPath`. **Nada foi escrito na VPS**: o smoke não faz staging, por decisão explícita do mantenedor |
-| 2026-09-03 | `T-053` / `AC-007` | smoke de janela preparado para confiança real | `build/unigma/smoke-remote-window.ts` valida o pareamento de `PROVENANCE.txt`, semeia `content.trust.model.key` no SQLite compartilhado isolado antes de lançar o desktop publicado, abre `vscode-remote://ssh-remote+<alias>/root` sob Xvfb e transforma resolver, consumo de `ResolvedAuthority` e handshake de token em checks bloqueantes; `check.workspace-trust-seeded` identifica a preparação e `check.workspace-trust-blocked` permanece informativo. Validação local focada passou; runner e VPS permanecem pendentes |
+| 2026-09-03 | `T-053` / `AC-007` (registro histórico) | smoke de janela preparado para confiança real | `build/unigma/smoke-remote-window.ts` valida o pareamento de `PROVENANCE.txt`, semeia `content.trust.model.key` no SQLite compartilhado isolado antes de lançar o desktop publicado, abre `vscode-remote://ssh-remote+<alias>/root` sob Xvfb e transforma resolver, consumo de `ResolvedAuthority` e handshake de token em checks bloqueantes; `check.workspace-trust-seeded` identifica a preparação e `check.workspace-trust-blocked` permanece informativo. Naquele momento, a validação local focada havia passado e runner/VPS permaneciam pendentes; o run de 2026-09-05 está registrado acima |
 | 2026-09-03 | `CLI-002` / payload REH | o payload remoto voltou a ser utilizável, provado no host real | artefato `33796510313` e smoke `33797399848`. O workflow do servidor passou a compilar os addons contra o sysroot `glibc-2.28-gcc-8.5.0` **já vendorizado e com checksum fixado** (`build/linux/debian/install-sysroot.ts`, `build/checksums/vscode-sysroot.txt:7`), exportando os quatro `VSCODE_REMOTE_*` como `build/azure-pipelines/linux/setup-env.sh:63-66` e escrevendo o `include.gypi` que troca `-std=gnu++20` por `gnu++2a`, porque gcc 8.5 antecede a grafia moderna. Sem Docker, sem `sudo`. Novo gate `build/unigma/verify-server-symbol-baseline.sh` roda entre a auditoria e a publicação e reprova em `GLIBC > 2.28`, `GLIBCXX > 3.4.25` e `CXXABI > 1.3.11` — divergência deliberada do upstream, que só avisa em GLIBCXX e nunca olha CXXABI, e foi exatamente por esses dois que `spdlog` e `kerberos` quebraram. No artefato: 9 objetos ELF inspecionados, todos dentro do baseline. Na VPS: `native.modules.loaded=7`, `rejected=0`, contra `loaded=1`, `rejected=6` antes. O único não carregado é `@vscode/deviceid/build/Release/windows.node`, binário de Windows que não deve carregar em Linux. O risco real — gcc 8.5 recusar fontes modernas — não se materializou. `D-036` |
 | 2026-09-03 | `CLI-002` / payload REH | o servidor remoto sobe, responde e está funcionalmente quebrado | `unigma-remote-vps-staging-smoke` run `33784052687`. O smoke passou a carregar, na VPS e com o **Node empacotado da própria versão ativada**, todo `.node` encontrado: `native.addons.checked=8`, `loaded=1`, `rejected=6`. O host tem `glibc 2.35` e os addons exigem `GLIBC_2.38`, `GLIBCXX_3.4.31`, `CXXABI_1.3.15`; `node-pty` chega a exigir `GLIBC_2.42`. Ficam mortos terminal (`node-pty`), estado (`@vscode/sqlite3`), file watching (`@parcel/watcher`), log (`@vscode/spdlog`) e `kerberos`. `GET /version` continuava verde porque não exige nenhum deles — o verde provava menos do que parecia. Correlato: `audit-distribution.ts --server` aprova esse pacote, porque nunca carrega addon nem lê dependência ELF. **T-053 não deve ser colhido antes disso**: abriria janela contra um servidor sem terminal nem watcher |
 | 2026-09-03 | `CLI-002` / cliente Windows | a premissa da matriz foi medida em vez de afirmada | `unigma-windows-ssh-capabilities` run `33785474120`, OpenSSH_for_Windows_9.5p2. `-M` e `ControlMaster=auto` são parseados mas falham com `getsockname failed: Not a socket`, confirmando a ausência de multiplexação. **`-L 127.0.0.1:<porta>:/caminho/socket.sock` é aceito**, assim como `-W`: a recusa anterior era a porta `0` na especificação, não o alvo socket UNIX. Isso mantém viva a alternativa de segunda sessão `ssh -N -L`, que serve aos dois clientes com um único caminho de código e remove justamente o `ControlMaster`. Provado que o cliente **aceita** a especificação; o estabelecimento real do encaminhamento exige host de verdade e continua não provado. O probe não conecta a host, não lê chave e usa config vazia |

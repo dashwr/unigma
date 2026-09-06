@@ -13,13 +13,29 @@
 
 ## 1. Escopo
 
-Esta matriz cobre somente o processo headless `opencode serve` do perfil
-service-only, iniciado pelo runtime do unigma e acessado por HTTP/SSE no
-loopback do host do workspace. O binário oficial deve vir do bundle
-`unigma+opencode`; um executável externo só serve para probe de desenvolvimento
-até que o decepador produza um artefato fixado. Não define ACP, TUI, Webview,
+Esta matriz cobre o processo headless `opencode serve`, iniciado pelo runtime
+e acessado por HTTP/SSE no loopback do host do workspace. D-026 separa binário
+configurado validado, bundle upstream e perfil service-only opcional, cada qual
+com proveniência e validação explícitas. O bundle upstream `1.18.23` já tem
+prova de serviço, não de prompt/provider nem de service-only aceito.
+Não define ACP, TUI, Webview,
 chamada direta a provider, autenticação própria do unigma, MCP, plugins ou
 provisionamento SSH.
+
+### revisão de capacidades — 2026-09-05
+
+D-038–040 autorizam definir contratos adicionais, não habilitar endpoints por
+leitura da documentação corrente. `/doc` do artefato fixado e fixtures do perfil
+devem comprovar payloads, eventos, erros, scoping e recuperação antes de ampliar
+a matriz. APIs `/todo`, `/question`, `/children`, file parts, worktrees e revert
+continuam condicionadas ao contrato; nomes `question.v2.*` do checkout `dev`
+não são automaticamente API do bundle. `/revert` não promete preservar mudanças
+concorrentes; task/subagent não cria worktree automaticamente.
+
+Reconexão deve reconciliar respostas HTTP com o transcript, não só consultar e
+descartar. SSE não garante replay nem autoriza reenviar prompt. Veja
+[pesquisa oficial](planos/2026-09-05-referencias-oficiais.md) e
+[próximas tarefas](PROXIMAS-TAREFAS.md).
 
 Os estados abaixo evitam transformar documentacao em promessa de suporte:
 
@@ -62,13 +78,15 @@ documento e nao e uma versao do OpenCode.
 | SSE | Nenhum cursor, replay ou semantica de `Last-Event-ID` e assumido; apos uma queda, o estado e reconsultado por HTTP. |
 | Credencial do servidor | O perfil padrao nao envia Basic Auth. Um `401` ou `403` causado por `OPENCODE_SERVER_PASSWORD` e uma falha observavel e nao um convite para pedir, ler ou persistir a senha. |
 
-Enquanto a combinação entre release OpenCode, patchset service-only e alvo não
-estiver registrada, `opencode serve` está documentado, mas não suportado como
-binário bundled de release.
+Para o perfil opcional `service-only`, enquanto a combinação entre release
+OpenCode, patchset e alvo não estiver registrada, `opencode serve` está
+documentado, mas não suportado como binário bundled desse perfil. A trilha
+básica pode usar binário configurado validado ou bundle upstream fixado conforme
+D-026, sem transformar isso em aceite do perfil opcional.
 
 ### perfil de empacotamento service-only
 
-O perfil oficial preserva o harness de execução do OpenCode e redireciona TUI,
+O perfil opcional preserva o harness de execução do OpenCode e redireciona TUI,
 onboarding, prompts interativos, navegação, todo/plan UI e comandos de uso direto
 para a superfície nativa do unigma. Não se deve inferir que um endpoint HTTP
 deixou de existir apenas porque uma superfície visual foi retirada; a matriz de
@@ -80,11 +98,11 @@ O pipeline esperado é:
 commit upstream -> patch service-only -> testes -> auditoria -> bundle versionado
 ```
 
-O patchset e o manifesto ainda não existem como artefato aceito. O checkout
-upstream candidato agora está registrado para o inventário de módulos, mas o
-processo de compatibilidade ainda valida somente o contrato do executável
-observado, sem confundi-lo com suporte de distribuição do
-`unigma+opencode`. A fronteira completa está em
+O patchset, o aplicador, o workflow e a auditoria existem como gates, mas ainda
+não há artefato service-only aceito. O checkout upstream candidato está
+registrado para o inventário de módulos, mas o processo de compatibilidade ainda
+valida somente o contrato do executável observado, sem confundi-lo com suporte de
+distribuição do `unigma+opencode`. A fronteira completa está em
 [OPENCODE-SERVICE-ONLY.md](OPENCODE-SERVICE-ONLY.md).
 
 ## 4. Endpoints do perfil minimo
@@ -327,7 +345,7 @@ conteudo das mensagens ou dos headers de credencial.
 
 | Lacuna/risco | Tratamento atual |
 | --- | --- |
-| Release/patchset bundled ainda nao fixados como artefato | O probe de `1.18.23` valida o contrato HTTP/SSE, mas T-021/T-022 e o suporte de release continuam condicionais ao bundle service-only. |
+| Release/patchset do perfil opcional ainda nao aceitos como artefato | O probe de `1.18.23` valida o contrato HTTP/SSE; T-021/T-022 podem ser validados contra binário configurado ou bundle upstream fixado, enquanto o suporte do perfil service-only continua condicional ao artefato correspondente. |
 | API publica pode evoluir | Probe `/doc`, adaptador unico e fixture versionado; nao usar fallback especulativo. |
 | Discrepancia `permission.asked` versus `permission.updated` | Usar o SDK/OpenAPI do binario testado; manter `permission.asked` nao suportado ate evidencia. |
 | Discrepancia `remember?` na prosa versus tipo gerado somente com `response` | Enviar somente `response`; revisar no `/doc` da versao fixada antes de ampliar. |

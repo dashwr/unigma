@@ -108,7 +108,7 @@ não autoriza publicação.
 | terminal e SSH obrigatório | OpenSSH e extension host remoto definidos; compatibilidade detalhada pendente | S-01, S-11 |
 | providers abertos, modelos locais e APIs | integração delegada ao OpenCode; direção de classificação e roteamento confirmada, suporte concreto pendente | S-01, S-11, S-17 |
 | roteamento por `intelligence index` e `Autopilot!` | direção confirmada; contrato operacional e validação pendentes | S-17 |
-| perfil `service-only` e bundle `unigma+opencode` | direção confirmada; decepador, artefato e atualização atômica pendentes | S-18 |
+| bundle `unigma+opencode`; perfil `service-only` opcional (D-026) | direção confirmada; patchset, workflow e auditoria implementados para o perfil opcional; artefato aceito e suporte oficial pendentes | S-18 |
 | atalhos `@` para ferramentas e `/` para skills | direção confirmada; contrato da UI nativa pendente | S-18 |
 | mensagens intersessão e chips de estado de agentes | direção confirmada; ciclo de vida e renderização pendentes | S-18 |
 | protocolo de controle remoto dormente | direção confirmada; protocolo e testes pendentes, sem ativação no MVP | S-18 |
@@ -117,7 +117,8 @@ não autoriza publicação.
 
 **Confirmado (S-06, S-18):** o primeiro MVP inclui as capacidades do escopo
 declarado acima, exceto as capacidades explicitamente posteriores e as linhas
-marcadas como fora do suporte ou dormentes. Direção confirmada não equivale a
+marcadas como fora do suporte ou dormentes. O perfil opcional `service-only` não
+é pré-requisito para a trilha básica do MVP. Direção confirmada não equivale a
 implementação aceita.
 
 **Confirmado (S-09):** OpenCode é o runtime primário de agente do unigma,
@@ -126,17 +127,19 @@ produto deve priorizar uso eficiente de memória e responsividade do desktop.
 
 ## harness oficial e distribuição
 
-**Confirmado (S-18):** OpenCode é o único harness/backend local oficial do
-produto. A distribuição oficial é `unigma+opencode`, com um perfil
-`service-only` que mantém o harness de execução e redireciona TUI, onboarding,
-prompts interativos, navegação e UI redundante para a contribuição nativa do
-unigma. O detalhe do pipeline está em
+**Confirmado (S-18, D-026):** OpenCode é o único harness/backend local oficial do
+produto. A distribuição oficial é `unigma+opencode`; a trilha básica pode usar o
+release upstream fixado, enquanto o perfil opcional `service-only` mantém o
+harness de execução e redireciona TUI, onboarding, prompts interativos,
+navegação e UI redundante para a contribuição nativa do unigma. O detalhe do
+pipeline opcional está em
 [`OPENCODE-SERVICE-ONLY.md`](OPENCODE-SERVICE-ONLY.md).
 
-**Confirmado (S-18):** o decepador é uma cadeia de build, não um mutador da
-instalação do usuário: `commit upstream → patch service-only → testes → artefato
-versionado`. Atualizações autorizadas substituem o bundle atomicamente quando o
-processo está parado e preservam os dados do usuário fora do artefato.
+**Confirmado (S-18, D-026):** quando o perfil opcional `service-only` é
+selecionado, o decepador é uma cadeia de build, não um mutador da instalação do
+usuário: `commit upstream → patch service-only → testes → artefato versionado`.
+Atualizações autorizadas do bundle selecionado substituem-no atomicamente quando
+o processo está parado e preservam os dados do usuário fora do artefato.
 
 **Confirmado (S-18):** extensões externas de Codex ou Claude Code podem existir
 por decisão do usuário, inclusive baixadas de um marketplace, mas não têm
@@ -206,17 +209,17 @@ Permanecem sem definição operacional suficiente:
 
 ## fora de escopo nesta etapa
 
-**Confirmado (S-11, S-13):** a arquitetura está aprovada e o snapshot inicial
+**Registro histórico (2026-08-22, S-11, S-13):** a arquitetura está aprovada e o snapshot inicial
 de Code - OSS já foi importado. As features próprias do agente e a integração
 funcional com OpenCode ainda não foram implementadas.
 
-**Registro de execução (S-14):** a fundação teve identidade, notices,
+**Registro histórico (2026-08-23, S-14):** a fundação teve identidade, notices,
 proveniência e comandos revisados; typecheck, lint, stylelint e parte do harness
 passaram em clone de validação. O build executável e a compatibilidade
 multiplataforma continuam sem validação por bloqueios de dependências/toolchain
 do upstream. Isso não altera a arquitetura nem autoriza distribuição.
 
-**Registro de execução (S-15):** a instalação root/build e os checks mínimos
+**Registro histórico (2026-08-23, S-15):** a instalação root/build e os checks mínimos
 foram reproduzidos no checkout local fora do Google Drive. O upstream orquestra
 dependências nested pelo `npm install` no root, com os scripts
 `preinstall`/`postinstall` de `package.json` e os módulos
@@ -230,6 +233,17 @@ recente, com dependências parciais, parou em `extensions/github-authentication`
 por tipos `mocha`/`node` ausentes; houve muitos ciclos limitados de dependência
 nested e a caça incremental foi encerrada. Nenhum artefato ou smoke
 multiplataforma foi produzido.
+
+**Estado atual (evidência registrada em 2026-09-04/05):** existe uma primeira
+build Linux x64 utilizável com OpenCode `1.18.23` embarcado; o smoke de pacote
+subiu `opencode serve`, conferiu saúde e listagem de sessões pelo cliente do
+produto e encerrou o processo com a porta fechada (`33721970575`). No recorte
+`service-only`, T-096 tem patchset versionado e aplicador, T-097 tem input
+`service_only` no workflow, T-098 tem troca atômica/rollback implementados e
+T-099 tem auditoria das superfícies removidas. Essas implementações e seus
+gates não equivalem a um artefato service-only aceito: E09 permanece `partial`
+e ainda faltam a matriz de artefato e os gates de suporte correspondentes. A
+poda service-only é opcional e está fora do caminho crítico por D-026.
 
 **Registro de contratos (S-15):** T-010 tem contrato implementado e validado.
 T-012 tem preflight sanitizado e bridge serializável parciais, sem suporte

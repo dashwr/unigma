@@ -1,7 +1,8 @@
 # unigma — modelo de dados
 
-> **status: arquitetura aprovada; modelo ainda não implementado.** Não há banco
-> de dados nem esquema de domínio implementado.
+> **status: arquitetura aprovada; implementação parcial.** Referências de sessão,
+> estado visual e domínio do router já têm recortes de implementação; consulte
+> `status/WORKBENCH.md`. Não há banco próprio autorizado.
 
 ## princípio
 
@@ -32,6 +33,21 @@ para persistir prompts, histórico, diffs, aprovações, resultados ou raciocín
 do router fora do OpenCode.
 
 ## Autopilot e Intelligence Index
+
+### contexto e worktrees — D-038–040
+
+Anexo é estado transitório com origem, URI, versão e seleção; o contrato exato
+e limites serão definidos antes da implementação. Buffer do editor não é cópia
+persistida pelo unigma. Não registrar conteúdo dos anexos em logs ou índice.
+
+Worktree, base e alterações pertencem ao Git; sessão e sua localização pertencem
+ao OpenCode. Unigma pode projetar referências validadas, sem banco de tarefas,
+snapshot paralelo ou histórico de diffs. Persistência adicional exige decisão.
+Todo/perguntas/sessões filhas são consultados novamente no harness após reinício;
+não restaurar autorização antiga. Worktree não implica exclusividade contra
+processos externos nem inclui automaticamente arquivos dirty/untracked da origem.
+
+### dados do roteamento
 
 A direção aprovada adiciona somente settings e estado local mínimo; não cria um
 novo agregado de domínio nem altera as fontes de verdade existentes.

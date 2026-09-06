@@ -137,6 +137,17 @@ decisao recebida antes de iniciar o processo; como ainda nao possui um
 classificador proprio de plugin/regra, a composicao de producao recusa com
 `unknownOrigin` em vez de confiar cegamente no `{ accepted: true }` recebido.
 
+Workspace Trust nao e sandbox: e um gate local de contexto e carregamento, nao
+uma fronteira adicional de privilegios. Worktree tambem nao e sandbox: separa
+checkouts pelo Git, mas nao limita processos, rede, ferramentas ou permissoes do
+host.
+
+Por D-037, o resolver da autoridade SSH pode resolver um destino antes de a
+pasta abrir e de o trust estar disponivel. Essa resolucao nao autoriza agente,
+OpenCode, ferramentas, MCP, plugin, regra ou qualquer efeito em workspace nao
+confiavel; os gates desta politica continuam obrigatorios antes do startup ou
+do carregamento.
+
 O workbench agora classifica MCPs instalados e permitidos, alem de aceitar fontes
 explicitamente classificadas de plugin e regra, usando somente categorias
 sanitizadas. O contrato de transporte aceita apenas `{ accepted }` ou
@@ -347,6 +358,8 @@ so. A implementacao futura deve fornecer evidencia reproduzivel de, no minimo:
   deliberadamente ausentes.
 - [Requisitos](REQUIREMENTS.md): RQ-004, RQ-103 e RQ-104.
 - [Aceitacao](ACCEPTANCE.md#estado-deste-documento): AC-005 e AC-009.
+- [Fila operacional](PROXIMAS-TAREFAS.md).
+- [Pesquisa de referencias oficiais](planos/2026-09-05-referencias-oficiais.md).
 - Documentacao oficial do OpenCode consultada em 2026-08-23: Config, MCP
   servers, Plugins, Rules e Permissions; a interface de servidor registrada
   pelo projeto esta em [OpenCode server](https://opencode.ai/docs/server).
