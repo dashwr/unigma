@@ -16,6 +16,16 @@ on:
         description: Commit of the activated server; defaults to the local server pointer
         type: string
         required: false
+  workflow_call:
+    inputs:
+      alias:
+        type: string
+        required: false
+        default: unigma-vps
+      artifact_commit:
+        type: string
+        required: false
+        default: ''
 
 permissions:
   contents: read

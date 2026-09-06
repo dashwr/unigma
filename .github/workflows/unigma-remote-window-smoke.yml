@@ -23,6 +23,11 @@ on:
         type: boolean
         required: false
         default: false
+      native_modules_only:
+        description: Only read the native addon state of the activated server, writing nothing
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -173,8 +178,16 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
+  native-modules-only:
+    if: inputs.native_modules_only == true
+    name: remote native modules smoke without provisioning
+    uses: ./.github/workflows/unigma-remote-native-modules-smoke.yml
+    with:
+      alias: ${{ inputs.alias }}
+      artifact_commit: ${{ inputs.artifact_commit }}
+
   reconnect-only:
-    if: inputs.reconnect_only == true
+    if: inputs.reconnect_only == true && inputs.native_modules_only == false
     name: remote reconnect smoke without provisioning
     uses: ./.github/workflows/unigma-remote-reconnect-smoke.yml
     with:
