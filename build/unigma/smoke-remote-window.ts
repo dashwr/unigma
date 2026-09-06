@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
-import { accessSync, constants as fsConstants, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { accessSync, chmodSync, constants as fsConstants, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -45,6 +45,12 @@ const reportPath = resolve(process.argv[2] ?? join(repoRoot, '.build', 'unigma-r
 const evidencePath = `${reportPath}.workbench.log`;
 const checks: Array<readonly [string, 'pass' | 'fail' | 'info']> = [];
 const facts: Array<readonly [string, string]> = [];
+const reconnectRequested = process.env['UNIGMA_REMOTE_RECONNECT'] === '1';
+const INITIAL_CONNECTION = /(\[remote-connection\]\[(?:Management|ExtensionHost)\s*\]\[[^\]\r\n]+\])\[initial\][^\r\n]*handshake finished/g;
+
+function reconnectCounts(text: string, connections: readonly string[]): number[] {
+	return connections.map(connection => text.split(`${connection}[reconnect] reconnected!`).length - 1);
+}
 
 
 interface ArtifactPair {
@@ -222,6 +228,10 @@ async function terminate(process_: ChildProcess | undefined): Promise<void> {
 
 	}
 	await closed;
+	if (process_.exitCode === null && process_.signalCode === null) {
+		process_.kill('SIGKILL');
+		await waitForClose(process_, 5_000);
+	}
 }
 
 async function delay(milliseconds: number): Promise<void> {
@@ -298,6 +308,10 @@ async function main(): Promise<void> {
 	}
 	facts.push(['desktop.product-commit', COMMIT.test(productCommit) ? productCommit : 'unreadable']);
 	check('product-commit-matches-server', productCommit === pair.serverCommit);
+	if (productCommit !== pair.serverCommit) {
+		facts.push(['result', 'product-commit-mismatch']);
+		return;
+	}
 	if (!isExecutable(binary)) {
 		facts.push(['result', 'desktop-binary-unavailable']);
 		return;
@@ -330,6 +344,16 @@ async function main(): Promise<void> {
 
 		}
 		const folderUri = `vscode-remote://ssh-remote+${alias}/root`;
+		const controlDirectory = join(stateRoot, 'reconnect-control');
+		const proxyDirectory = join(stateRoot, 'proxy-bin');
+		if (reconnectRequested) {
+			mkdirSync(controlDirectory, { mode: 0o700 });
+			mkdirSync(proxyDirectory, { mode: 0o700 });
+			// This source intentionally uses only JavaScript syntax for the
+			// extensionless executable invoked by the transport.
+			writeFileSync(join(proxyDirectory, 'ssh'), '#!/usr/bin/env node\n' + readFileSync(join(repoRoot, 'build/unigma/remote-window-ssh-proxy.ts'), 'utf8'));
+			chmodSync(join(proxyDirectory, 'ssh'), 0o700);
+		}
 		const trustSeed = seedWorkspaceTrust(join(sharedDataDirectory, 'sharedStorage', 'state.vscdb'), alias);
 		check('workspace-trust-seeded', trustSeed.seeded);
 		facts.push(['workspace-trust', trustSeed.seeded ? 'seeded-by-smoke' : `not-seeded:${trustSeed.reason}`]);
@@ -352,7 +376,14 @@ async function main(): Promise<void> {
 			`--extensions-dir=${extensionsDirectory}`,
 			`--logsPath=${logsDirectory}`,
 			`--crash-reporter-directory=${crashDirectory}`,
-		], { stdio: ['ignore', 'pipe', 'pipe'] });
+		], {
+			stdio: ['ignore', 'pipe', 'pipe'],
+			env: reconnectRequested ? {
+				...process.env,
+				PATH: `${proxyDirectory}:${process.env['PATH'] ?? ''}`,
+				UNIGMA_RECONNECT_CONTROL: controlDirectory,
+			} : process.env,
+		});
 		process_.stdout?.resume();
 		process_.stderr?.resume();
 		let processError = false;
@@ -387,12 +418,59 @@ async function main(): Promise<void> {
 		} else {
 			facts.push(['result', 'remote-window']);
 		}
+		if (reconnectRequested) {
+			const initiallyConnected = observations.resolverSuccess && observations.resolvedAuthorityConsumed
+				&& observations.extensionHostHandshake && observations.connectionTokenHandshake && !observations.tokenFailure;
+			const ownedTransport = existsSync(join(controlDirectory, 'claimed'));
+			check('reconnect-owned-transport', ownedTransport);
+			if (!initiallyConnected || !ownedTransport) {
+				check('remote-reconnect', false);
+				return;
+			}
+			const initialText = observeLogs(logsDirectory).rawText;
+			const connections = [...new Set(Array.from(initialText.matchAll(INITIAL_CONNECTION), match => match[1]))];
+			if (connections.length !== 2 || !connections.some(value => value.includes('[Management')) || !connections.some(value => value.includes('[ExtensionHost'))) {
+				check('reconnect-connection-identities', false);
+				return;
+			}
+			const before = reconnectCounts(initialText, connections);
+			writeFileSync(join(controlDirectory, 'drop'), '', { mode: 0o600 });
+			const recoveryDeadline = Date.now() + 180_000;
+			let recovered = false;
+			while (Date.now() < recoveryDeadline && !processError && process_.exitCode === null && process_.signalCode === null) {
+				const after = reconnectCounts(observeLogs(logsDirectory).rawText, connections);
+				if (existsSync(join(controlDirectory, 'dropped')) && after[0] > before[0] && after[1] > before[1]) {
+					recovered = true;
+					break;
+				}
+				await delay(250);
+			}
+			check('owned-ssh-drop-confirmed', existsSync(join(controlDirectory, 'dropped')));
+			check('same-desktop-process-alive', process_.exitCode === null && process_.signalCode === null && !processError);
+			check('remote-reconnect', recovered);
+			facts.push(['reconnect.result', recovered ? 'management-and-extension-host-recovered' : 'not-proven']);
+			info('agent-session-not-tested');
+			info('native-module-matrix-not-tested');
+		}
 
 	} finally {
+		if (reconnectRequested && stateRoot && existsSync(join(stateRoot, 'reconnect-control'))) {
+			writeFileSync(join(stateRoot, 'reconnect-control', 'stop'), '', { mode: 0o600 });
+		}
 		await terminate(process_);
+		let proxiesStopped = true;
+		if (reconnectRequested && stateRoot && existsSync(join(stateRoot, 'reconnect-control'))) {
+			const control = join(stateRoot, 'reconnect-control');
+			const deadline = Date.now() + 5_000;
+			while (readdirSync(control).some(name => name.startsWith('active-')) && Date.now() < deadline) {
+				await delay(100);
+			}
+			proxiesStopped = !readdirSync(control).some(name => name.startsWith('active-'));
+			check('owned-ssh-processes-stopped', proxiesStopped);
+		}
 		observations = stateRoot ? observeLogs(join(stateRoot, 'logs')) : observations;
 		writeSanitizedEvidence(observations, process_ !== undefined, (observations as { readonly rawText?: string }).rawText ?? '');
-		if (stateRoot) {
+		if (stateRoot && proxiesStopped) {
 			rmSync(stateRoot, { recursive: true, force: true });
 			check('state-cleanup', !existsSync(stateRoot));
 

@@ -8,12 +8,18 @@ on:
         type: string
         required: true
         default: unigma-vps
+      reconnect_only:
+        description: Run only reconnect smoke without provisioning or remote cleanup
+        type: boolean
+        required: true
+        default: true
 
 permissions:
   contents: read
 
 jobs:
   remote-window-smoke:
+    if: inputs.reconnect_only == false
     name: remote window smoke in Ubuntu WSL2
     runs-on: self-hosted
     timeout-minutes: 60
@@ -156,3 +162,10 @@ jobs:
             .build/unigma-remote-vps-cleanup.txt
           if-no-files-found: warn
           retention-days: 7
+
+  reconnect-only:
+    if: inputs.reconnect_only == true
+    name: remote reconnect smoke without provisioning
+    uses: ./.github/workflows/unigma-remote-reconnect-smoke.yml
+    with:
+      alias: ${{ inputs.alias }}

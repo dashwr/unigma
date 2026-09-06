@@ -1,0 +1,133 @@
+name: unigma remote reconnect smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      alias:
+        description: SSH config alias of the external VPS
+        type: string
+        required: true
+        default: unigma-vps
+  workflow_call:
+    inputs:
+      alias:
+        description: SSH config alias of the external VPS
+        type: string
+        required: true
+
+concurrency:
+  group: unigma-remote-smoke
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  remote-reconnect-smoke:
+    name: remote reconnect smoke in Ubuntu WSL2
+    runs-on: self-hosted
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: prepare WSL source path
+        run: |
+          $workspace = $env:GITHUB_WORKSPACE -replace '\\', '/'
+          if ($workspace -notmatch '^([A-Za-z]):/(.+)$') {
+            throw "Unsupported Windows workspace path: $env:GITHUB_WORKSPACE"
+          }
+          $drive = $matches[1].ToLowerInvariant()
+          $path = $matches[2]
+          if ($path -match '(^|/)\.\.?(/|$)') {
+            throw "Unsafe Windows workspace path: $env:GITHUB_WORKSPACE"
+          }
+          [System.IO.File]::AppendAllText($env:GITHUB_ENV, "WSL_SOURCE=/mnt/$drive/$path`n")
+          if (-not $env:GITHUB_WORKSPACE) {
+            throw 'GITHUB_WORKSPACE is required'
+          }
+
+      - name: run remote reconnect smoke in WSL
+        env:
+          VPS_ALIAS: ${{ inputs.alias }}
+        run: |
+          $scriptPath = Join-Path $env:RUNNER_TEMP 'unigma-remote-reconnect-smoke.sh'
+          $script = @'
+          set -euo pipefail
+
+          source="$1"
+          alias="$2"
+          case "$source" in
+            /mnt/[a-z]/*) ;;
+            *) echo "Unsupported WSL source path: $source" >&2; exit 2 ;;
+          esac
+          if [ ! -d "$source" ] || [ ! -f "$source/.nvmrc" ] || [ ! -f "$source/build/unigma/smoke-remote-window.ts" ]; then
+            echo "Invalid checkout source: $source" >&2
+            exit 2
+          fi
+          mkdir -p "$source/.build"
+          report="$source/.build/unigma-remote-reconnect-smoke.txt"
+          fail_preflight() {
+            printf 'check.preflight=fail\nsmoke=fail\n' > "$report"
+            echo "$1" >&2
+            exit 1
+          }
+          if [ -z "$alias" ] || [[ ! "$alias" =~ ^[A-Za-z0-9._-]+$ ]]; then
+            fail_preflight 'UNIGMA_VPS_ALIAS is invalid'
+          fi
+          export UNIGMA_VPS_ALIAS="$alias"
+          export UNIGMA_REMOTE_RECONNECT=1
+          export UNIGMA_ARTIFACT_ROOT="$HOME/.local/share/unigma-artifacts"
+
+          node_version="$(tr -d '[:space:]' < "$source/.nvmrc")"
+          if [[ ! "$node_version" =~ ^24\.[0-9]+\.[0-9]+$ ]]; then
+            fail_preflight "Unsupported Node version in .nvmrc: $node_version"
+          fi
+          toolchain="$HOME/.local/share/unigma-toolchains/node-$node_version"
+          if [ ! -x "$toolchain/bin/node" ]; then
+            fail_preflight "Missing Node $node_version toolchain: $toolchain"
+          fi
+          export PATH="$toolchain/bin:$PATH"
+          for tool in node ssh xvfb-run; do
+            if ! command -v "$tool" >/dev/null 2>&1; then
+              fail_preflight "Missing required tool: $tool"
+            fi
+          done
+          if [ ! -x /usr/bin/ssh ]; then
+            fail_preflight 'Missing /usr/bin/ssh required by the owned test proxy'
+          fi
+          if [ "$(node --version)" != "v$node_version" ]; then
+            fail_preflight "Unexpected Node version: $(node --version)"
+          fi
+          for artifact in unigma-latest unigma-server-latest; do
+            artifact_path="$UNIGMA_ARTIFACT_ROOT/$artifact"
+            if [ ! -d "$artifact_path" ] || [ ! -f "$artifact_path/PROVENANCE.txt" ]; then
+              fail_preflight "Missing WSL artifact: $artifact_path"
+            fi
+          done
+
+          cd "$source"
+          xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' \
+            node --experimental-strip-types build/unigma/smoke-remote-window.ts "$report"
+          '@
+          $script = $script -replace "`r`n?", "`n"
+          [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))
+          $scriptPathWsl = "/mnt/$($scriptPath.Substring(0, 1).ToLowerInvariant())/$($scriptPath.Substring(3).Replace('\', '/'))"
+          & wsl.exe -d Ubuntu --user dasher -- bash $scriptPathWsl $env:WSL_SOURCE $env:VPS_ALIAS
+          $exitCode = $LASTEXITCODE
+          Remove-Item -Force $scriptPath -ErrorAction SilentlyContinue
+          if ($exitCode -ne 0) { exit $exitCode }
+
+      - name: upload sanitized reconnect smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unigma-remote-reconnect-smoke-${{ github.run_id }}
+          path: |
+            .build/unigma-remote-reconnect-smoke.txt
+            .build/unigma-remote-reconnect-smoke.txt.workbench.log
+          if-no-files-found: warn
+          retention-days: 7
