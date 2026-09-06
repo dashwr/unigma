@@ -14,8 +14,8 @@
  * the requested commit and writes nothing on the host.
  */
 
-import { accessSync, appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { accessSync, appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
@@ -109,6 +109,17 @@ async function main(): Promise<void> {
 	// direct connection that answered nothing; going through the transport keeps
 	// this smoke on the path that is already exercised elsewhere, and it also
 	// says whether the activated version is answering at all.
+	// Two runs were spent on a bare category with no cause, so the local
+	// preconditions the transport depends on are reported before it is called.
+	try {
+		const probeDirectory = mkdtempSync(join(tmpdir(), 'ug-probe-'));
+		facts.push(['local.tmpdir.writable', 'true']);
+		facts.push(['local.tmpdir.socket-path-length', String(Buffer.byteLength(join(probeDirectory, 'c'), 'utf8'))]);
+		rmSync(probeDirectory, { recursive: true, force: true });
+	} catch (error) {
+		facts.push(['local.tmpdir.writable', 'false']);
+		facts.push(['local.tmpdir.code', String((error as { code?: string })?.code ?? 'unknown').slice(0, 32)]);
+	}
 	const opened = await openRemoteServer({ destination, commit, retainControlMasterOnServerUnavailable: true, timeoutMs: 30_000 }, { allocateLocalPort: () => 49154, spawn: runner });
 	const result = opened as { readonly ok?: boolean; readonly code?: string; readonly phase?: string; readonly controlPath?: string; readonly stagingSession?: { readonly controlPath: string; dispose(): Promise<void> }; dispose?(): Promise<void> };
 	const session = result.ok === false
@@ -118,6 +129,9 @@ async function main(): Promise<void> {
 	if (result.ok === false) { facts.push([`server.unavailable.${result.phase ?? 'unknown'}`, result.code ?? 'unknown']); }
 	check('session', session !== undefined);
 	if (!session) { return; }
+	// A session that reports success but leaves no socket behind is the state
+	// that made ssh fall back to a connection of its own and answer nothing.
+	facts.push(['session.control-socket', String(existsSync(session.controlPath))]);
 	try {
 		const probe = await runCommand(runner, buildNativeProbeArguments(destination, session.controlPath), buildNativeProbeScript(commit, buildRemoteServerPathShellFragments().versionedDirectory));
 		const summary = summarizeNativeReport(parseNativeReport(probe.output), probe.code);
