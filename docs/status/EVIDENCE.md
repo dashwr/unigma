@@ -1,5 +1,20 @@
 # unigma — formato de evidência
 
+> **2026-09-06 — matriz de módulos nativos no host remoto.** Run `34013237745`,
+> branch `test/t053-owned-reconnect`, modo somente-leitura do smoke da janela
+> (`native_modules_only`), contra a versão `493dcfe7` que já estava ativada. O
+> probe roda com o Node empacotado da própria versão e não escreve nada no host:
+> `native.node.packaged=true`, `glibc` de execução `2.35` contra compilação
+> `2.28`, 8 addons encontrados, 8 verificados, **7 carregados e 0 rejeitados**;
+> a única falha é `@vscode/deviceid/.../windows.node` com
+> `not-self-registered`, que reproduz na máquina de build por não ter ponto de
+> entrada em Linux. `@vscode/spdlog` — o módulo do incidente de log silencioso —
+> carregou. `smoke=pass`. **Limites:** isso mede a carga dos addons naquele host
+> e naquela versão; não exercita sessão de agente, não substitui a auditoria do
+> payload montado e não fecha `AC-007`. Dois runs anteriores (`34012250945`,
+> `34012758917`) falharam por transporte local sem socket reutilizável, o que
+> motivou registrar as pré-condições locais no próprio relatório.
+
 > **2026-09-06 — queda e reconexão na mesma janela remota.** Run `34011376887`,
 > branch `test/t053-owned-reconnect`, commit `ed8b224c`, par `493dcfe7`
 > selecionado explicitamente e servidor preparado no host com autorização

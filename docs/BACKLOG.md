@@ -25,10 +25,22 @@
   host com o mesmo desktop vivo (`smoke=pass`). Evidência em `status/EVIDENCE.md`
   e `.build/t053-34011376887/`. Não fecha AC-007: sessão de agente remota e
   matriz de módulos nativos continuam sem exercício, conforme os `info` do run.
+- **feito: 2026-09-06** — matriz de módulos nativos no host, run `34013237745`:
+  o probe virou `build/unigma/remote-native-probe.ts`, com smoke somente-leitura
+  `smoke-remote-native-modules.ts` exposto como `native_modules_only`. Contra a
+  versão `493dcfe7` já ativada: 8 addons verificados, 7 carregados, 0 rejeitados,
+  `@vscode/spdlog` carregado, `glibc` de execução 2.35 sobre compilação 2.28, sem
+  escrita no host. Não fecha AC-007 nem substitui a auditoria do payload montado.
+  Runs `34012250945` e `34012758917` falharam antes por sessão sem socket
+  reutilizável; as pré-condições locais passaram a constar do relatório.
+- **armadilha registrada: 2026-09-06** — pedir o modo somente-leitura com
+  `reconnect_only=false` selecionava o job legado, que provisiona e sempre limpa
+  o host; o run `34012189574` foi cancelado por isso e as guardas dos dois modos
+  agora são explícitas. O servidor seguiu ativado, conforme `server.reachable`.
 - **conclusão dos runs anteriores:** o transporte SSH real é exercitado e recusa
   fail-closed quando o servidor daquele commit não está presente no host; o
-  servidor `493dcfe7` não está mais preparado na VPS, porque o fluxo legado
-  removia a versão ao final. Queda/reconexão exigem servidor preparado, ou seja,
+  servidor `493dcfe7` foi preparado depois disso e continua ativado na VPS, o que
+  os runs de 6 de setembro confirmam. Queda/reconexão exigem servidor preparado, ou seja,
   staging autorizado; não relaxar o gate nem reutilizar servidor de outro commit.
 - **prova/limite:** relatório sanitizado em
   `.build/t053-34008859142/unigma-remote-reconnect-smoke.txt`; recusa de par

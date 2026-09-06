@@ -68,6 +68,18 @@ gerenciamento e de extension host, com o mesmo desktop vivo. Registrado em
 nativos continuam fora, conforme os `info` do relatório. O restante do recorte
 segue abaixo.
 
+## [FEITO] T-053 — matriz de módulos nativos no host remoto
+
+**Entregue em 2026-09-06, run `34013237745`:** o probe que só existia dentro do
+smoke de staging virou módulo próprio (`build/unigma/remote-native-probe.ts`) e
+ganhou um smoke somente-leitura (`smoke-remote-native-modules.ts`), exposto como
+modo `native_modules_only` do workflow da janela. Contra a versão `493dcfe7` já
+ativada: 8 addons verificados, 7 carregados, 0 rejeitados, `@vscode/spdlog`
+carregado; nada foi escrito no host. **Não fecha AC-007** e não substitui a
+auditoria do payload montado. **Armadilha registrada:** pedir o modo
+somente-leitura com `reconnect_only=false` selecionava o job legado, que provisiona
+e sempre limpa o host; as duas guardas agora são explícitas.
+
 ## [PENDENTE] T-053 — completar transporte e matriz da janela real
 
 **Bloqueio observado no runner:** `34008859142`, branch `test/t053-owned-reconnect`,
