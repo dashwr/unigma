@@ -13,12 +13,22 @@ on:
         type: string
         required: false
         default: ''
+      stage:
+        description: Prepare the server of the selected commit on the host before the smoke
+        type: boolean
+        required: false
+        default: false
   workflow_call:
     inputs:
       alias:
         description: SSH config alias of the external VPS
         type: string
         required: true
+      stage:
+        description: Prepare the server of the selected commit on the host before the smoke
+        type: boolean
+        required: false
+        default: false
       artifact_commit:
         description: Full commit of an existing artifact pair
         type: string
@@ -36,7 +46,7 @@ jobs:
   remote-reconnect-smoke:
     name: remote reconnect smoke in Ubuntu WSL2
     runs-on: self-hosted
-    timeout-minutes: 15
+    timeout-minutes: 60
     defaults:
       run:
         shell: powershell
@@ -56,9 +66,50 @@ jobs:
             throw "Unsafe Windows workspace path: $env:GITHUB_WORKSPACE"
           }
           [System.IO.File]::AppendAllText($env:GITHUB_ENV, "WSL_SOURCE=/mnt/$drive/$path`n")
+          [System.IO.File]::AppendAllText($env:GITHUB_ENV, "WSL_BUILD=/home/dasher/unigma-remote-reconnect-smoke-build`n")
           if (-not $env:GITHUB_WORKSPACE) {
             throw 'GITHUB_WORKSPACE is required'
           }
+
+      - name: stage the selected server on the VPS
+        if: inputs.stage
+        env:
+          VPS_ALIAS: ${{ inputs.alias }}
+        run: |
+          $scriptPath = Join-Path $env:RUNNER_TEMP 'unigma-remote-reconnect-stage.sh'
+          $script = @'
+          set -euo pipefail
+          source="$1"
+          build="$2"
+          alias="$3"
+          if [ -z "$alias" ]; then echo 'UNIGMA_VPS_ALIAS is required' >&2; exit 2; fi
+          export UNIGMA_VPS_ALIAS="$alias"
+          export UNIGMA_ARTIFACT_ROOT=/home/dasher/.local/share/unigma-artifacts
+          # The staged server must survive this workflow: the reconnect scenario
+          # needs it present on the host.
+          export UNIGMA_KEEP_STAGED=1
+          report="$source/.build/unigma-remote-reconnect-staging.txt"
+          node_version="$(tr -d '[:space:]' < "$source/.nvmrc")"
+          toolchain="/home/dasher/.local/share/unigma-toolchains/node-$node_version"
+          if [ ! -x "$toolchain/bin/node" ]; then echo "missing Node $node_version toolchain" >&2; exit 1; fi
+          export PATH="$toolchain/bin:$PATH"
+          rm -rf "$build"
+          mkdir -p "$build" "$source/.build"
+          tar --exclude=.git --exclude=node_modules --exclude=.build -C "$source" -cf - . | tar --no-same-owner --no-same-permissions -C "$build" -xf -
+          git -C "$build" init --quiet
+          cd "$build"
+          node build/azure-pipelines/common/disableFoundryLocalInstall.ts
+          npm ci --no-audit --no-fund
+          node --experimental-strip-types ./node_modules/gulp/bin/gulp.js compile-extension:unigma-remote-ssh
+          node --experimental-strip-types build/unigma/smoke-remote-vps-staging.ts "$report"
+          '@
+          $script = $script -replace "`r`n?", "`n"
+          [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))
+          $scriptPathWsl = "/mnt/$($scriptPath.Substring(0, 1).ToLowerInvariant())/$($scriptPath.Substring(3).Replace('\', '/'))"
+          & wsl.exe -d Ubuntu --user dasher -- bash $scriptPathWsl $env:WSL_SOURCE $env:WSL_BUILD $env:VPS_ALIAS
+          $exitCode = $LASTEXITCODE
+          Remove-Item -Force $scriptPath -ErrorAction SilentlyContinue
+          if ($exitCode -ne 0) { exit $exitCode }
 
       - name: run remote reconnect smoke in WSL
         env:
@@ -148,5 +199,6 @@ jobs:
           path: |
             .build/unigma-remote-reconnect-smoke.txt
             .build/unigma-remote-reconnect-smoke.txt.workbench.log
+            .build/unigma-remote-reconnect-staging.txt
           if-no-files-found: warn
           retention-days: 7

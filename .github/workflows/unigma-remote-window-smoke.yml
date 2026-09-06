@@ -14,10 +14,15 @@ on:
         required: true
         default: true
       artifact_commit:
-        description: Optional full commit of an existing desktop/server pair (no build or staging)
+        description: Optional full commit of an existing desktop/server pair
         type: string
         required: false
         default: ''
+      stage:
+        description: Prepare the selected server on the host before the reconnect smoke
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -175,3 +180,4 @@ jobs:
     with:
       alias: ${{ inputs.alias }}
       artifact_commit: ${{ inputs.artifact_commit }}
+      stage: ${{ inputs.stage }}
