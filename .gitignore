@@ -35,7 +35,12 @@ test/componentFixtures/.screenshots/*
 dist
 .playwright-cli
 .playwright-mcp
-.claude/
+.claude/*
+# Claude Code guardrails are versioned; personal overrides stay local
+!.claude/settings.json
+!.claude/rules/
+.claude/settings.local.json
+CLAUDE.local.md
 .agents/agents/*.local.md
 .github/agents/*.local.md
 .agents/agents/*.local.agent.md

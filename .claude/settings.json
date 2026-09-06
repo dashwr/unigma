@@ -1,0 +1,36 @@
+{
+	"permissions": {
+		"deny": [
+			"Bash(sudo:*)",
+			"Bash(doas:*)",
+			"Bash(su:*)",
+			"Bash(npm install:*)",
+			"Bash(npm ci:*)",
+			"Bash(yarn:*)",
+			"Bash(pnpm:*)",
+			"Bash(git push --force:*)",
+			"Bash(git push -f:*)",
+			"Bash(git reset --hard:*)",
+			"Bash(git clean:*)",
+			"Bash(rm -rf:*)",
+			"Read(./**/*.pem)",
+			"Read(./**/*.key)",
+			"Read(//home/dasher/.ssh/**)",
+			"Read(//home/dasher/.config/gh/**)",
+			"Read(//home/dasher/.aws/**)",
+			"Read(//home/dasher/.npmrc)"
+		],
+		"ask": [
+			"Bash(gh workflow run:*)",
+			"Bash(gh run rerun:*)",
+			"Bash(git push:*)",
+			"Bash(git commit:*)",
+			"Bash(ssh:*)",
+			"Bash(scp:*)",
+			"Bash(rsync:*)",
+			"Bash(npm run compile:*)",
+			"Bash(npm run watch:*)",
+			"Bash(gulp:*)"
+		]
+	}
+}
