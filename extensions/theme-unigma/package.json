@@ -26,6 +26,18 @@
         "path": "./themes/unigma-light.json"
       },
       {
+        "id": "unigma Lilac",
+        "label": "%lilacThemeLabel%",
+        "uiTheme": "vs",
+        "path": "./themes/unigma-lilac.json"
+      },
+      {
+        "id": "unigma Purple Dark",
+        "label": "%purpleDarkThemeLabel%",
+        "uiTheme": "vs-dark",
+        "path": "./themes/unigma-purple-dark.json"
+      },
+      {
         "id": "unigma High Contrast",
         "label": "%highContrastThemeLabel%",
         "uiTheme": "hc-black",

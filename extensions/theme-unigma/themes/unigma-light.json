@@ -95,6 +95,16 @@
     "editorSuggestWidget.highlightForeground": "#5b21b6",
     "editorSuggestWidget.selectedBackground": "#ddd6fe",
     "editorSuggestWidget.focusOutline": "#6d28d9",
+    "editorError.foreground": "#be1a67",
+    "editorWarning.foreground": "#8a5a00",
+    "editorInfo.foreground": "#1d4ed8",
+    "errorForeground": "#be1a67",
+    "inputValidation.errorBorder": "#be1a67",
+    "inputValidation.errorBackground": "#fdeaf2",
+    "inputValidation.errorForeground": "#9d1150",
+    "notificationsErrorIcon.foreground": "#be1a67",
+    "notificationsWarningIcon.foreground": "#8a5a00",
+    "notificationsInfoIcon.foreground": "#1d4ed8",
     "panel.background": "#f5f0fa",
     "panel.border": "#d8cde0",
     "panelTitle.activeBorder": "#6d28d9",
@@ -120,7 +130,7 @@
     "list.hoverBackground": "#eee8f5",
     "list.hoverForeground": "#211a2b",
     "list.highlightForeground": "#5b21b6",
-    "list.errorForeground": "#b42318",
+    "list.errorForeground": "#be1a67",
     "list.warningForeground": "#8a5a00",
     "quickInput.background": "#fdfaff",
     "quickInput.foreground": "#211a2b",
@@ -173,9 +183,9 @@
     "gauge.background": "#6d28d94d",
     "gauge.border": "#b79bc9",
     "gauge.warningForeground": "#8a5a00",
-    "gauge.warningBackground": "#f5d0fe",
-    "gauge.errorForeground": "#b42318",
-    "gauge.errorBackground": "#fecaca",
+    "gauge.warningBackground": "#8a5a004d",
+    "gauge.errorForeground": "#be1a67",
+    "gauge.errorBackground": "#fdeaf2",
     "minimapSlider.background": "#75698066",
     "minimapSlider.hoverBackground": "#75698099",
     "minimapSlider.activeBackground": "#211a2b99",
@@ -186,7 +196,7 @@
     "charts.purple": "#6d28d9",
     "charts.blue": "#175cd3",
     "charts.green": "#087443",
-    "charts.red": "#b42318",
+    "charts.red": "#be1a67",
     "charts.yellow": "#8a5a00"
   },
   "tokenColors": [
@@ -197,6 +207,6 @@
     { "scope": ["keyword", "storage", "storage.type"], "settings": { "foreground": "#a21caf" } },
     { "scope": ["entity.name.type", "support.type", "entity.name.class"], "settings": { "foreground": "#5b21b6" } },
     { "scope": ["variable", "variable.parameter"], "settings": { "foreground": "#211a2b" } },
-    { "scope": ["invalid"], "settings": { "foreground": "#b42318" } }
+    { "scope": ["invalid"], "settings": { "foreground": "#be1a67" } }
   ]
 }

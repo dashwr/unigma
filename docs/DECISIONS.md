@@ -525,6 +525,37 @@ Sobre a [proposta de interação](AGENT-UX-DRAFT.md).
 - Estas decisões definem desenho. **Não autorizam implementação** e não fecham
   `AC-030`, `AC-032` nem qualquer aceite da onda 3.
 
+### D-048 — matriz de temas, selecao e semanticas — 2026-09-06
+
+Sobre a [especificacao de paleta](THEME-PALETTE-DRAFT.md) e as divergencias que
+ela verificou entre `D-046` e os arquivos que existem.
+
+- **Quatro temas.** `light` e `dark` sao o branco e o preto; entram **lilas**
+  (claro) e **roxo-escuro**. `high-contrast` continua a parte, porque e
+  acessibilidade e nao gosto — sao cinco arquivos no total, quatro temas de
+  paleta mais o de alto contraste. O auditor de contraste precisa passar a
+  conhecer os nomes novos; hoje ele e escrito sobre exatamente tres
+  (`verify-theme-contrast.ts:116`), e um tema que ele nao conhece nao e
+  auditado, o que e pior do que um tema que falha.
+- **Selecao clareia em roxo.** `unigma-dark.json` so passa a checagem de
+  luminancia de selecao (`>= 0.1`, `verify-theme-contrast.ts:127-130`) porque
+  usa magenta `#a21caf` — exatamente o que `D-046` reservou para estado.
+  A correcao e a cor, nao o limiar: baixar a guarda para caber uma preferencia
+  estetica inverteria a razao de ela existir, que e selecao invisivel. Roxos
+  propostos e ja calculados: `#6b57b8` / `#7059c4`.
+- **Ambar para aviso; magenta para erro e atencao.** Tres niveis legiveis sem
+  ler: ambar avisa, magenta interrompe, roxo indica foco. O custo assumido e uma
+  cor a mais na paleta, e ambar e o tom mais dificil de acertar em contraste —
+  o auditor decide, nao a intencao.
+- **Correcao dos temas atuais autorizada agora.** `focusBorder` magenta em
+  `unigma-dark.json` e `unigma-high-contrast.json`, e
+  `editor.selectionBackground` magenta em `unigma-dark.json`, contrariam
+  `D-046`. Esta e a primeira decisao da serie de desenho que **autoriza
+  implementacao**, e so deste recorte: os arquivos de tema e o auditor. Ela nao
+  autoriza `J-4` nem qualquer outra parte da onda 3.
+- Prova exigida: `verify-theme-contrast.ts` executado **sobre o pacote** no
+  runner, cobrindo os cinco arquivos. Auditor rodando local nao fecha `T-034`.
+
 ## regra de atualização
 
 Após cada resposta do responsável, registrar a decisão com data, resposta,

@@ -112,11 +112,31 @@ const highContrastPairs = [
 	['button.foreground', 'button.background'],
 ] as const;
 
+// The audited set is derived from the extension manifest, never from a literal
+// list: a theme that the auditor does not know about is not audited at all,
+// which is worse than a theme that fails. Adding a contribution to
+// `contributes.themes` is therefore enough to put a theme under the guard.
+function contributedThemes(): { path: string; uiTheme: string }[] {
+	const manifestFile = join(root, 'extensions/theme-unigma/package.json');
+	const manifest = parseJsonc(manifestFile);
+	const contributions = manifest.contributes?.themes;
+	if (!Array.isArray(contributions) || contributions.length === 0) {
+		throw new Error(`${manifestFile}: contributes.themes esta vazio ou ausente`);
+	}
+	return contributions.map((contribution: Record<string, unknown>) => {
+		if (typeof contribution?.path !== 'string' || typeof contribution?.uiTheme !== 'string') {
+			throw new Error(`${manifestFile}: contribuicao de tema sem path ou uiTheme`);
+		}
+		return { path: join(dirname(manifestFile), contribution.path), uiTheme: contribution.uiTheme };
+	});
+}
+
 let failed = false;
-for (const fileName of ['unigma-dark.json', 'unigma-light.json', 'unigma-high-contrast.json']) {
-	const theme = loadTheme(join(root, 'extensions/theme-unigma/themes', fileName));
+for (const contribution of contributedThemes()) {
+	const theme = loadTheme(contribution.path);
 	console.log(`theme=${theme.name}`);
-	const pairs = fileName === 'unigma-high-contrast.json' ? highContrastPairs : textPairs;
+	const highContrast = contribution.uiTheme === 'hc-black' || contribution.uiTheme === 'hc-light';
+	const pairs = highContrast ? highContrastPairs : textPairs;
 	for (const [foregroundKey, backgroundKey] of pairs) {
 		const ratio = contrast(color(theme, foregroundKey), color(theme, backgroundKey));
 		const result = ratio >= minimumTextContrast ? 'pass' : 'fail';
