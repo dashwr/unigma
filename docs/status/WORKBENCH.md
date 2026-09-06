@@ -38,6 +38,14 @@ fixture que dependa dele testa outra coisa; e `GET /path` pode devolver
 Também registrado: `/usr/bin/opencode` desta máquina **deriva** para `1.18.25`.
 O probe usou a cópia `1.18.23` preservada em snapshot, conferida por SHA-256.
 
+**2026-09-06 — T-071 ganhou diagnóstico, não número.** A comparação de flags
+pedida pela fila foi feita: o smoke que abre janela lê os logs do produto e
+semeia workspace trust, e nunca chama `--status`; o baseline não faz nenhuma das
+três coisas. O harness passou a tracejar e a citar a cauda dos logs do produto
+nas duas mensagens de falha, com dois testes reproduzindo a forma do run
+`33950524239`. Trust e a confiabilidade de `--status` sob Xvfb ficam como
+hipóteses nomeadas, não como causa. Continua sem baseline numérico.
+
 **o que esses contratos destravaram e o que não destravaram.** Cada um termina
 com a decomposição e a lista de provas do aceite. Duas decisões humanas ficaram
 explicitamente na frente da implementação: os quatro limites de tamanho de anexo
