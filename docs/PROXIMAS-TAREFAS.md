@@ -110,7 +110,24 @@ autorização ou necessidade de alteração privilegiada. **Prova:** run real co
 abertura → queda → recuperação, sem confundir reabertura manual com reconexão;
 registrar limitações. **Trello:** E05; AC-007 permanece item próprio.
 
-## [PENDENTE] T-071 — diagnosticar baseline sem inventar números
+## [FEITO] T-071 — diagnosticar baseline sem inventar números
+
+**Entregue em 2026-09-06, run `34045994035`, commit `36d5c73a`:** o baseline
+existe e é medido até a janela existir. `clean-profile` `ready-ms.median=5394`,
+`idle-folder` `6580`, com memória por processo somando 1418 MB e 1691 MB numa
+máquina de 11 813 MB — plausibilidade que confirma a correção da dupla conversão.
+Registrado em `status/EVIDENCE.md`. **Não fecha `T-070`:** faltam os cenários de
+streaming e SSH, e a matriz Windows.
+
+**Defeito encontrado no próprio relatório deste run e corrigido depois dele:**
+`ready-resolution-ms=250` relatava o *sleep* entre sondas, não o intervalo real.
+Cada sonda relança o executável para perguntar `--status`, que custa bem mais que
+o sleep. O `spread=21` do `clean-profile` não é variância de 21 ms: é o número de
+sondas ter sido o mesmo nas três execuções. A resolução passou a ser medida por
+observação, e o relatório carrega a nota de que `ready-ms` superestima em até um
+intervalo de sonda. Sem isso, um spread pequeno passa por precisão que não existe.
+
+## [PENDENTE] T-071 — histórico do diagnóstico
 
 **Comparação de flags feita em 2026-09-06** (leitura de código, sem runner),
 conforme o passo pedido. `smoke-remote-window.ts` é o lançamento que sabidamente

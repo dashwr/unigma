@@ -1680,6 +1680,16 @@ estiverem medidos, `T-071` não começa — publicar baseline parcial como se fo
 
 ### T-071 — publicar baseline inicial
 
+> feito em 2026-09-06, run `34045994035`, commit `36d5c73a`: baseline medido até
+> a janela existir. `clean-profile` `ready-ms.median=5394` (spread 21),
+> `idle-folder` `6580` (spread 1373), memória por processo somando 1418 MB e
+> 1691 MB numa máquina de 11 813 MB. A guarda de plausibilidade passou, o que
+> confirma a correção da dupla conversão. Em `status/EVIDENCE.md`. Depois do run,
+> corrigido um número do próprio relatório: `ready-resolution-ms` relatava o
+> sleep entre sondas e não o intervalo real, então um spread pequeno passava por
+> precisão; agora é medido por observação, com nota. **Não fecha T-070**, que
+> pede também streaming, SSH e a matriz Windows.
+
 > parcial em 2026-09-06 — **causa raiz encontrada**: o harness procurava
 > `Process Info`, string que o produto nunca imprime (só existe como comentário
 > em `electron-main/main.ts:435`); o cabeçalho real é `CPU %\tMem MB\t   PID\t

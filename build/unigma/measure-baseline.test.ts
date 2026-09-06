@@ -320,7 +320,13 @@ test('the report states which event ready-ms measures', () => {
 		const out = join(root, 'report.txt');
 		const result = run(['--exe', executable, '--scenario', 'clean-profile', '--repeat', '1', '--timeout', '20000', '--out', out]);
 		assert.equal(result.status, 0, result.stderr);
-		assert.match(readFileSync(out, 'utf8'), /ready-definition=first --status reporting a renderer row/);
+		const report = readFileSync(out, 'utf8');
+		assert.match(report, /ready-definition=first --status reporting a renderer row/);
+		// The resolution has to be measured, not the sleep constant echoed back:
+		// each probe relaunches the executable, which costs more than the sleep.
+		const resolution = Number(/ready-resolution-ms=([0-9]+)/.exec(report)?.[1]);
+		assert.ok(resolution > 0, `resolution not observed in:\n${report}`);
+		assert.match(report, /ready-ms\.note=overstates by at most one probe interval/);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}

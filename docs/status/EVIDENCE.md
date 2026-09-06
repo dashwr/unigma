@@ -422,3 +422,40 @@ correção:        a prontidão passou a exigir a linha `renderer`, e o timeout
                  passou a nomear os papéis já vistos. `ready-definition` entrou
                  no relatório para que o número nunca seja lido como outro
                  evento. Falta o run que produza o primeiro `ready-ms` de janela.
+
+### baseline de inicialização com janela viva — 2026-09-06
+
+data:            2026-09-06
+tarefa/gate:     `T-070`/`T-071` — instrumentação e baseline inicial
+run id:          `34045994035`
+workflow:        `unigma-linux-wsl-validation.yml`
+commit/head:     `36d5c73a5c2eb4fabcabe50da155f7a9e9a66b9d`
+plataforma:      linux-x64 sob Xvfb no WSL2 do runner Windows; máquina de
+                 11 813 MB
+node:            `v24.18.0`
+prontidão:       primeira resposta de `--status` contendo a linha `renderer`
+repetições:      3 por cenário
+
+| cenário | ready-ms mediana | spread | processos (MB, mediana) |
+| --- | --- | --- | --- |
+| `clean-profile` | 5394 | 21 | main 248, renderer 402, extension-host 165, shared-process 154, file-watcher 118, other 331 — soma 1418 |
+| `idle-folder` | 6580 | 1373 | main 248, renderer 378, extension-host 260, shared-process 154, file-watcher 201, other 450 — soma 1691 |
+
+prova:           primeiro baseline do projeto medido até a janela existir, com
+                 memória por processo. A soma de 1418 MB e 1691 MB contra os
+                 11 813 MB da máquina passa na guarda de plausibilidade, o que
+                 confirma a correção da dupla conversão em
+                 `diagnosticsService.ts`: antes a mesma coluna produzia valores
+                 de onze dígitos. `pty-host` ausente nos dois cenários é
+                 esperado, porque nenhum terminal foi aberto.
+não prova:       **o `spread` não é medida de variância do produto.** Cada sonda
+                 relança o executável para perguntar `--status`, então o
+                 intervalo real entre sondas é o sleep mais esse lançamento. O
+                 `spread=21` do `clean-profile` significa que as três execuções
+                 precisaram do mesmo número de sondas, não que a inicialização
+                 varie 21 ms. O `ready-resolution-ms=250` publicado neste run
+                 relatava o sleep e **subestimava** a resolução; corrigido depois
+                 deste run para ser medido por observação, com nota no relatório.
+                 Também não prova cenário de agente nem de SSH, ambos ausentes
+                 por dependência declarada, nem qualquer comparação com outra
+                 máquina ou plataforma.

@@ -66,7 +66,22 @@ sendo baseline de inicialização**. A prontidão passou a exigir a linha
 `renderer`, o timeout passou a nomear os papéis vistos e o relatório passou a
 declarar qual evento mede.
 
-**Lote preparado para o próximo run.** A dupla conversão de memória foi corrigida
+**Resultado (`34045994035`, commit `36d5c73a`): o baseline existe.**
+`clean-profile` 5394 ms até a janela, `idle-folder` 6580 ms, com memória por
+processo somando 1418 MB e 1691 MB contra os 11 813 MB da máquina. A guarda de
+plausibilidade passou, o que confirma que a dupla conversão era mesmo o defeito —
+a mesma coluna produzia onze dígitos antes. Em `EVIDENCE.md`.
+
+**E o relatório desse run já continha um número que mentia, meu.** Publiquei
+`ready-resolution-ms=250` relatando o *sleep* entre sondas; o intervalo real é o
+sleep mais o relançamento do executável que cada sonda faz para perguntar
+`--status`. O `spread=21` do `clean-profile` parece precisão e não é: significa
+que as três execuções precisaram do mesmo número de sondas. A resolução passou a
+ser medida por observação e o relatório carrega a ressalva. Foi o quarto defeito
+do dia da mesma família — um número ou uma string que descrevia a intenção em vez
+do que acontecia.
+
+**Lote que produziu esse resultado.** A dupla conversão de memória foi corrigida
 no produto: `ProcessItem.mem` já é bytes em toda plataforma, e
 `formatProcessItem` aplicava a conversão do `ps` uma segunda vez — o Process
 Explorer sempre leu o campo certo, então só a coluna do `--status` estava

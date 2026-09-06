@@ -103,6 +103,13 @@ interface ProcessSample {
 
 interface Run {
 	readonly readyMs: number;
+	/**
+	 * The longest gap observed between two consecutive readiness probes. It is
+	 * the upper bound on how much `readyMs` overshoots the moment the window
+	 * actually appeared, because the window can come up right after a probe and
+	 * go unnoticed until the next one.
+	 */
+	readonly probeIntervalMs: number;
 	readonly samples: readonly ProcessSample[];
 }
 
@@ -302,12 +309,18 @@ function describeProductLogs(logsDir: string, limit = 8): string {
 const READY_ROLE = 'renderer';
 
 /**
- * How often readiness is polled, and therefore the resolution of `ready-ms`:
- * the number can only be as precise as the gap between two probes. The first
- * real run polled every 500 ms and reported a spread of 2011 ms, where a fifth
- * of the spread was the probe interval itself.
+ * How long the loop sleeps between readiness probes.
+ *
+ * This is **not** the resolution of `ready-ms`. Each probe launches the product
+ * executable again to ask `--status`, which costs far more than the sleep, so
+ * the real gap between two probes is the sleep plus that launch. Reporting the
+ * sleep as the resolution understated it, and run `34045994035` showed the
+ * consequence: `clean-profile` came back with a spread of 21 ms across three
+ * repetitions, which does not mean the product starts that consistently — it
+ * means all three needed the same number of probes. The resolution is measured
+ * per run and reported from observation instead.
  */
-const POLL_INTERVAL_MS = 250;
+const POLL_SLEEP_MS = 250;
 
 /**
  * Launches the product against a throwaway profile and waits until `--status`
@@ -376,11 +389,16 @@ async function measureOnce(options: Options, profile: string): Promise<Run> {
 	let lastCode: number | null = null;
 	let lastOutput = '';
 	const rolesSeen = new Set<string>();
+	let previousProbeAt = started;
+	let probeIntervalMs = 0;
 	try {
 		while (Date.now() - started < options.timeoutMs) {
 			if (exited) {
 				throw new Error(`the product exited before it answered --status${describeOutput(launchOutput)}${describeProductLogs(logsDir)}`);
 			}
+			const probeAt = Date.now();
+			probeIntervalMs = Math.max(probeIntervalMs, probeAt - previousProbeAt);
+			previousProbeAt = probeAt;
 			const status = spawnSync(options.executable, ['--user-data-dir', userDataDir, '--extensions-dir', extensionsDir, '--status'], {
 				encoding: 'utf8',
 				timeout: 30000
@@ -390,7 +408,7 @@ async function measureOnce(options: Options, profile: string): Promise<Run> {
 			if (status.status === 0 && STATUS_READY.test(status.stdout ?? '')) {
 				const samples = parseStatus(status.stdout, options.applicationName);
 				if (samples.some(sample => sample.role === READY_ROLE)) {
-					return { readyMs: Date.now() - started, samples };
+					return { readyMs: Date.now() - started, probeIntervalMs, samples };
 				}
 				// Keep the roles seen so a timeout can say how far startup got
 				// instead of repeating that nothing answered.
@@ -398,7 +416,7 @@ async function measureOnce(options: Options, profile: string): Promise<Run> {
 					rolesSeen.add(sample.role);
 				}
 			}
-			await sleep(POLL_INTERVAL_MS);
+			await sleep(POLL_SLEEP_MS);
 		}
 		// Whether the launched process was still alive separates "the window never
 		// came up" from "the instance is up but does not answer", and the previous
@@ -454,7 +472,11 @@ function report(options: Options, runs: readonly Run[]): string {
 
 	const readyValues = runs.map(run => run.readyMs);
 	lines.push(`ready-definition=first --status reporting a ${READY_ROLE} row`);
-	lines.push(`ready-resolution-ms=${POLL_INTERVAL_MS}`);
+	// Observed, not assumed: the sleep between probes is the smaller half of the
+	// gap, and quoting it alone made a spread look like precision it did not
+	// have.
+	lines.push(`ready-resolution-ms=${Math.max(...runs.map(run => run.probeIntervalMs))}`);
+	lines.push('ready-ms.note=overstates by at most one probe interval; a spread below that interval means the runs took the same number of probes, not that startup varied less');
 	lines.push(`ready-ms.median=${median(readyValues)}`);
 	lines.push(`ready-ms.spread=${spread(readyValues)}`);
 
