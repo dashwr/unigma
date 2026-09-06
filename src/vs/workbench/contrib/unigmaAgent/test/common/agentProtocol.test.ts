@@ -78,7 +78,11 @@ suite('AgentProtocol', () => {
 
 	test('reports incompatible versions and malformed events explicitly', () => {
 		const versionError = validateAgentCommand({
-			version: 2,
+			// Derived, never a literal: this assertion is about "a version this
+			// build does not support", and writing that as `2` made the test
+			// fail the moment the protocol reached 2 -- the literal had quietly
+			// become the current version.
+			version: AGENT_PROTOCOL_VERSION + 1,
 			requestId: 'request-1',
 			type: AgentCommandType.StartSession,
 		});
@@ -191,5 +195,85 @@ suite('AgentProtocol', () => {
 
 			assert.strictEqual(validateAgentEvent(errorEvent).valid, true);
 		}
+	});
+
+	test('accepts the three read-only projections of D-040', () => {
+		const events: AgentEvent[] = [
+			{
+				version: AGENT_PROTOCOL_VERSION, type: AgentEventType.Todo, sessionId: 'session-1',
+				todos: [
+					{ content: 'read', status: 'pending', knownStatus: 'pending', priority: 'high', knownPriority: 'high' },
+					// A status the contract does not name still travels: it is a
+					// free string in the artefact, and the absent knownStatus is
+					// how the UI is told to print it rather than default it.
+					{ content: 'wait', status: 'blocked', priority: 'urgent' },
+				],
+			},
+			{
+				version: AGENT_PROTOCOL_VERSION, type: AgentEventType.Question, sessionId: 'session-1',
+				questions: [{ requestId: 'que_1', index: 0, question: 'Which branch?', header: 'Branch', options: [{ label: 'main', description: 'the default' }], multiple: false, custom: false }],
+			},
+			{ version: AGENT_PROTOCOL_VERSION, type: AgentEventType.QuestionResolved, sessionId: 'session-1', questionRequestId: 'que_1', resolution: 'replied' },
+			{ version: AGENT_PROTOCOL_VERSION, type: AgentEventType.ChildSessions, sessionId: 'session-1', children: [{ sessionId: 'ses_child', parentId: 'session-1', title: 'reading' }] },
+		];
+		for (const event of events) {
+			assert.strictEqual(validateAgentEvent(event).valid, true, event.type);
+		}
+	});
+
+	test('refuses a todo whose known value disagrees with the raw one', () => {
+		// The pair is a claim about the same field. If they can drift, the UI
+		// can colour an item one way while printing another, and the mismatch
+		// would be invisible on both sides.
+		assert.strictEqual(validateAgentEvent({
+			version: AGENT_PROTOCOL_VERSION, type: AgentEventType.Todo, sessionId: 'session-1',
+			todos: [{ content: 'c', status: 'blocked', knownStatus: 'pending', priority: 'low' }],
+		}).valid, false);
+	});
+
+	test('refuses a projection that arrives without a session', () => {
+		for (const event of [
+			{ version: AGENT_PROTOCOL_VERSION, type: AgentEventType.Todo, todos: [] },
+			{ version: AGENT_PROTOCOL_VERSION, type: AgentEventType.Question, questions: [] },
+			{ version: AGENT_PROTOCOL_VERSION, type: AgentEventType.ChildSessions, children: [] },
+		]) {
+			assert.strictEqual(validateAgentEvent(event).valid, false, String(event.type));
+		}
+	});
+
+	test('a question carries no field a standing permission could travel in', () => {
+		// Question and permission are separate surfaces in the artefact and
+		// separate commands here. An extra key is refused rather than ignored,
+		// so `always` cannot ride along on a question and be read later as if
+		// it had been granted.
+		assert.strictEqual(validateAgentEvent({
+			version: AGENT_PROTOCOL_VERSION, type: AgentEventType.Question, sessionId: 'session-1',
+			questions: [{ requestId: 'que_1', index: 0, question: 'q', header: 'h', options: [], multiple: false, custom: false, always: true }],
+		}).valid, false);
+	});
+
+	test('accepts answering and rejecting a question, and refuses an empty answer', () => {
+		assert.strictEqual(validateAgentCommand({
+			version: AGENT_PROTOCOL_VERSION, requestId: 'answer-1', type: AgentCommandType.AnswerQuestion,
+			sessionId: 'session-1', questionRequestId: 'que_1', answers: [['main']],
+		}).valid, true);
+		assert.strictEqual(validateAgentCommand({
+			version: AGENT_PROTOCOL_VERSION, requestId: 'reject-1', type: AgentCommandType.RejectQuestion,
+			sessionId: 'session-1', questionRequestId: 'que_1',
+		}).valid, true);
+		// `answers` is one array per question; none at all is not an answer.
+		for (const answers of [[], 'main', ['main'], [[1]]]) {
+			assert.strictEqual(validateAgentCommand({
+				version: AGENT_PROTOCOL_VERSION, requestId: 'answer-2', type: AgentCommandType.AnswerQuestion,
+				sessionId: 'session-1', questionRequestId: 'que_1', answers,
+			}).valid, false, JSON.stringify(answers));
+		}
+	});
+
+	test('an answer command cannot carry a permission reply', () => {
+		assert.strictEqual(validateAgentCommand({
+			version: AGENT_PROTOCOL_VERSION, requestId: 'answer-3', type: AgentCommandType.AnswerQuestion,
+			sessionId: 'session-1', questionRequestId: 'que_1', answers: [['main']], response: 'always',
+		}).valid, false);
 	});
 });

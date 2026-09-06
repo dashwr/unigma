@@ -3,8 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/** Version of the private native workbench <-> agent runtime contract. */
-export const AGENT_PROTOCOL_VERSION = 1 as const;
+/**
+ * Version of the private native workbench <-> agent runtime contract.
+ *
+ * `2` adds the three read-only projections of `D-040` -- todo, questions and
+ * child sessions -- and the two commands that answer a question. The bump is not
+ * cosmetic: an older peer rejects an unknown event type outright, so a runtime
+ * that emits `todo` to a workbench built against `1` would be refused rather
+ * than ignored. Client and runtime ship from the same commit (`D-028`), so the
+ * two sides never disagree in a shipped build; the version is what makes a
+ * mismatched pair fail loudly instead of silently dropping a projection.
+ */
+export const AGENT_PROTOCOL_VERSION = 2 as const;
 export type AgentProtocolVersion = typeof AGENT_PROTOCOL_VERSION;
 
 export const enum AgentCommandType {
@@ -19,6 +29,8 @@ export const enum AgentCommandType {
 	ListCatalog = 'catalog',
 	ListModels = 'models',
 	ListLocalIntegrations = 'integrations',
+	AnswerQuestion = 'answerQuestion',
+	RejectQuestion = 'rejectQuestion',
 }
 
 /** Sanitized result from the local integration preflight. */
@@ -54,6 +66,10 @@ export const enum AgentEventType {
 	Models = 'models',
 	Configuration = 'configuration',
 	LocalIntegrations = 'integrations',
+	Todo = 'todo',
+	Question = 'question',
+	QuestionResolved = 'questionResolved',
+	ChildSessions = 'children',
 }
 
 export const enum AgentSessionState {
@@ -187,6 +203,34 @@ export interface AgentListLocalIntegrationsCommand extends AgentCommandBase {
 	readonly workspaceUri: string;
 }
 
+/**
+ * Answers one question request.
+ *
+ * `answers` is one array of chosen labels per question in the request, which is
+ * the artefact's own shape. There is no field for a standing permission,
+ * because answering a question never grants one: permission has its own command
+ * (`Approve`), its own body and its own event, and the split is kept in the
+ * types so nobody has to remember it.
+ */
+export interface AgentAnswerQuestionCommand extends AgentSessionCommandBase {
+	readonly type: AgentCommandType.AnswerQuestion;
+	readonly questionRequestId: string;
+	readonly answers: readonly (readonly string[])[];
+}
+
+/**
+ * Dismisses a question without answering it.
+ *
+ * This is the command behind the `cancel` choice that `D-047` appends to every
+ * question. It is what makes a disabled composer safe: there is always a way
+ * out of the question, and it is a first-class operation rather than an
+ * abandoned request.
+ */
+export interface AgentRejectQuestionCommand extends AgentSessionCommandBase {
+	readonly type: AgentCommandType.RejectQuestion;
+	readonly questionRequestId: string;
+}
+
 export type AgentCommand =
 	| AgentStartSessionCommand
 	| AgentStopSessionCommand
@@ -198,7 +242,9 @@ export type AgentCommand =
 	| AgentApplyConfigurationCommand
 	| AgentListCatalogCommand
 	| AgentListModelsCommand
-	| AgentListLocalIntegrationsCommand;
+	| AgentListLocalIntegrationsCommand
+	| AgentAnswerQuestionCommand
+	| AgentRejectQuestionCommand;
 
 export interface AgentModelEntry { readonly providerId: string; readonly modelId: string; readonly label: string; readonly providerLabel: string }
 export interface AgentModelsEvent extends AgentSessionEventBase { readonly type: AgentEventType.Models; readonly entries: readonly AgentModelEntry[] }
@@ -311,6 +357,125 @@ export function validateAgentCatalog(value: unknown): AgentValidationResult<read
 	return { valid: true, value: entries };
 }
 
+/**
+ * The three read-only projections of `D-040`, as they cross the RPC.
+ *
+ * They mirror the runtime's normalised types (`domain/projections.ts`) and stay
+ * plain and serializable: no methods, no listeners, nothing the bridge cannot
+ * carry. The runtime is the only side that talks to OpenCode; the UI receives
+ * these and never reaches for the source.
+ */
+
+/**
+ * One todo item.
+ *
+ * There is no `id` here because there is none in the schema either. Identity is
+ * the position in the array, `todo.updated` carries the whole list, and the
+ * event replaces it wholesale. `status` and `priority` are free strings in the
+ * artefact, so both travel raw; `knownStatus`/`knownPriority` are set only for
+ * the values the contract names, and their absence is the UI's instruction to
+ * print the raw text rather than pick a default.
+ */
+export interface AgentTodoItem {
+	readonly content: string;
+	readonly status: string;
+	readonly knownStatus?: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+	readonly priority: string;
+	readonly knownPriority?: 'high' | 'medium' | 'low';
+}
+
+export interface AgentQuestionOption {
+	readonly label: string;
+	readonly description: string;
+}
+
+/**
+ * One question awaiting an answer.
+ *
+ * Deliberately carries **no** `always`, `response` or permission id. A question
+ * never grants a standing permission, and the absence of a field is a stronger
+ * guarantee than a rule someone has to remember: there is nothing for such a
+ * value to travel in.
+ *
+ * `index` is the position of this question inside its request, because the
+ * reply body is one answer array per question and the schema gives no id for an
+ * individual question.
+ */
+export interface AgentQuestionProjection {
+	readonly requestId: string;
+	readonly index: number;
+	readonly question: string;
+	readonly header: string;
+	readonly options: readonly AgentQuestionOption[];
+	readonly multiple: boolean;
+	readonly custom: boolean;
+}
+
+/** One read-only child session. The relationship is `parentId`; there is no subagent event. */
+export interface AgentChildSessionProjection {
+	readonly sessionId: string;
+	readonly parentId: string;
+	readonly title?: string;
+}
+
+export type AgentQuestionResolution = 'replied' | 'rejected';
+
+function isAgentTodoList(value: unknown): value is readonly AgentTodoItem[] {
+	if (!Array.isArray(value)) {
+		return false;
+	}
+	return value.every(entry => isRecord(entry)
+		&& hasOnlyKeys(entry, ['content', 'status', 'knownStatus', 'priority', 'knownPriority'])
+		&& typeof entry.content === 'string'
+		&& isNonEmptyString(entry.status)
+		&& isNonEmptyString(entry.priority)
+		&& (entry.knownStatus === undefined || (typeof entry.knownStatus === 'string' && entry.knownStatus === entry.status))
+		&& (entry.knownPriority === undefined || (typeof entry.knownPriority === 'string' && entry.knownPriority === entry.priority)));
+}
+
+function isAgentQuestionList(value: unknown): value is readonly AgentQuestionProjection[] {
+	if (!Array.isArray(value)) {
+		return false;
+	}
+	return value.every(entry => isRecord(entry)
+		&& hasOnlyKeys(entry, ['requestId', 'index', 'question', 'header', 'options', 'multiple', 'custom'])
+		&& isNonEmptyString(entry.requestId)
+		&& typeof entry.index === 'number' && Number.isInteger(entry.index) && entry.index >= 0
+		&& isNonEmptyString(entry.question)
+		&& typeof entry.header === 'string'
+		&& typeof entry.multiple === 'boolean'
+		&& typeof entry.custom === 'boolean'
+		&& Array.isArray(entry.options)
+		&& entry.options.every(option => isRecord(option)
+			&& hasOnlyKeys(option, ['label', 'description'])
+			&& isNonEmptyString(option.label)
+			&& typeof option.description === 'string'));
+}
+
+function isAgentChildSessionList(value: unknown): value is readonly AgentChildSessionProjection[] {
+	if (!Array.isArray(value)) {
+		return false;
+	}
+	return value.every(entry => isRecord(entry)
+		&& hasOnlyKeys(entry, ['sessionId', 'parentId', 'title'])
+		&& isNonEmptyString(entry.sessionId)
+		&& isNonEmptyString(entry.parentId)
+		&& isOptionalString(entry.title));
+}
+
+/**
+ * The body of a reply: one array of chosen labels per question in the request.
+ *
+ * Nested arrays because that is the artefact's own shape (`answers:
+ * string[][]`). Validated to that shape here so a malformed reply is refused
+ * before it reaches the runtime, rather than after it reached OpenCode.
+ */
+function isAgentQuestionAnswers(value: unknown): value is readonly (readonly string[])[] {
+	return Array.isArray(value)
+		&& value.length > 0
+		&& value.every(entry => Array.isArray(entry) && entry.every(label => typeof label === 'string'));
+}
+
 export interface AgentEventBase {
 	readonly version: AgentProtocolVersion;
 	readonly type: AgentEventType;
@@ -366,6 +531,28 @@ export interface AgentErrorEvent extends AgentEventBase {
 	readonly error: AgentError;
 }
 
+export interface AgentTodoEvent extends AgentSessionEventBase {
+	readonly type: AgentEventType.Todo;
+	/** The whole list, always. There is no merge, because there is no key to merge on. */
+	readonly todos: readonly AgentTodoItem[];
+}
+
+export interface AgentQuestionEvent extends AgentSessionEventBase {
+	readonly type: AgentEventType.Question;
+	readonly questions: readonly AgentQuestionProjection[];
+}
+
+export interface AgentQuestionResolvedEvent extends AgentSessionEventBase {
+	readonly type: AgentEventType.QuestionResolved;
+	readonly questionRequestId: string;
+	readonly resolution: AgentQuestionResolution;
+}
+
+export interface AgentChildSessionsEvent extends AgentSessionEventBase {
+	readonly type: AgentEventType.ChildSessions;
+	readonly children: readonly AgentChildSessionProjection[];
+}
+
 export type AgentEvent =
 	| AgentStateEvent
 	| AgentContentEvent
@@ -378,7 +565,11 @@ export type AgentEvent =
 	| AgentCatalogEvent
 	| AgentModelsEvent
 	| AgentConfigurationEvent
-	| AgentLocalIntegrationsEvent;
+	| AgentLocalIntegrationsEvent
+	| AgentTodoEvent
+	| AgentQuestionEvent
+	| AgentQuestionResolvedEvent
+	| AgentChildSessionsEvent;
 
 
 export interface AgentValidationSuccess<T> {
@@ -684,6 +875,19 @@ function getAgentCommandError(value: unknown): AgentError | undefined {
 				&& (command.type === AgentCommandType.Approve || isOptionalString(command.reason))
 				? undefined
 				: invalidPayload('Approval command requires a sessionId and approvalId.');
+		case AgentCommandType.AnswerQuestion:
+			return hasOnlyKeys(command, ['version', 'requestId', 'type', 'sessionId', 'questionRequestId', 'answers'])
+				&& isNonEmptyString(command.sessionId)
+				&& isNonEmptyString(command.questionRequestId)
+				&& isAgentQuestionAnswers(command.answers)
+				? undefined
+				: invalidPayload('Answer command requires a sessionId, questionRequestId and answers.');
+		case AgentCommandType.RejectQuestion:
+			return hasOnlyKeys(command, ['version', 'requestId', 'type', 'sessionId', 'questionRequestId'])
+				&& isNonEmptyString(command.sessionId)
+				&& isNonEmptyString(command.questionRequestId)
+				? undefined
+				: invalidPayload('Question rejection requires a sessionId and questionRequestId.');
 		case AgentCommandType.ApplyConfiguration:
 			return hasOnlyKeys(command, ['version', 'requestId', 'type', 'sessionId', 'configuration'])
 				&& isNonEmptyString(command.sessionId)
@@ -770,6 +974,31 @@ function getAgentEventError(value: unknown): AgentError | undefined {
 				&& isAgentLocalIntegrationInventory(event.inventory)
 				? undefined
 				: invalidPayload('Local integrations event requires a sanitized inventory.');
+		case AgentEventType.Todo:
+			return hasOnlyKeys(event, ['version', 'type', 'requestId', 'sessionId', 'todos'])
+				&& sessionIdIsValid
+				&& isAgentTodoList(event.todos)
+				? undefined
+				: invalidPayload('Todo event requires a sessionId and a valid todo list.');
+		case AgentEventType.Question:
+			return hasOnlyKeys(event, ['version', 'type', 'requestId', 'sessionId', 'questions'])
+				&& sessionIdIsValid
+				&& isAgentQuestionList(event.questions)
+				? undefined
+				: invalidPayload('Question event requires a sessionId and valid questions.');
+		case AgentEventType.QuestionResolved:
+			return hasOnlyKeys(event, ['version', 'type', 'requestId', 'sessionId', 'questionRequestId', 'resolution'])
+				&& sessionIdIsValid
+				&& isNonEmptyString(event.questionRequestId)
+				&& (event.resolution === 'replied' || event.resolution === 'rejected')
+				? undefined
+				: invalidPayload('Question resolution requires a sessionId, questionRequestId and resolution.');
+		case AgentEventType.ChildSessions:
+			return hasOnlyKeys(event, ['version', 'type', 'requestId', 'sessionId', 'children'])
+				&& sessionIdIsValid
+				&& isAgentChildSessionList(event.children)
+				? undefined
+				: invalidPayload('Child sessions event requires a sessionId and valid children.');
 		case AgentEventType.Error:
 			return hasOnlyKeys(event, ['version', 'type', 'requestId', 'sessionId', 'error'])
 				&& isOptionalString(event.sessionId)

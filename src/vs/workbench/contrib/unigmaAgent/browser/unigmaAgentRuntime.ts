@@ -138,6 +138,19 @@ function serializeAgentCommand(command: AgentCommand): Record<string, unknown> {
 				approvalId: command.approvalId,
 				...(command.reason === undefined ? {} : { reason: command.reason }),
 			};
+		case AgentCommandType.AnswerQuestion:
+			// Copied element by element rather than passed by reference: the
+			// bridge carries plain data, and a nested array that still belongs
+			// to the view model is a way for the two sides to share state
+			// without either of them meaning to.
+			return {
+				...envelope,
+				sessionId: command.sessionId,
+				questionRequestId: command.questionRequestId,
+				answers: command.answers.map(answer => [...answer]),
+			};
+		case AgentCommandType.RejectQuestion:
+			return { ...envelope, sessionId: command.sessionId, questionRequestId: command.questionRequestId };
 		case AgentCommandType.ApplyConfiguration:
 			return {
 				...envelope,
