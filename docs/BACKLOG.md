@@ -136,6 +136,22 @@ T-100–107 já aparecem em plano histórico; não reciclar esses identificadore
 - **próximo passo:** revisar as seis decisões da seção 8 antes de converter a
   proposta em tarefas de implementação; itens do board não ganham aceite por docs.
 
+## checks vermelhas herdadas — diagnóstico de 2026-09-06
+
+- **CSS Cascade-Order Scan (`34024666245`, `33957042382`): causa encontrada e
+  corrigida.** As actions `restore-node-modules` e `save-node-modules` executam
+  `./.github/workflows/node_modules_cache/cache.sh` diretamente, e o arquivo
+  estava versionado sem bit de execução: `Permission denied`, exit 126, antes de
+  qualquer varredura. O modo foi restaurado para `100755`. A correção não afirma
+  que a varredura passa; ela só devolve o check ao ponto em que ele mede algo.
+- **Monaco Editor checks (`33951451148`): causa identificada, não corrigida.**
+  Quatro testes de integração da API falham com `ReferenceError: instance is not
+  defined` em `test/monaco/out/monaco.test.js`, precedidos de `Cannot find source
+  file` para `marked.js`, `dompurify.js` e `@vscode/tree-sitter-wasm.js`. É o
+  harness herdado do upstream contra o build do fork; exige recorte próprio, e
+  não deve ser silenciado nem removido.
+- **Component Fixtures (`33951451136`):** não investigado nesta rodada.
+
 ## como este backlog conversa com o board
 
 O board Trello `PROJETO UNIGMA` guarda **somente nomes**. Objetivo, passos,
