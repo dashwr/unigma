@@ -19,14 +19,14 @@ import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
-import type { RemoteSshProcess, createRemoteSshProcessRunner as CreateRemoteSshProcessRunner, openRemoteControlMaster as OpenRemoteControlMaster } from '../../extensions/unigma-remote-ssh/out/remoteServerTransport.js';
+import type { RemoteSshProcess, createRemoteSshProcessRunner as CreateRemoteSshProcessRunner, openRemoteServer as OpenRemoteServer } from '../../extensions/unigma-remote-ssh/out/remoteServerTransport.js';
 import type { buildRemoteServerPathShellFragments as BuildServerPathFragments } from '../../extensions/unigma-remote-ssh/out/remoteStagingPlan.js';
 import { buildNativeProbeArguments, buildNativeProbeScript, parseNativeReport, summarizeNativeReport } from './remote-native-probe.ts';
 
 const require = createRequire(import.meta.url);
-const transport = require('../../extensions/unigma-remote-ssh/out/remoteServerTransport.js') as { createRemoteSshProcessRunner: typeof CreateRemoteSshProcessRunner; openRemoteControlMaster: typeof OpenRemoteControlMaster };
+const transport = require('../../extensions/unigma-remote-ssh/out/remoteServerTransport.js') as { createRemoteSshProcessRunner: typeof CreateRemoteSshProcessRunner; openRemoteServer: typeof OpenRemoteServer };
 const plan = require('../../extensions/unigma-remote-ssh/out/remoteStagingPlan.js') as { buildRemoteServerPathShellFragments: typeof BuildServerPathFragments };
-const { createRemoteSshProcessRunner, openRemoteControlMaster } = transport;
+const { createRemoteSshProcessRunner, openRemoteServer } = transport;
 const { buildRemoteServerPathShellFragments } = plan;
 
 const COMMIT = /^[0-9a-f]{40}$/;
@@ -104,16 +104,21 @@ async function main(): Promise<void> {
 	mkdirSync(dirname(tracePath), { recursive: true });
 	writeFileSync(tracePath, '', { mode: 0o600 });
 	const runner = tracedRunner();
-	const opened = await openRemoteControlMaster({ destination, timeoutMs: 30_000 }, { allocateLocalPort: () => 49154, spawn: runner });
-	if ((opened as { readonly ok?: boolean }).ok === false) {
-		const failure = opened as { readonly code?: string; readonly phase?: string };
-		checks.push([`session.${failure.phase ?? 'unknown'}.${failure.code ?? 'unknown'}`, 'fail']);
-		check('session', false);
-		return;
-	}
-	const session = opened as { readonly controlPath: string; dispose(): Promise<void> };
+	// The same call the staging smoke uses before probing. A bare control master
+	// left the probe without a socket to reuse, and ssh then fell back to a
+	// direct connection that answered nothing; going through the transport keeps
+	// this smoke on the path that is already exercised elsewhere, and it also
+	// says whether the activated version is answering at all.
+	const opened = await openRemoteServer({ destination, commit, retainControlMasterOnServerUnavailable: true, timeoutMs: 30_000 }, { allocateLocalPort: () => 49154, spawn: runner });
+	const result = opened as { readonly ok?: boolean; readonly code?: string; readonly phase?: string; readonly controlPath?: string; readonly stagingSession?: { readonly controlPath: string; dispose(): Promise<void> }; dispose?(): Promise<void> };
+	const session = result.ok === false
+		? result.stagingSession
+		: (result as { readonly controlPath: string; dispose(): Promise<void> });
+	facts.push(['server.reachable', String(result.ok !== false)]);
+	if (result.ok === false) { facts.push([`server.unavailable.${result.phase ?? 'unknown'}`, result.code ?? 'unknown']); }
+	check('session', session !== undefined);
+	if (!session) { return; }
 	try {
-		check('session', true);
 		const probe = await runCommand(runner, buildNativeProbeArguments(destination, session.controlPath), buildNativeProbeScript(commit, buildRemoteServerPathShellFragments().versionedDirectory));
 		const summary = summarizeNativeReport(parseNativeReport(probe.output), probe.code);
 		for (const entry of summary.facts) { facts.push(entry); }
