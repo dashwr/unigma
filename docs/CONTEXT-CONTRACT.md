@@ -104,15 +104,21 @@ repositório:
 
 | limite | valor | comportamento ao exceder |
 | --- | --- | --- |
-| tamanho de um anexo | 256 KiB de texto materializado | recusa do anexo, com o motivo na UI |
-| soma dos anexos de um envio | 1 MiB | recusa do envio inteiro, sem truncar |
-| número de anexos por envio | 16 | recusa do anexo excedente |
-| linhas de uma seleção | sem limite próprio | governado pelos 256 KiB |
+| tamanho de um anexo | 1 MiB de texto materializado | recusa do anexo, com o motivo na UI |
+| soma dos anexos de um envio | 4 MiB | recusa do envio inteiro, sem truncar |
+| número de anexos por envio | 32 | recusa do anexo excedente |
+| linhas de uma seleção | sem limite próprio | governado pelo 1 MiB |
 
 Truncamento silencioso é proibido: um anexo cortado sem o usuário saber produz
 resposta plausível sobre código que não foi enviado. Recusar é o comportamento
-seguro. **Estes quatro números são proposta e precisam de aprovação humana**;
-o resto do contrato não depende do valor exato deles.
+seguro.
+
+**Aprovados em 2026-09-06 por `D-041`.** A escolha foi deliberadamente a mais
+permissiva das apresentadas: aceitar arquivos comuns inteiros sem obrigar o
+usuário a recortar, assumindo prompt maior e mais token por envio. Os 4 MiB
+cabem com folga no limite de 16 MiB do cliente HTTP fixado em T-011; se um envio
+real chegar perto desse teto, o número volta a `DECISIONS.md` em vez de ser
+ajustado no código.
 
 ## 6. matriz de falhas
 
@@ -178,4 +184,5 @@ Itens 1 e 3 dependem de provider/modelo autorizado e, no caso remoto, de
 | C-4 | UI: chips, recusas e indicação de buffer sujo | view do `unigmaAgent` |
 | C-5 | integração e evidência no runner | workflow existente |
 
-C-3 só começa depois de os quatro limites de §5 serem aprovados.
+Os limites de §5 foram aprovados por `D-041` em 2026-09-06, então C-3 está
+destravado. Continua dependendo da revisão do planejador, como todo o contrato.

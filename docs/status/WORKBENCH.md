@@ -47,10 +47,15 @@ nas duas mensagens de falha, com dois testes reproduzindo a forma do run
 hipóteses nomeadas, não como causa. Continua sem baseline numérico.
 
 **o que esses contratos destravaram e o que não destravaram.** Cada um termina
-com a decomposição e a lista de provas do aceite. Duas decisões humanas ficaram
-explicitamente na frente da implementação: os quatro limites de tamanho de anexo
-(§5 do contrato de contexto) e a escolha merge × cherry-pick (§7 do de worktree).
-Nada além dessas duas está bloqueado por decisão nesta frente.
+com a decomposição e a lista de provas do aceite. As duas decisões humanas que ficaram na
+frente da implementação foram tomadas no mesmo dia: `D-041` fixou os limites de
+anexo em 1 MiB por anexo, 4 MiB por envio e 32 anexos — a opção mais permissiva,
+assumindo prompt maior em troca de não obrigar o usuário a recortar arquivo
+comum; `D-042` escolheu `git merge --no-ff` para integrar a tarefa isolada,
+recusando cherry-pick porque ele produz no principal um estado que nunca existiu
+no worktree e nunca foi testado. Com isso, C-3 e W-2 estão destravados e **nada
+nesta frente espera decisão**; o que falta é revisão do planejador e, para o
+aceite, provider autorizado.
 
 **nota documental de 2026-09-05:** `DOC-CURSOR-001` em revisão, proposta
 [Cursor × OpenCode](../planos/2026-09-05-cursor-opencode.md) solicitada pelo

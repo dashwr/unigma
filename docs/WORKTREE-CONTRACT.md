@@ -115,10 +115,15 @@ Regras derivadas:
 
 ## 7. integração
 
-- A operação de integração é **escolha do usuário, por tarefa**, entre merge do
-  branch da tarefa e cherry-pick de commits selecionados. O contrato não elege um
-  default automático; **essa escolha volta ao humano** e fica registrada em
-  `DECISIONS.md` antes da implementação.
+- **Decidido em 2026-09-06 por `D-042`: a integração é `git merge --no-ff` do
+  branch da tarefa.** Cherry-pick seletivo foi recusado, e a oferta das duas
+  operações também. O motivo é o que torna a revisão válida: revisa-se o
+  conjunto do worktree e integra-se esse mesmo conjunto. Cherry-pick produz no
+  principal um estado que nunca existiu no worktree e, portanto, nunca foi
+  testado, além de repetir o conflito a cada commit. O custo assumido é o
+  principal receber os commits intermediários do agente.
+- A operação é sempre confirmada pelo usuário. Escolher merge não a torna
+  automática: nada é integrado sem confirmação explícita.
 - Pré-condições verificadas imediatamente antes: principal limpo o bastante para
   a operação escolhida, branch da tarefa existente, base ainda alcançável.
 - Conflito **interrompe** e devolve o controle ao usuário no principal. O unigma
@@ -179,10 +184,11 @@ sessões não é contar processos.
 
 | etapa | escopo |
 | --- | --- |
-| W-1 | decisão humana de merge × cherry-pick (§7) registrada em `DECISIONS.md` |
+| W-1 | ~~decisão humana de merge × cherry-pick~~ — **fechada em 2026-09-06 por `D-042`** (merge `--no-ff`) |
 | W-2 | serviço Git de worktree no runtime, sem UI, com a matriz de falhas coberta |
 | W-3 | ligação sessão↔worktree e verificação de `/path` antes do primeiro envio |
 | W-4 | UI de criação, revisão, integração e remoção, com os avisos quantificados |
 | W-5 | cenário de runner com as seis provas de §10 |
 
-W-2 não começa antes de W-1.
+W-1 está fechada, então W-2 está destravado. Continua dependendo da revisão do
+planejador, como todo o contrato.

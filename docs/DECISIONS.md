@@ -345,6 +345,35 @@ licença, pesos e direitos de uso antes de qualquer incorporação.
   D-038–040 aprovam direção, não implementação, teste ou aceite. Afetam produto,
   requisitos, fluxos, dados, arquitetura, compatibilidade e tarefas de execução.
 
+### D-041 — limites de anexo de contexto — 2026-09-06
+
+- Resposta do responsável: **1 MiB por anexo, 4 MiB por envio, 32 anexos**.
+  Seleção não tem limite próprio; é governada pelo limite do anexo.
+- Escolha mais permissiva das três apresentadas: aceita arquivos comuns inteiros
+  sem obrigar o usuário a recortar. O custo assumido é prompt maior e mais token
+  por envio; a alternativa apertada foi recusada por virar atrito diário.
+- **Truncamento silencioso continua proibido.** Exceder qualquer um dos três é
+  recusa com motivo na UI, nunca um anexo cortado sem o usuário saber.
+- Os 4 MiB cabem com folga no limite de 16 MiB do cliente HTTP fixado em T-011.
+  Se um envio real chegar perto desse teto, o limite volta a esta decisão em vez
+  de ser ajustado no código.
+- Destrava a etapa C-3 do [contrato de contexto](CONTEXT-CONTRACT.md); não
+  autoriza implementação por si e não fecha `AC-030`.
+
+### D-042 — integração de tarefa isolada por merge — 2026-09-06
+
+- Resposta do responsável: **merge do branch da tarefa**, com `--no-ff`.
+  Cherry-pick seletivo e a oferta das duas operações foram recusados.
+- Justificativa: a revisão do contrato acontece sobre o conjunto do worktree, e
+  integrar o mesmo conjunto que foi revisado é o que torna a revisão válida.
+  Cherry-pick produz no principal um estado que nunca existiu no worktree e,
+  portanto, nunca foi testado; além disso repete o conflito a cada commit.
+- O custo assumido é o principal receber os commits intermediários do agente.
+- Conflito continua interrompendo e devolvendo o controle ao usuário: esta
+  decisão escolhe a operação, não relaxa nenhuma guarda da §7 do
+  [contrato de worktree](WORKTREE-CONTRACT.md).
+- Destrava a etapa W-2; não autoriza implementação por si e não fecha `AC-031`.
+
 ## regra de atualização
 
 Após cada resposta do responsável, registrar a decisão com data, resposta,

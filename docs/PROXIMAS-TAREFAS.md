@@ -184,8 +184,9 @@ ancorado no `/doc` do artefato fixado `1.18.23` (probe registrado em
 OPENCODE-COMPATIBILITY). Define anexo transitório, mapeamento para
 `FilePartInput`/`FileSource`/`SymbolSource`/`ResourceSource`, materialização no
 boundary, catorze cenários de falha e a decomposição C-1…C-5. `@` permanece
-agente. **Falta:** aprovação humana dos quatro limites de tamanho da §5 e revisão
-do planejador. `[EM REVISÃO]` e não `[FEITO]`: a regra do board não fecha entrega
+agente. **Limites aprovados em 2026-09-06 por `D-041`** (1 MiB por anexo, 4 MiB
+por envio, 32 anexos), o que destrava a etapa C-3. **Falta:** revisão do
+planejador. `[EM REVISÃO]` e não `[FEITO]`: a regra do board não fecha entrega
 com revisão de diff local.
 
 **O quê:** especificar antes de implementar o anexo transitório de arquivo,
@@ -207,8 +208,10 @@ Base explícita, dirty/untracked sem cópia nem stash, escopo e localização,
 revisão antes de integrar, retenção sem limpeza automática e quinze cenários de
 falha. O probe achou `/experimental/worktree` no binário fixado; o contrato o
 recusa com motivo (sem base explícita, `startCommand` na criação) em vez de
-alegar ausência de API. **Falta:** decisão humana de merge × cherry-pick (§7),
-que precede qualquer implementação, e revisão do planejador.
+alegar ausência de API. **Integração decidida em 2026-09-06 por `D-042`:**
+`git merge --no-ff` do branch da tarefa, sempre confirmado; cherry-pick recusado
+porque produziria no principal um estado nunca testado. Destrava a etapa W-2.
+**Falta:** revisão do planejador.
 
 **O quê:** definir tarefa isolada e revisão anterior à integração no principal.
 **Como:** Git/OpenCode como fontes de verdade; especificar base e política para

@@ -41,9 +41,9 @@ não são especificação implícita de implementação.
 | RQ-026 | A superfície nativa do agente deve oferecer `@` para ferramentas e `/` para skills, sem acesso direto da UI a processo, rede ou segredos. | direção confirmada; contrato da UI pendente | S-18 | AC-027 |
 | RQ-027 | O produto deve permitir mensagens entre sessões locais e apresentar chips de agentes/subagentes com estados `thinking`, `typing` e `idle`, mantendo o OpenCode como fonte de verdade. | direção confirmada; ciclo de vida e renderização pendentes | S-18 | AC-027 |
 | RQ-028 | O protocolo de controle remoto pode ser construído e versionado de forma dormente, mas não deve ativar listener, cloud, colaboração em tempo real ou backend no MVP. | direção confirmada; protocolo e testes pendentes | S-18 | AC-028 |
-| RQ-029 | Contexto deve usar anexos explícitos de arquivos/seleções com origem e versão, documentos e busca sob demanda via OpenCode, sem índice próprio persistente. | direção aprovada; contrato pendente | D-038, 2026-09-05 | AC-030 |
-| RQ-030 | Tarefas de edição devem ter direção de worktree isolado e revisão antes de integrar no checkout principal, sem prometer undo seguro sobre alterações concorrentes. | direção aprovada; base, dirty e integração a especificar | D-039, 2026-09-05 | AC-031 |
-| RQ-031 | Subagentes de leitura devem preceder escritores isolados, mantendo OpenCode como único harness e sem segundo scheduler. | direção aprovada; contrato e prova pendentes | D-040, 2026-09-05 | AC-032 |
+| RQ-029 | Contexto deve usar anexos explícitos de arquivos/seleções com origem e versão, documentos e busca sob demanda via OpenCode, sem índice próprio persistente. | contrato escrito e limites aprovados; implementação e prova pendentes | D-038, 2026-09-05; D-041 e `CONTEXT-CONTRACT.md`, 2026-09-06 | AC-030 |
+| RQ-030 | Tarefas de edição devem ter direção de worktree isolado e revisão antes de integrar no checkout principal, sem prometer undo seguro sobre alterações concorrentes. | contrato escrito; base, dirty e integração especificadas; implementação e prova pendentes | D-039, 2026-09-05; D-042 e `WORKTREE-CONTRACT.md`, 2026-09-06 | AC-031 |
+| RQ-031 | Subagentes de leitura devem preceder escritores isolados, mantendo OpenCode como único harness e sem segundo scheduler. | contrato escrito; implementação e prova pendentes | D-040, 2026-09-05; `PROJECTIONS-CONTRACT.md`, 2026-09-06 | AC-032 |
 
 Os requisitos RQ-015 a RQ-028 registram direção confirmada, não implementação;
 os critérios associados só passam com evidência reproduzível.
