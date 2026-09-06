@@ -145,7 +145,16 @@ público, segredo no cliente ou divergência de commit. **Prova:** sessão real,
 permissão, interrupção/recuperação e isolamento de autoridade no runner; então
 completar o recorte agentivo de AC-007. Não instalar silenciosamente no host.
 
-## [PENDENTE] DOC-CONTEXT-001 — contrato D-038 de contexto explícito
+## [EM REVISÃO] DOC-CONTEXT-001 — contrato D-038 de contexto explícito
+
+**Contrato escrito em 2026-09-06:** [`CONTEXT-CONTRACT.md`](CONTEXT-CONTRACT.md),
+ancorado no `/doc` do artefato fixado `1.18.23` (probe registrado em
+OPENCODE-COMPATIBILITY). Define anexo transitório, mapeamento para
+`FilePartInput`/`FileSource`/`SymbolSource`/`ResourceSource`, materialização no
+boundary, catorze cenários de falha e a decomposição C-1…C-5. `@` permanece
+agente. **Falta:** aprovação humana dos quatro limites de tamanho da §5 e revisão
+do planejador. `[EM REVISÃO]` e não `[FEITO]`: a regra do board não fecha entrega
+com revisão de diff local.
 
 **O quê:** especificar antes de implementar o anexo transitório de arquivo,
 seleção de buffer e documento, com origem, URI, versão e limites de tamanho.
@@ -159,7 +168,15 @@ casos positivos/negativos e plano de teste versionados, revisão do planejador;
 depois dividir em RPC → runtime → UI → integração. Não criar essas camadas de
 implementação antes de decidir os parâmetros pendentes.
 
-## [PENDENTE] DOC-WORKTREE-001 — contrato D-039 de worktree revisável
+## [EM REVISÃO] DOC-WORKTREE-001 — contrato D-039 de worktree revisável
+
+**Contrato escrito em 2026-09-06:** [`WORKTREE-CONTRACT.md`](WORKTREE-CONTRACT.md).
+Base explícita, dirty/untracked sem cópia nem stash, escopo e localização,
+revisão antes de integrar, retenção sem limpeza automática e quinze cenários de
+falha. O probe achou `/experimental/worktree` no binário fixado; o contrato o
+recusa com motivo (sem base explícita, `startCommand` na criação) em vez de
+alegar ausência de API. **Falta:** decisão humana de merge × cherry-pick (§7),
+que precede qualquer implementação, e revisão do planejador.
 
 **O quê:** definir tarefa isolada e revisão anterior à integração no principal.
 **Como:** Git/OpenCode como fontes de verdade; especificar base e política para
@@ -172,7 +189,15 @@ isolamento não comprovado ou necessidade de limpar dados sem autorização.
 cancelamento e retomada; aprovação antes de implementação. Undo compartilhado
 não faz parte da garantia. Worktree não oferece sandbox de comandos.
 
-## [PENDENTE] DOC-PROJECTIONS-001 — contrato D-040 de projeções do harness
+## [EM REVISÃO] DOC-PROJECTIONS-001 — contrato D-040 de projeções do harness
+
+**Contrato escrito em 2026-09-06:** [`PROJECTIONS-CONTRACT.md`](PROJECTIONS-CONTRACT.md).
+Todo somente leitura com substituição integral, perguntas separadas de permissões
+em endpoint, corpo, evento e UI, sessões filhas de leitura antes de escritores e
+recuperação HTTP reconciliando em vez de descartar. As duas famílias de pergunta
+do `/doc` foram confrontadas: aceitar ambas na entrada, responder pela rota sem
+`v2`. **Falta:** revisão do planejador; as provas 1–5 do aceite dependem de
+provider autorizado, o que não bloqueia o contrato.
 
 **O quê:** detalhar todo, perguntas e sessões filhas de leitura; depois escritores
 isolados, sem segundo scheduler. **Como:** confirmar endpoints/eventos do binário,

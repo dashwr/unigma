@@ -84,6 +84,15 @@ D-026 e D-038–040 prevalecem sobre propostas anteriores.
 
 ### DOC-CONTEXT-001 — contrato de contexto (D-038, RQ-029, AC-030)
 
+> feito em 2026-09-06: contrato em `docs/CONTEXT-CONTRACT.md`, escrito contra o
+> `/doc` do binário fixado `1.18.23` (probe em OPENCODE-COMPATIBILITY). Cobre o
+> modelo de anexo, o mapeamento para `FilePartInput` e as três origens, a regra
+> de `url` (`data:` apenas; nenhum esquema que faça o servidor ler sozinho),
+> quatro limites propostos e catorze cenários de falha. Nenhuma implementação,
+> nenhum endpoint novo habilitado, `AC-030` intocado. Pendências explícitas:
+> aprovação humana dos limites e revisão do planejador.
+
+
 - **o quê:** definir anexos transitórios de arquivo/seleção/documento sem índice.
 - **como:** especificar origem/URI/versão/range, tamanho, trust, symlink, buffer
   dirty, mudança durante envio, autoridade remota, cancelamento e materialização
@@ -95,6 +104,14 @@ D-026 e D-038–040 prevalecem sobre propostas anteriores.
 - **estado/board:** pendente, TD-2; execução depende da revisão do contrato.
 
 ### DOC-WORKTREE-001 — contrato de tarefa isolada (D-039, RQ-030, AC-031)
+
+> feito em 2026-09-06: contrato em `docs/WORKTREE-CONTRACT.md`. Base explícita,
+> recusa de cópia/stash/commit automático, uma sessão por worktree num único
+> processo OpenCode, revisão antes da integração, retenção sem limpeza
+> automática e quinze cenários de falha. Registrou que `/experimental/worktree`
+> existe no artefato fixado e por que o contrato não o usa. A escolha merge ×
+> cherry-pick volta ao humano e precede W-2. `AC-031` intocado.
+
 
 - **o quê:** definir base, dirty/untracked, criação, scoping, revisão, integração
   e retenção usando Git/OpenCode como fontes de verdade.
@@ -108,6 +125,14 @@ D-026 e D-038–040 prevalecem sobre propostas anteriores.
 - **estado/board:** pendente, TD-2; T-041 reutiliza este contrato, não o duplica.
 
 ### DOC-PROJECTIONS-001 — contrato de projeções (D-040, RQ-031, AC-032)
+
+> feito em 2026-09-06: contrato em `docs/PROJECTIONS-CONTRACT.md`. Todo como
+> projeção somente leitura com substituição integral (o schema não tem `id` e o
+> evento manda a lista inteira), pergunta separada de permissão em endpoint,
+> corpo, evento e superfície de UI, subagente de leitura antes de escritor com
+> recusa de ferramenta de escrita no runtime, e recuperação HTTP que reconcilia.
+> As duas famílias de pergunta do `/doc` foram confrontadas. `AC-032` intocado.
+
 
 - **o quê:** definir todo, perguntas e sessões filhas de leitura; escritores só
   após prova do contrato de worktree.

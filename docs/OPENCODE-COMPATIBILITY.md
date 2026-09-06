@@ -29,7 +29,9 @@ leitura da documentação corrente. `/doc` do artefato fixado e fixtures do perf
 devem comprovar payloads, eventos, erros, scoping e recuperação antes de ampliar
 a matriz. APIs `/todo`, `/question`, `/children`, file parts, worktrees e revert
 continuam condicionadas ao contrato; nomes `question.v2.*` do checkout `dev`
-não são automaticamente API do bundle. `/revert` não promete preservar mudanças
+não são automaticamente API do bundle. **Corrigido em 2026-09-06:** o probe do
+`/doc` fixado mostrou que `question.v2.*` também está no bundle `1.18.23`; ver
+a evidência no fim deste documento. Estar no `/doc` continua não sendo suporte. `/revert` não promete preservar mudanças
 concorrentes; task/subagent não cria worktree automaticamente.
 
 Reconexão deve reconciliar respostas HTTP com o transcript, não só consultar e
@@ -74,7 +76,7 @@ documento e nao e uma versao do OpenCode.
 | Combinacao upstream | Code - OSS `1.134.0`, commit `474a349ad5b745e512ef86b864d1c74f7264dd7a`, Node.js `24.18.0` e Electron `42.8.1` continuam sendo a matriz do upstream; isso nao prova compatibilidade com OpenCode. |
 | Processo | Um processo filho por extension host, reutilizado entre sessoes e encerrado somente quando foi criado pelo runtime. |
 | Rede | Iniciar explicitamente com `--hostname 127.0.0.1`; nao habilitar mDNS, CORS ou exposicao LAN para o fluxo do MVP. |
-| Workspace | O processo deve iniciar no workspace autorizado. O adaptador valida `directory` de `/path` quando presente; em versões sem ele, usa `path` e por último `worktree`. `worktree` é metadado de raiz Git e pode ser pai de `directory`, portanto não invalida sozinho um `directory` autorizado. |
+| Workspace | O processo deve iniciar no workspace autorizado. O adaptador valida `directory` de `/path` quando presente; em versões sem ele, usa `path` e por último `worktree`. **Ressalva de 2026-09-06:** fora de repositório Git o probe observou `worktree: "/"`; esse valor é ausência de repositório e não serve como autoridade. `worktree` é metadado de raiz Git e pode ser pai de `directory`, portanto não invalida sozinho um `directory` autorizado. |
 | SSE | Nenhum cursor, replay ou semantica de `Last-Event-ID` e assumido; apos uma queda, o estado e reconsultado por HTTP. |
 | Credencial do servidor | O perfil padrao nao envia Basic Auth. Um `401` ou `403` causado por `OPENCODE_SERVER_PASSWORD` e uma falha observavel e nao um convite para pedir, ler ou persistir a senha. |
 
@@ -147,7 +149,7 @@ runtime possui. Nao fazer fallback automatico entre os dois streams.
 | `/session/{id}/fork`, `/init`, `/summarize`, `/revert`, `/unrevert`, `/todo` | nao usado | Nao sao necessarios para o perfil minimo de sessao, streaming, diff e aprovacao. |
 | `/file*`, `/find*`, `/vcs`, `/project*` | nao usado pelo adaptador | Filesystem, Git e worktrees continuam fontes de verdade externas; `/path` e a unica verificacao de autoridade deste perfil. |
 | `POST /instance/dispose` | nao usado | O supervisor encerra somente o processo filho que possui; nao dispara descarte remoto por endpoint. |
-| Worktree | nao e endpoint OpenCode | A operacao e feita por Git em T-041; nao inventar uma operacao de worktree no HTTP do OpenCode. |
+| Worktree | nao usado | **Corrigido em 2026-09-06:** `/experimental/worktree` existe em `1.18.23` (create/list/remove/reset, eventos `worktree.ready`/`failed`). Continua fora do perfil por escolha — a API nao aceita base explicita e roda `startCommand` na criacao. A operacao e feita por Git em T-041; ver [WORKTREE-CONTRACT](WORKTREE-CONTRACT.md). |
 
 ## 5. Eventos SSE
 
@@ -537,3 +539,61 @@ de mensagem, diff não vazio, permissão pendente real, queda e reconexão do SS
 provocadas pelo servidor real, execução em Windows e o bundle service-only. Nada
 disso pode ser suprido por fixture, e o probe externo continua não sendo prova de
 release suportada.
+
+## evidência DOC-* — probe de superfície do `/doc` fixado em 2026-09-06
+
+Probe local read-only executado para os contratos `DOC-CONTEXT-001`,
+`DOC-WORKTREE-001` e `DOC-PROJECTIONS-001`. Não é build, não é smoke e **não
+promove nenhuma capacidade a suporte**: serve apenas para que os contratos
+descrevam a superfície real do artefato fixado em vez de inferir da documentação
+corrente, como `D-038`–`D-040` exigem.
+
+| item | valor |
+| --- | --- |
+| binário | `1.18.23`, SHA-256 `f80650dcfc1308afaecc2d343c9a0a52fdc2dacd49150b7256a000acf068799f` |
+| lançamento | `serve --pure --port <porta reservada> --hostname 127.0.0.1` |
+| `GET /global/health` | `healthy: true`, `version: "1.18.23"` |
+| `GET /doc` | OpenAPI `3.1.0`, 162 paths, SHA-256 `dfb7d42a555389f0c662fa2b4a8af1d61633c96710cf54bce3ff2404e2e7d896` |
+| chamadas de leitura | `/path`, `/agent`, `/session/{id}/todo`, `/session/{id}/children`, `/question`, `/api/session/{id}/question`, `/experimental/worktree` |
+| escrita | apenas `POST /session` com corpo vazio, no diretório temporário do probe |
+
+### o que o probe corrigiu neste documento
+
+1. **`question.v2.*` está no bundle fixado.** A revisão de 2026-09-05 registrou
+   que os nomes `question.v2.*` vinham do checkout `dev` e não eram
+   automaticamente API do bundle. O `/doc` de `1.18.23` expõe as duas famílias
+   completas: `QuestionRequest`/`QuestionInfo`/`QuestionOption`/`QuestionAnswer`
+   e `QuestionV2Request`/`QuestionV2Info`/`QuestionV2Option`/`QuestionV2Answer`,
+   com os eventos `question.asked`/`replied`/`rejected` e
+   `question.v2.asked`/`replied`/`rejected`. Os schemas `QuestionInfo` e
+   `QuestionV2Info` são estruturalmente idênticos neste artefato. Existir no
+   `/doc` não escolhe qual família o unigma consome; a escolha é do contrato
+   `DOC-PROJECTIONS-001`.
+2. **Worktree é endpoint do OpenCode neste artefato, sob `/experimental`.** A
+   tabela “Endpoints fora do perfil” afirma “Worktree não é endpoint OpenCode”.
+   Isso é falso para `1.18.23`: existem `GET`/`POST`/`DELETE
+   /experimental/worktree` e `POST /experimental/worktree/reset`, com schemas
+   `Worktree`, `WorktreeCreateInput`, `WorktreeRemoveInput`,
+   `WorktreeResetInput` e `WorktreeError`, mais os eventos `worktree.ready` e
+   `worktree.failed`. A **decisão** de `D-039` não muda por isso: Git continua a
+   fonte de verdade e `/experimental/*` continua fora do perfil por política. O
+   que muda é a justificativa — a exclusão é escolha, não ausência de API.
+3. **`--pure` não isola a configuração do usuário.** No probe, `GET /agent`
+   devolveu doze agentes vindos de `~/.config/opencode`, e `GET /path` reportou
+   `config: /home/dasher/.config/opencode`. Um fixture que dependa de `--pure`
+   para garantir ambiente limpo está testando outra coisa em silêncio.
+4. **`GET /path` pode devolver `worktree` fora do workspace.** No diretório do
+   probe, fora de repositório Git, `/path` devolveu `directory` igual ao
+   diretório corrente e `worktree: "/"`. A regra de fallback deste documento
+   (`directory` → `path` → `worktree`) precisa parar antes do último degrau:
+   `worktree: "/"` não é autoridade de caminho, é ausência de repositório.
+
+### deriva do binário desta máquina
+
+`/usr/bin/opencode` **não é mais** o artefato fixado: hoje responde `1.18.25`,
+SHA-256 `e26a936e1d1aa1cced4881c4eaf2b6f4c489be51bc444d2ecd57f40fc3ecc52f`. O
+probe acima usou a cópia `1.18.23` preservada em um snapshot do sistema de
+arquivos local, verificada pelo SHA-256 já registrado neste documento. Qualquer
+evidência anterior que dependa de `/usr/bin/opencode` sem citar hash deve ser
+relida com essa deriva em mente, e a regra de falhar fechado fora de `1.18.23`
+continua valendo.

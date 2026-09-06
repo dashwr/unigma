@@ -17,7 +17,32 @@ segue preparado na VPS.
 > datados desta pasta; este quadro responde **o que está ativo, onde parou e qual
 > é o próximo passo**.
 
-**última atualização:** 2026-09-05
+**última atualização:** 2026-09-06
+
+**2026-09-06 — os três contratos de direção existem.** `DOC-CONTEXT-001`,
+`DOC-WORKTREE-001` e `DOC-PROJECTIONS-001` passaram de `[PENDENTE]` para
+`[EM REVISÃO]`, com contratos em `CONTEXT-CONTRACT.md`, `WORKTREE-CONTRACT.md` e
+`PROJECTIONS-CONTRACT.md`. Não são pesquisa: cada regra está ancorada no `/doc`
+do artefato fixado `1.18.23`, lido por probe local read-only registrado em
+`OPENCODE-COMPATIBILITY.md`. Nenhuma implementação, nenhum endpoint habilitado,
+`AC-030`–`AC-032` intocados.
+
+O probe corrigiu quatro afirmações que a documentação carregava por inferência:
+`question.v2.*` **está** no bundle fixado e não só no checkout `dev`; worktree
+**é** endpoint do OpenCode em `/experimental` (o contrato o recusa por não
+aceitar base explícita e por rodar `startCommand` na criação, o que é escolha,
+não ausência de API); `--pure` **não** isola a configuração do usuário, então um
+fixture que dependa dele testa outra coisa; e `GET /path` pode devolver
+`worktree: "/"`, que é ausência de repositório e não autoridade de caminho.
+
+Também registrado: `/usr/bin/opencode` desta máquina **deriva** para `1.18.25`.
+O probe usou a cópia `1.18.23` preservada em snapshot, conferida por SHA-256.
+
+**o que esses contratos destravaram e o que não destravaram.** Cada um termina
+com a decomposição e a lista de provas do aceite. Duas decisões humanas ficaram
+explicitamente na frente da implementação: os quatro limites de tamanho de anexo
+(§5 do contrato de contexto) e a escolha merge × cherry-pick (§7 do de worktree).
+Nada além dessas duas está bloqueado por decisão nesta frente.
 
 **nota documental de 2026-09-05:** `DOC-CURSOR-001` em revisão, proposta
 [Cursor × OpenCode](../planos/2026-09-05-cursor-opencode.md) solicitada pelo

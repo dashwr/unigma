@@ -58,9 +58,9 @@ capacidade adicional do runtime.
 
 | ID | Relacionado a | Critério objetivo e testável | Estado de execução |
 | --- | --- | --- | --- |
-| AC-030 | RQ-029, D-038 | Contrato aprovado e teste integrado demonstram anexos com origem/versão/seleção, limites, recusa de drift e scoping local/remoto; busca sob demanda sem índice próprio, conteúdo fora dos logs e nenhuma redefinição implícita de `@`/`/`. | bloqueado: contrato e implementação pendentes |
-| AC-031 | RQ-030, D-039 | Contrato aprovado e cenário Git reproduzível demonstram isolamento, base e tratamento explícito de dirty/untracked, revisão antes de integrar e recusa de conflitos; sem copiar/commitar/limpar automaticamente nem prometer undo concorrente seguro. | bloqueado: contrato e implementação pendentes |
-| AC-032 | RQ-031, D-040 | Contra binário fixado, UI/runtime projetam estado de tarefas/perguntas/sessões filhas e recuperação HTTP; perguntas não viram permissões; subagentes de leitura precedem escritores, estes condicionados a AC-031; sem segundo scheduler ou histórico paralelo. | bloqueado: contrato e implementação pendentes |
+| AC-030 | RQ-029, D-038 | Contrato aprovado e teste integrado demonstram anexos com origem/versão/seleção, limites, recusa de drift e scoping local/remoto; busca sob demanda sem índice próprio, conteúdo fora dos logs e nenhuma redefinição implícita de `@`/`/`. | bloqueado: contrato escrito em 2026-09-06 (`CONTEXT-CONTRACT.md`) e em revisão; implementação e prova de runner pendentes |
+| AC-031 | RQ-030, D-039 | Contrato aprovado e cenário Git reproduzível demonstram isolamento, base e tratamento explícito de dirty/untracked, revisão antes de integrar e recusa de conflitos; sem copiar/commitar/limpar automaticamente nem prometer undo concorrente seguro. | bloqueado: contrato escrito em 2026-09-06 (`WORKTREE-CONTRACT.md`) e em revisão; implementação e prova de runner pendentes |
+| AC-032 | RQ-031, D-040 | Contra binário fixado, UI/runtime projetam estado de tarefas/perguntas/sessões filhas e recuperação HTTP; perguntas não viram permissões; subagentes de leitura precedem escritores, estes condicionados a AC-031; sem segundo scheduler ou histórico paralelo. | bloqueado: contrato escrito em 2026-09-06 (`PROJECTIONS-CONTRACT.md`) e em revisão; implementação e prova de runner pendentes |
 
 Esses critérios não fecham por aprovação da direção. Sua inclusão na matriz
 não dispensa o gate específico nem torna service-only obrigatório para a trilha

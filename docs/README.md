@@ -33,6 +33,7 @@ não altera decisões nem autoriza implementação.
 | aceite e execução | `ACCEPTANCE.md`, `BACKLOG.md` | evidência exigida e trabalho implementável |
 | quadro vivo | [`status/WORKBENCH.md`](status/WORKBENCH.md) | onde cada frente está e qual é a próxima ação |
 | histórico/evidência | [`status/`](status/) | registros datados, auditorias e bloqueios; não substitui o quadro vivo |
+| contratos de direção | `CONTEXT-CONTRACT.md`, `WORKTREE-CONTRACT.md`, `PROJECTIONS-CONTRACT.md` | contratos escritos sob `D-038`–`D-040` em 2026-09-06, ancorados no `/doc` do binário fixado. Definem o que implementar e o que provar; não implementam nem fecham `AC-030`–`AC-032` |
 | planos/propostas | [`planos/`](planos/) | sequência de execução ou proposta ainda não normativa. Plano de ondas vigente: [`2026-08-28-ondas-refundacao.md`](planos/2026-08-28-ondas-refundacao.md); frente ativa hoje: [`2026-08-29-cli-ssh-remoto.md`](planos/2026-08-29-cli-ssh-remoto.md), que emenda no plano de ondas entre a onda 1 e a onda 2. O anterior [`2026-08-27-e00-e03-ondas.md`](planos/2026-08-27-e00-e03-ondas.md) é histórico |
 | fontes brutas | [`fontes/`](fontes/) | material recebido; preservar sem edição e derivar fatos para os documentos acima |
 | board | Trello `PROJETO UNIGMA` (https://trello.com/b/uotAHk20) | **somente nomes**. Um item marcado significa entregue com evidência reproduzível; aceite formal é item `AC-XXX` próprio. Como executar, critério de pronto e comando de verificação vivem em `BACKLOG.md`, nunca no cartão |
