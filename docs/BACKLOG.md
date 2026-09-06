@@ -1680,6 +1680,16 @@ estiverem medidos, `T-071` não começa — publicar baseline parcial como se fo
 
 ### T-071 — publicar baseline inicial
 
+> parcial em 2026-09-06: a comparação de flags pedida pela fila foi feita por
+> leitura de código. O smoke que abre janela lê os logs do produto e semeia
+> workspace trust; o baseline não faz nem uma coisa nem outra e depende de uma
+> segunda invocação com `--status`, caminho que nenhum smoke exercita. O harness
+> passou a lançar com `--log=trace` e a citar a cauda dos logs do produto nas
+> duas mensagens de falha, com dois testes reproduzindo a forma do run
+> `33950524239` (`exit=0`, cabeçalho, sem `Process Info`). Local: `node --test`
+> 9/9 e eslint limpo. Nenhum número de baseline foi produzido e nenhuma causa
+> foi declarada; falta o run do workflow Linux.
+
 > parcial em 2026-09-04 (317e7c0f, f3c0e429): a medição passou a rodar no
 > runner que constrói o pacote, depois da publicação do artefato — baseline é
 > medição, não gate, e um pacote que passou auditoria e smoke não pode ser

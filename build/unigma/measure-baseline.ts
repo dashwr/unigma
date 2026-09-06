@@ -16,7 +16,7 @@
  */
 
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { hostname, platform, release, tmpdir, totalmem } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -180,6 +180,62 @@ function describeOutput(text: string, label = 'launch'): string {
 }
 
 /**
+ * Quotes the tail of the product's own logs. `--status` answering `exit=0` with
+ * a header and no `Process Info` means no instance was found on that profile,
+ * and that sentence reads the same whether the window never opened, the main
+ * process refused the profile or a modal is holding startup. Only the product's
+ * log separates those, so a failed measurement carries it.
+ */
+function describeProductLogs(logsDir: string, limit = 8): string {
+	const files: { readonly path: string; readonly mtimeMs: number }[] = [];
+	const walk = (directory: string, depth: number): void => {
+		if (depth > 3) {
+			return;
+		}
+		let entries: string[];
+		try {
+			entries = readdirSync(directory);
+		} catch {
+			return;
+		}
+		for (const entry of entries) {
+			const path = join(directory, entry);
+			try {
+				const stats = statSync(path);
+				if (stats.isDirectory()) {
+					walk(path, depth + 1);
+				} else if (entry.endsWith('.log')) {
+					files.push({ path, mtimeMs: stats.mtimeMs });
+				}
+			} catch {
+				continue;
+			}
+		}
+	};
+	walk(logsDir, 0);
+	if (files.length === 0) {
+		return '; product logs: none written';
+	}
+	// Newest first: the file the launch was still writing when it stalled is the
+	// one that says where it stopped.
+	files.sort((a, b) => b.mtimeMs - a.mtimeMs);
+	const parts: string[] = [];
+	for (const file of files.slice(0, 3)) {
+		let text: string;
+		try {
+			text = readFileSync(file.path, 'utf8');
+		} catch {
+			continue;
+		}
+		const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0).slice(-limit);
+		if (lines.length > 0) {
+			parts.push(`${file.path.slice(logsDir.length + 1)}: ${lines.join(' | ')}`);
+		}
+	}
+	return parts.length === 0 ? '; product logs: empty' : `; product logs: ${parts.join(' // ')}`;
+}
+
+/**
  * Launches the product against a throwaway profile and waits until it answers
  * `--status`. Answering is the readiness signal: it means the main process is
  * up and the window has an IPC handle, which is the closest observable event to
@@ -211,6 +267,12 @@ async function measureOnce(options: Options, profile: string): Promise<Run> {
 		'--disable-telemetry',
 		'--disable-experiments',
 		'--disable-updates',
+		// The smoke that is known to reach a window diagnoses itself from the
+		// product's own log files, not from stdout: an Electron launch says
+		// almost nothing on the pipes, and the run that produced `exit=0` with
+		// no `Process Info` had an empty stderr. Tracing costs nothing here,
+		// because these logs are read only when readiness never arrives.
+		'--log=trace',
 		`--logsPath=${logsDir}`,
 		`--crash-reporter-directory=${crashesDir}`,
 		'--new-window'
@@ -236,7 +298,7 @@ async function measureOnce(options: Options, profile: string): Promise<Run> {
 	try {
 		while (Date.now() - started < options.timeoutMs) {
 			if (exited) {
-				throw new Error(`the product exited before it answered --status${describeOutput(launchOutput)}`);
+				throw new Error(`the product exited before it answered --status${describeOutput(launchOutput)}${describeProductLogs(logsDir)}`);
 			}
 			const status = spawnSync(options.executable, ['--user-data-dir', userDataDir, '--extensions-dir', extensionsDir, '--status'], {
 				encoding: 'utf8',
@@ -255,7 +317,7 @@ async function measureOnce(options: Options, profile: string): Promise<Run> {
 		// Whether the launched process was still alive separates "the window never
 		// came up" from "the instance is up but does not answer", and the previous
 		// failure could not tell those apart.
-		throw new Error(`the product did not answer --status within ${options.timeoutMs} ms (last --status exit=${lastCode ?? 'none'}; launched process ${exited ? 'exited' : 'still running'})${describeOutput(lastOutput, 'status')}${describeOutput(launchOutput)}`);
+		throw new Error(`the product did not answer --status within ${options.timeoutMs} ms (last --status exit=${lastCode ?? 'none'}; launched process ${exited ? 'exited' : 'still running'})${describeOutput(lastOutput, 'status')}${describeOutput(launchOutput)}${describeProductLogs(logsDir)}`);
 	} finally {
 		if (!exited) {
 			child.kill();

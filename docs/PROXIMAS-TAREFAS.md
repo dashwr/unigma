@@ -112,6 +112,38 @@ registrar limitações. **Trello:** E05; AC-007 permanece item próprio.
 
 ## [PENDENTE] T-071 — diagnosticar baseline sem inventar números
 
+**Comparação de flags feita em 2026-09-06** (leitura de código, sem runner),
+conforme o passo pedido. `smoke-remote-window.ts` é o lançamento que sabidamente
+chega a uma janela sob o mesmo Xvfb; `measure-baseline.ts` é o que não chegou no
+run `33950524239`. As diferenças materiais:
+
+| aspecto | smoke que abre janela | harness de baseline |
+| --- | --- | --- |
+| sinal de prontidão | lê os **logs do produto** (`--log=trace` + `--logsPath`) e espera resolver e handshake | invoca o executável **de novo** com `--status` e procura `Process Info` |
+| workspace | sempre `--folder-uri` | `clean-profile` sem pasta; `idle-folder` com pasta posicional |
+| workspace trust | **semeia** o estado em `sharedStorage/state.vscdb` e checa `workspace-trust-seeded` | não semeia nada |
+| `--shared-data-dir` | passa explicitamente | não passa |
+| janela | sem `--new-window` | `--new-window` |
+| diagnóstico na falha | os logs do produto | stdout/stderr, que naquele run vieram vazios |
+
+Duas hipóteses saem daí, e **nenhuma delas é conclusão**: o smoke precisou semear
+trust para chegar a uma janela, e o baseline não semeia — em `idle-folder`, que
+abre `$build`, um modal de trust seguraria o startup e produziria exatamente
+`exit=0` sem `Process Info`; e `--status` é um caminho que o smoke nunca exercita,
+então sua confiabilidade sob Xvfb neste produto não tem prova nenhuma.
+
+**Instrumentação aplicada em 2026-09-06** (`measure-baseline.ts`): o lançamento
+passou a usar `--log=trace` como o smoke, e as duas mensagens de falha — saída
+prematura e timeout — passaram a citar a cauda dos logs do próprio produto, com
+os três arquivos mais recentes. Antes disso a falha era um cronômetro dizendo
+apenas “não”. Dois testes novos reproduzem a forma exata do run `33950524239` —
+`--status` respondendo `exit=0` com cabeçalho e sem `Process Info` — e exigem que
+a mensagem carregue o log. `node --test`: 9/9 local; `eslint` limpo nos dois
+arquivos. **Isso é diagnóstico local e não fecha nada**: o próximo run do
+workflow Linux dirá qual das hipóteses é a causa, ou nomeará uma terceira.
+
+
+
 **Entrada:** run `33950524239`, BACKLOG T-070/071, workflow Linux e harness de
 baseline em `build/unigma/`. **O quê:** produzir medição somente com desktop vivo.
 **Como:** comparar lançamento Xvfb com o smoke funcional; instrumentar readiness,
