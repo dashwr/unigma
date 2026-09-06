@@ -1,6 +1,6 @@
 # próximas tarefas — unigma
 
-Atualizado em 2026-09-05. Fila operacional para execução assistida por modelos;
+Atualizado em 2026-09-06. Fila operacional para execução assistida por modelos;
 não substitui os contratos T/AC do [backlog](BACKLOG.md). A reconciliação dos
 documentos e nomes do Trello foi verificada em 2026-09-05. Esta é a ordem vigente;
 contratos assinalados como pendentes continuam impedindo implementação por
@@ -30,8 +30,8 @@ inferência. Pesquisa documental não é prova de suporte de produto.
 | --- | --- | --- |
 | 0 | DOC-ROADMAP-001 e decisões de contratos | documentos consistentes; itens Trello mapeados; nenhum detalhe aberto entregue à implementação como se decidido |
 | 1 | T-053; diagnóstico T-071 em lane independente | matriz SSH com limites explícitos; baseline somente se houver processo vivo |
-| 2 | T-024/T-031–034/T-060–061 e T-054–055 | fluxo local e remoto real, permissões, streaming e recuperação; provider autorizado |
-| 3 | D-038/039/040 → contratos de contexto, worktree, todo/perguntas/subagentes | contrato do artefato comprovado e desenho aprovado antes de runtime/UI |
+| 2 | T-024/T-031–034/T-060–061 e T-054–055 | fluxo local e remoto real, permissões, streaming e recuperação. **Provider deixou de ser a porta**: `D-043` autorizou um par e ele foi provado em `34052368433`. Um par respondendo não é suporte a provider, mas a onda não espera mais por autorização |
+| 3 | D-038/039/040 → contratos de contexto, worktree, todo/perguntas/subagentes | contrato comprovado e **desenho aprovado em `D-046`/`D-047`**. J-1 e J-2 entregues em `1110b0cd`, sem prova de runner; J-3 e J-4 não começaram |
 | 4 | capacidades T-040–042, T-056–057 e E08 | dependências e decisões específicas satisfeitas; não bloquear Linux por inferência Windows |
 | contínua | E00 legal, E07 qualidade/payload; E09 opcional | evidência de distribuição, sem confundir bundle comum com service-only aceito |
 
@@ -109,6 +109,19 @@ unitário não prova reconexão. **Parar:** par divergente, alias ausente, falta
 autorização ou necessidade de alteração privilegiada. **Prova:** run real com
 abertura → queda → recuperação, sem confundir reabertura manual com reconexão;
 registrar limitações. **Trello:** E05; AC-007 permanece item próprio.
+
+## [EM REVISÃO] T-070/T-071 — o instrumento de prontidão passou a valer
+
+**2026-09-06, runs `34051073811` e `34056404723`.** A prontidão deixou de ser
+sondada com `--status` e passa a ser lida do log do produto. `ready-ms` **1707**
+nos dois cenários, resolução **101 ms** (era 2596), terceira medição consecutiva
+batendo, com `ready-log-ms` do relógio do próprio produto concordando.
+
+**A memória por processo continua não estabelecida** e nenhum número dela deve
+ser citado. A causa da linha de janela ausente **não está estabelecida**: duas
+hipóteses refutadas por fonte e três eliminadas por medição. O candidato atual é
+do próprio harness (`NaN` na coluna de CPU descartando a linha em silêncio),
+corrigido em `b717471e` e **aguardando o run que confirme**.
 
 ## [FEITO] T-071 — diagnosticar baseline sem inventar números
 
@@ -395,7 +408,8 @@ grupos inteiros de uma vez. ACs são revisões próprias, nunca efeito colateral
 | [PENDENTE] T-022/T-032 / E02,E03 | Testar chunks/IDs, queda e recuperação sem duplicação, preservando retry limitado | Não presumir replay ou reenviar prompt; integração comparando transcript antes/depois |
 | [PENDENTE] T-040 dívida / E02 | Conectar recarga HTTP ao estado: hoje sessão/mensagem/diff são buscados e descartados; adaptar cliente→runtime→RPC→reducer existente | Sem schema/scoping, parar; teste de lacuna SSE, estado canônico e idempotência |
 | [PENDENTE] T-034 temas / E03 | Rodar auditor de contraste no pacote e pedir revisão visual humana Dark/Light/HC | Captura de mock não basta; pacote, teclado/foco e avaliação humana |
-| [PENDENTE] T-034 divergência D-046 / E03 | `unigma-dark.json` e `unigma-high-contrast.json` usam magenta em `focusBorder`, e dark usa magenta em `editor.selectionBackground`; `D-046` dá foco ao roxo e reserva magenta para estado | Divergência **verificada**, não corrigida: alterar tema é implementação. Existem três temas, não os quatro de `D-046`; o auditor é escrito sobre os três nomes. Ver [paleta](THEME-PALETTE-DRAFT.md) §2 |
+| [EM REVISÃO] T-034 temas D-048 / E03 | Cinco temas sob a guarda; divergência com `D-046` corrigida em `b7ce8b3f`; auditor deriva a lista do manifesto | `themeContrast=pass` local não fecha nada: a prova é o auditor sobre o pacote no runner |
+| [EM REVISÃO] J-1/J-2 onda 3 / E04 | Normalização das três projeções e RPC versionado (`1110b0cd`); protocolo em 2 | 158 testes do runtime e 15 do protocolo. Sem prova de runner; J-3 e J-4 não começaram |
 | [BLOQUEADO] T-034 idioma / E03 | Definir origem autorizada do pacote pt-BR, testar inglês padrão e ativação do pacote | Não habilitar Marketplace Microsoft; prova Windows/Linux do mecanismo aprovado |
 | [BLOQUEADO] T-040 / E04 | Completar criar/retomar/abortar e recuperar sessão no harness, após correção de recarga | Sem provider/contrato, não anunciar suporte; ciclo integrado e falhas |
 | [BLOQUEADO] T-041 / E04 | Implementar recortes somente após DOC-WORKTREE/PROJECTIONS; primeiro filho read-only | Worktree não sandbox; parent-child e scoping reais antes de escritores |

@@ -638,3 +638,94 @@ não prova:       **a causa não está estabelecida.** Não sei ainda se é do X
 nota:            neste run não houve linha `memory=` de recusa — nenhum processo
                  reportou zero. O zero do run `34051073811` é portanto
                  intermitente, o que torna o portão mais necessário, não menos.
+
+### a sonda de renderer elimina as três hipóteses — 2026-09-06
+
+data:            2026-09-06
+tarefa/gate:     `T-070` — baseline por cenário
+run id:          `34056404723`
+workflow:        `unigma-linux-wsl-validation.yml`
+commit/head:     `b094b7c9192084e151e759d6afc3f0ae14f1c6b8`
+resultado:       job verde; os dois cenários mediram, 5 repetições cada
+
+| campo | `clean-profile` | `idle-folder` |
+| --- | --- | --- |
+| `ready-ms.median` | 1707 | 1707 |
+| `ready-resolution-ms` | 101 | 101 |
+| `renderer-probe.count` | 1 | 1 |
+| `renderer-probe.parentage` | `in-tree` | `in-tree` |
+| `renderer-probe.ordering` | `after-parent` | `after-parent` |
+| `renderer-probe.repetitions-agree` | `yes` | `yes` |
+
+prova:           **as três possibilidades que a leitura de fonte deixou em
+                 aberto estão eliminadas.** O renderer existe, a cadeia `ppid`
+                 alcança o processo lançado, e a linha dele vem depois da do
+                 pai. Não é "não há renderer", não é reparentagem, e não é a
+                 ordem contra o pai imediato.
+
+                 O `ready-ms` bateu 1707 nos dois cenários pela terceira
+                 medição consecutiva, com resolução de 101 ms. O instrumento de
+                 prontidão está firme.
+
+não prova:       **a causa da linha de janela ausente continua não
+                 estabelecida.** A sonda mede a ordem contra o **pai imediato**,
+                 e `addToTree` (`ps.ts:21-24`) exige que **todo ancestral até a
+                 raiz** já esteja no mapa quando a linha do filho é lida. Um
+                 ancestral do meio ausente derruba a subárvore e a sonda ainda
+                 diria `after-parent`. **Essa lacuna é do instrumento, não do
+                 produto**, e está registrada como tal.
+
+                 A sonda também compara contra o PID que o harness lançou,
+                 enquanto `--status` enraíza em `info.mainPID`, que vem por IPC
+                 da instância viva (`main.ts:439`,
+                 `diagnosticsMainService.ts:110`). Que os dois coincidam não
+                 está estabelecido pela fonte.
+
+achado novo:     `process.names-seen` do `clean-profile` veio **sem**
+                 `shared-process` neste run e **com** no anterior, para um
+                 processo que sempre existe. Somado ao zero de memória
+                 intermitente de `34051073811`, são dois sinais de que linhas
+                 estavam sendo perdidas — o que a leitura de fonte seguinte
+                 explicou e a correção do parser endereça.
+
+### primeiro artefato do dia com o par autorizado dentro — 2026-09-06
+
+data:            2026-09-06
+run id:          `34056404723`
+artefato:        `unigma-linux-x64-34056404723`, 212 MB, expira 2026-12-05
+
+```
+commit=b094b7c9192084e151e759d6afc3f0ae14f1c6b8
+target=linux-x64
+build-host=WIREDNEOMKII
+build-environment=Ubuntu WSL2
+smoke=passed
+runtime-tests=passed
+```
+
+prova:           o pacote passou a sequência do workflow e os três smokes de
+                 OpenCode rodaram **sobre ele**, incluindo o do provider:
+                 `answer=answered`, `smoke=pass`, contra `1.18.23`.
+
+não prova:       **não é release.** `AC-012` (autoria, direitos e não-colisão
+                 dos ativos de marca) segue bloqueado, `T-002` espera o artefato
+                 de component governance, `T-004` espera decisão de titularidade
+                 e `AC-007` segue parcial. O pacote também **não** contém os
+                 cinco temas nem a correção do parser, que entraram depois em
+                 `b7ce8b3f` e `b717471e`.
+
+aviso:           existe um `../VSCode-linux-x64` na máquina de desenvolvimento,
+                 do commit `a159d768`, **sem OpenCode embutido** e com timestamp
+                 zerado. É sobra de build antigo e não deve ser usado como
+                 referência de nada.
+
+### run interrompida por rede — 2026-09-06
+
+run id:          `34055898816`
+resultado:       falha no passo `install dependencies in WSL`, antes de
+                 qualquer código deste dia executar
+causa:           `AggregateError [ETIMEDOUT]` em
+                 `GET https://electronjs.org/headers/v42.8.1/node-v42.8.1-headers.tar.gz`,
+                 depois de cinco tentativas do próprio passo. Rede do runner,
+                 não o produto e não a mudança. Registrada para que a falha não
+                 seja lida depois como regressão.

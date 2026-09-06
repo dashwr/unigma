@@ -47,6 +47,69 @@ Todo/perguntas/sessões filhas são consultados novamente no harness após rein�
 não restaurar autorização antiga. Worktree não implica exclusividade contra
 processos externos nem inclui automaticamente arquivos dirty/untracked da origem.
 
+### tipos das projeções de leitura — D-040/D-047, protocolo 2 — 2026-09-06
+
+Estes tipos existem em código: `AgentTodoItem`, `AgentQuestionProjection` e
+`AgentChildSessionProjection` em
+`src/vs/workbench/contrib/unigmaAgent/common/agentProtocol.ts`, com a
+normalização correspondente em
+`extensions/unigma-agent-runtime/src/domain/projections.ts`. Nenhum deles é
+persistido: são estado transitório da sessão/UI, e a fonte de verdade continua
+sendo o OpenCode.
+
+| tipo | campos | armazenamento | retenção |
+| --- | --- | --- | --- |
+| `AgentTodoItem` | `content`, `status`, `knownStatus?`, `priority`, `knownPriority?` | memória | duração da sessão/UI |
+| `AgentQuestionProjection` | `requestId`, `index`, `question`, `header`, `options[]`, `multiple`, `custom` | memória | até a pergunta ser respondida ou rejeitada |
+| `AgentChildSessionProjection` | `sessionId`, `parentId`, `title?` | memória | duração da sessão/UI |
+
+As invariantes abaixo são o que importa nestes tipos; elas não são convenção de
+UI, são propriedade do formato.
+
+**`AgentTodoItem` não tem `id`.** Não existe `id` no schema do artefato, então a
+identidade de um item é a **posição no array**. `todo.updated` traz a lista
+inteira, e por consequência toda atualização é **substituição integral** —
+nunca merge por chave inventada. Não há endpoint de escrita de todo: a projeção
+é somente leitura.
+
+`status` e `priority` são **string livre** no schema (os valores nomeados só
+aparecem em prosa), então viajam crus. `knownStatus` e `knownPriority` só são
+preenchidos quando o valor é um dos nomeados; a **ausência** desses campos é a
+instrução para a UI renderizar o texto cru, em vez de escolher um default. Um
+item ao qual falte qualquer um dos três campos obrigatórios é **descartado** na
+normalização, não completado com valor padrão.
+
+**`AgentQuestionProjection` não tem `always`, não tem `response` e não tem id de
+permissão.** Uma pergunta nunca concede permissão, e a ausência de campo é uma
+garantia mais forte do que uma regra que alguém precise lembrar: não existe onde
+um valor desses viajaria. O validador do protocolo recusa chave extra
+(`hasOnlyKeys`), então um payload que tentasse acrescentar um desses campos é
+recusado, não ignorado. Permissão continua com comando (`Approve`), corpo e
+evento próprios.
+
+`index` é a posição da pergunta dentro do seu `QuestionRequest`, porque o corpo
+da resposta é um array de respostas por pergunta e o schema não dá id à pergunta
+individual.
+
+**`AgentChildSessionProjection`: a relação é `parentId`.** Não existe evento
+próprio de subagente; o ciclo de vida do filho aparece nos mesmos eventos de
+sessão e mensagem do pai. Um filho cujo `parentID` não bate com a sessão
+consultada é descartado, não adotado.
+
+**Comandos associados**, ambos em `AgentCommand`:
+
+| comando | corpo | efeito |
+| --- | --- | --- |
+| `answerQuestion` | `sessionId`, `questionRequestId`, `answers: string[][]` (um array de labels por pergunta do request) | responde a pergunta; nunca concede permissão |
+| `rejectQuestion` | `sessionId`, `questionRequestId` | dispensa a pergunta sem responder |
+
+`rejectQuestion` é o comando por trás da opção `cancelar` que `D-047` acrescenta
+a toda pergunta; é o que torna seguro desabilitar a composição.
+
+**Não implementado:** o lado runtime destes tipos (`J-3`) e a UI (`J-4`). Os
+tipos e a normalização existem; a assinatura dos eventos OpenCode
+correspondentes no transporte do runtime, não.
+
 ### dados do roteamento
 
 A direção aprovada adiciona somente settings e estado local mínimo; não cria um

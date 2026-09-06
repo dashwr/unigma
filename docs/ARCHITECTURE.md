@@ -25,6 +25,25 @@ fontes de verdade; não criar snapshot, índice, tool loop ou scheduler paralelo
 Trust, permissão, revisão de diff e isolamento de checkout são controles
 distintos; nenhum deles sozinho constitui sandbox de processo.
 
+### revisão de 2026-09-06 — D-041–048
+
+Esta seção registra o que mudou na arquitetura em 2026-09-06. O bloco anterior
+(D-038–040) permanece como histórico e continua válido no que não é contradito
+aqui.
+
+- O contrato RPC entre a UI nativa e o runtime passou a `AGENT_PROTOCOL_VERSION
+  = 2`, com as três projeções de leitura e os dois comandos de pergunta. Detalhe
+  em §7.
+- A normalização das projeções passou a existir como código puro no `domain/`
+  do runtime (etapa `J-1` do [contrato de projeções](PROJECTIONS-CONTRACT.md)).
+- Provider e modelo autorizados das provas (`D-043`) definem como a credencial
+  entra no processo: por ambiente, nunca administrada pelo produto. Detalhe
+  em §6.
+- `D-047` (interação do painel) e `D-048` (matriz de temas) afetam a camada de
+  apresentação; `D-048` é a primeira da série que autoriza implementação, e só
+  dos arquivos de tema e do auditor de contraste. A UI de agente da etapa `J-4`
+  continua sem implementação.
+
 D-026 prevalece sobre descrições antigas de bundle obrigatório service-only:
 binário configurado validado e bundle upstream atendem à trilha básica; poda
 service-only é perfil opcional com gate próprio, não pré-requisito do painel.
@@ -232,6 +251,14 @@ segredo, ela usa exclusivamente `SecretStorage`; o MVP não cria esse caso.
    persistidas por unigma;
 7. toda entrada de UI, configuração de workspace e evento externo é
    validada na fronteira antes de chegar à camada de aplicação.
+8. **a credencial do provider não é administrada pelo produto (D-043).** Ela
+   entra por variável de ambiente do processo que inicia o runtime; o processo
+   filho `opencode serve` a herda porque o `ProcessManager` não sobrescreve o
+   env do filho. O unigma não chama `PUT /auth/{id}`, não lê o valor, não o
+   registra em log e não o passa por `argv` — a tabela de processos do host é
+   legível. Consequência prática, verificada em `build/unigma/smoke-opencode-provider.ts`:
+   como o isolamento de estado é feito pelo ambiente herdado, ele precisa estar
+   estabelecido antes de o processo subir.
 
 **motivo:** a superfície crítica é o computador do usuário. Segurança útil
 aqui é conter privilégios e preservar a decisão humana, não construir IAM.
@@ -267,6 +294,49 @@ Cada comando carrega um `requestId`; cada evento identifica a sessão OpenCode
 correspondente. O conteúdo transportado é validado no runtime. IDs, payloads
 detalhados e mapeamentos de endpoint pertencem ao adaptador OpenCode, para que
 mudanças de API não vazem à UI.
+
+#### versão 2 do protocolo — as três projeções de leitura — 2026-09-06
+
+`AGENT_PROTOCOL_VERSION` foi de `1` para `2` em
+`src/vs/workbench/contrib/unigmaAgent/common/agentProtocol.ts`. A versão 2
+acrescenta os eventos `todo`, `question`, `questionResolved` e `children`, e os
+comandos `answerQuestion` e `rejectQuestion`.
+
+**Por que a versão sobe.** O envelope recusa tipo de evento desconhecido em vez
+de ignorá-lo. Um runtime emitindo `todo` para um workbench compilado contra a
+versão 1 seria, portanto, **recusado** — não silenciosamente descartado. Cliente
+e runtime saem do mesmo commit (`D-028`), de modo que um build entregue nunca
+tem os dois lados divergentes; a versão existe para que um par descasado —
+desenvolvimento, teste manual, artefato remoto errado — **falhe alto** em vez de
+perder uma projeção em silêncio.
+
+**Como as projeções atravessam.** `AgentTodoItem`,
+`AgentQuestionProjection` e `AgentChildSessionProjection` são dados planos e
+serializáveis: sem métodos, sem listeners, nada que a ponte RPC não carregue.
+O runtime continua sendo o único lado que fala com o OpenCode; a UI recebe as
+projeções e nunca alcança a fonte. As formas e invariantes estão em
+[DATA-MODEL.md](DATA-MODEL.md).
+
+**Onde mora a normalização.** Em
+`extensions/unigma-agent-runtime/src/domain/projections.ts`, no `domain/` do
+runtime, e é pura: sem HTTP, sem processo, sem estado. Ela recebe um payload já
+recebido pelo transporte e devolve um valor que o RPC carrega. As **duas
+famílias de pergunta** do artefato fixado (`question.*` e `question.v2.*`) são
+aceitas na entrada — ignorar um `question.v2.asked` deixaria uma pergunta na
+tela sem resposta possível — e ambas normalizam para o mesmo tipo interno; a
+saída usa sempre a rota sem `v2`.
+
+**Estado de implementação.** `J-1` (normalização) e `J-2` (o RPC) existem.
+`J-3` — assinatura desses eventos no `runtimeTransport`, reconciliação da §6 do
+contrato e recusa de P-08 — e `J-4` (a UI) são **contrato ainda não
+implementado**. Ver a contradição registrada no fim desta seção.
+
+**Divergência aberta entre os dois lados do RPC.**
+`extensions/unigma-agent-runtime/src/application/transport.ts` mantém
+`TRANSPORT_PROTOCOL_VERSION = 1` e o `RuntimeTransportBridge` não trata
+`todo.updated`, `question.*` nem `children`. Ou seja: a versão 2 está declarada
+no lado do workbench e ainda não tem contraparte no runtime. Isso é esperado
+enquanto `J-3` não existe, mas não deve ser lido como suporte disponível.
 
 ### contrato extensão ↔ OpenCode
 

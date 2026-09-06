@@ -1068,6 +1068,32 @@ estão pendentes.
 
 ### T-034 — aplicar temas, idioma e acessibilidade
 
+> parcial em 2026-09-06, commit `b7ce8b3f` — **cinco temas sob a guarda, sem
+> prova de runner.** `D-048` autorizou este recorte e so ele. Corrigida a
+> divergencia com `D-046`: `focusBorder` magenta em `unigma-dark.json` e
+> `unigma-high-contrast.json`, e `editor.selectionBackground` magenta em ambos.
+> A selecao clareou em roxo (`#6b57b8` no dark, `#7059c4` no HC), **nao o limiar
+> do auditor** — baixar a guarda para caber uma preferencia estetica inverteria a
+> razao de ela existir, que e selecao invisivel.
+>
+> Criados `unigma-lilac.json` e `unigma-purple-dark.json`. Ambar entrou como cor
+> de aviso; magenta ficou com erro e atencao.
+>
+> A mudanca que mais importa e no auditor: ele iterava sobre **tres nomes de
+> arquivo escritos a mao**, e um tema que ele nao conhece **nao e auditado**, o
+> que e pior que um tema que falha. Agora deriva de `contributes.themes` do
+> manifesto e escolhe os pares por `uiTheme`, nao por nome. Declarar um tema ja o
+> poe sob a guarda.
+>
+> `themeContrast=pass` local, 70 pares, nenhuma falha. Par mais apertado da
+> paleta inteira: ambar sobre a superficie elevada do lilas, 4.79:1 — passa AA
+> sem folga, e e o primeiro que quebra se alguem mexer nessa rampa.
+>
+> **Nao fecha `T-034`.** A prova exigida por `D-048` e o auditor executado
+> **sobre o pacote no runner**, e o idioma, a navegacao por teclado e a revisao
+> visual humana continuam pendentes.
+
+
 - **objetivo:** entregar inglês padrão, pacote `pt-BR`, tokens roxos e estados
   acessíveis na contribuição nativa.
 - **responsável lógico:** UI/UX + localização.
@@ -1703,6 +1729,43 @@ estiverem medidos, `T-071` não começa — publicar baseline parcial como se fo
 `AC-015` existe para impedir.
 
 ### T-071 — publicar baseline inicial
+
+> parcial em 2026-09-06, runs `34051073811` e `34056404723` — **o instrumento
+> mudou de significado pela terceira vez, e agora a prontidao se sustenta.**
+> A sonda de `--status` foi substituida por leitura do log do produto: a linha
+> trace de `WindowImpl.setReady` (`windowImpl.ts:764`), ja habilitada pelo
+> `--log=trace` do lancamento. `--status` passou a ser chamado **uma vez**,
+> depois da prontidao, so pela tabela de processos.
+>
+> A razao e que `--status` **nao era leitura passiva**: `main.ts:436` so chega ao
+> caminho de diagnostico depois de conectar ao handle IPC do perfil, e sem handle
+> o mesmo executavel reivindica a instancia e encerra. Cada sonda era um segundo
+> lancamento completo do produto contra o perfil medido. Isso explica de uma vez
+> a resolucao de 2596 ms, o `renderer.present=no` de `34043447622` e a falha do
+> `idle-folder` em `34047514749`.
+>
+> Resultado: `ready-ms` **1707** nos dois cenarios, resolucao **101 ms**, terceira
+> medicao consecutiva batendo. Publica tambem `ready-log-ms`, o intervalo pelo
+> relogio do proprio produto, ~380 ms abaixo do relogio de parede nos dois
+> cenarios — a relacao prevista, e duas medidas independentes concordando.
+>
+> **A memoria por processo continua nao estabelecida.** `renderer.present=no`
+> num run em que o log registrou janela pronta nas cinco repeticoes, e
+> `extension-host`/`shared-process` com `memory-mb.median=0` ao lado de
+> `spread=130` em `34051073811`. O portao de plausibilidade passou a recusar
+> zero, e o relatorio passou a publicar `process.names-seen`.
+>
+> A causa da linha de janela ausente **nao esta estabelecida**. Duas hipoteses
+> foram refutadas por fonte (nao e Xvfb, nao e momento de coleta) e tres foram
+> eliminadas por medicao em `34056404723` (o renderer existe, a cadeia alcanca a
+> raiz, a ordem contra o pai imediato esta correta). O candidato atual e do
+> **proprio harness**: `load = parseFloat(cpuUsage[i])` (`ps.ts:190`) e `NaN`
+> quando `cpuUsage.sh` devolve menos linhas que PIDs, `formatProcessItem` imprime
+> `item.load.toFixed(0)` (`diagnosticsService.ts:560`), e o `PROCESS_ROW` do
+> harness exigia digito ali — a linha era descartada em silencio. Corrigido, com
+> contagem de linhas nao parseadas publicada em todo relatorio. **Falta o run que
+> confirme**, por `process.rows-unparsed` e `renderer.present`.
+
 
 > feito em 2026-09-06, run `34045994035`, commit `36d5c73a`: baseline medido até
 > a janela existir. `clean-profile` `ready-ms.median=5394` (spread 21),

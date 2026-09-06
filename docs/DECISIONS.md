@@ -40,6 +40,23 @@ trabalho.
 | D-031 | A primeira entrega de `CLI-002` assume `unigma-server` pré-instalado no host remoto. O cliente não provisiona, copia ou atualiza o servidor nesta etapa; push/tarball ficam para uma fase posterior com contrato próprio. | confirmado em 2026-08-30 | resposta do responsável nesta rodada |
 | D-032 | Substitui D-031 para a entrega SSH: após gates OpenSSH/trust e confirmação explícita por host, o cliente envia pela própria sessão SSH o par versionado `unigma-server` + `unigma+opencode`, validado por manifesto/hashes e instalado atomicamente na área do usuário remoto. Não há download/CDN, elevação, instalação global, cópia de workspace ou automação de OAuth/plugins. | confirmado em 2026-09-01 | resposta do responsável nesta rodada |
 | D-032 | A distribuição unigma desativa somente a superfície `workbench.panel.chat`; serviços compartilhados necessários a MCP, inline chat, terminal/notebook e `unigmaAgent` permanecem. Comandos e smoke devem declarar essa capability indisponível sem fallback ou skip genérico. | confirmado em 2026-08-30 | resposta do responsável nesta rodada |
+
+> **`D-032` foi atribuído duas vezes.** Descoberto em 2026-09-06. A linha de
+> 2026-09-01 é o push do par pela sessão SSH; a de 2026-08-30 é a desativação de
+> `workbench.panel.chat`. São decisões diferentes com o mesmo número.
+>
+> Nenhuma das duas foi renumerada, porque renumerar reescreve história datada.
+> O que a colisão custa é um leitor seguir "`D-032`" e chegar à decisão errada,
+> e é isso que esta nota resolve. As referências existentes carregam o sentido de
+> SSH em `SSH-CONTRACT.md:182`, `BACKLOG.md:1361` e `:1407`,
+> `planos/2026-08-29-cli-ssh-remoto.md:136` e `WORKBENCH.md:412`; carregam o
+> sentido de painel de chat em `BACKLOG.md:429`, `WORKBENCH.md:391` e nas duas
+> entradas `OVN-BRANDING-PACKAGE` de `EVIDENCE.md`.
+>
+> **Pendente do responsável:** renumerar uma das duas, ou manter as duas com esta
+> nota. Enquanto não houver resposta, citar `D-032` sem dizer qual sentido é
+> ambíguo por construção.
+
 | D-035 | O staging remoto retém por padrão 2 versões (ativa + anterior) e poda versões mais antigas, por mtime, somente após ativação; a VPS usa retenção 1 e falha de poda não invalida ativação. | confirmado em 2026-09-03 | resposta do responsável nesta rodada |
 | D-036 | A baseline de compatibilidade do `unigma-server` Linux é GLIBC 2.28 / GLIBCXX 3.4.25, já declarada pelo produto; o build passa a obedecê-la compilando os addons nativos contra o sysroot vendorizado. O gate de símbolos falha também em GLIBCXX e CXXABI, divergindo deliberadamente do upstream. | confirmado em 2026-09-03 | defeito em `33784052687`; correção em `33796510313` e `33797399848` |
 | D-037 | A extensão `unigma-remote-ssh` declara suporte a workspace não confiável. Resolver a autoridade acontece antes de a pasta abrir, então exigir confiança prévia é um impasse. A extensão não contribui nem lê configuração, então uma pasta hostil não tem por onde redirecionar o resolver. | confirmado em 2026-09-03 | recusa observada em `33809573631` |
@@ -480,9 +497,14 @@ Sobre as cinco referências entregues e a
 
 Sobre a [proposta de interação](AGENT-UX-DRAFT.md).
 
-- **Quatro regiões fixas**, nesta ordem: cabeçalho, atenção, trabalho,
+- **Cinco regiões fixas**, nesta ordem: cabeçalho, atenção, trabalho,
   transcrição, composição. O que bloqueia fica acima do que só informa; a
   transcrição fica embaixo porque cresce sem limite.
+
+  *Corrigido em 2026-09-06:* esta decisão foi registrada como "quatro regiões"
+  e listava cinco. A lista sempre foi a autoridade; a contagem estava errada.
+  A pergunta feita ao responsável trazia o mesmo erro, e a resposta aprovou a
+  ordem, que não muda.
 - **Sessão filha expande no lugar.** Nada de painel por filha nesta etapa:
   multiplicaria a reconciliação de SSE por N.
 - **Pergunta pendente desabilita a composição — e a saída entra na própria

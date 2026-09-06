@@ -32,7 +32,7 @@ perguntas e sessões filhas coexistem com o resultado; não se revezam com ele.
 
 ## 2. proposta — a estrutura
 
-Uma coluna, quatro regiões fixas, sempre na mesma ordem. Nada aparece em lugar
+Uma coluna, cinco regiões fixas, sempre na mesma ordem. Nada aparece em lugar
 diferente conforme o estado; regiões vazias colapsam.
 
 ```
@@ -174,7 +174,7 @@ Proposta:
 
 ## 5. o que falta você responder
 
-1. A estrutura de quatro regiões da §2 serve, ou você quer transcrição no topo?
+1. A estrutura de cinco regiões da §2 serve, ou você quer transcrição no topo?
 2. Pergunta pendente **desabilita** a composição? (recomendo que não — §3.1)
 3. Todo sem checkbox está certo, ou você quer um controle mesmo sabendo que ele
    não teria para onde mandar o clique hoje?

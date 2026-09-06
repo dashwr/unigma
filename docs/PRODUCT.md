@@ -29,6 +29,7 @@ em aberto quando a arquitetura já a definiu.
 | S-16 | direção visual e imagem de referência fornecidas pelo responsável em 2026-08-23 | lettering geométrico/block-like como princípio, paleta, sheen metálico controlado e limites de incorporação |
 | S-17 | direção do responsável registrada em 2026-08-23 | roteamento local de modelos por `intelligence index`, `Autopilot!` opt-in e comportamento visual do toggle |
 | S-18 | direção do responsável registrada em 2026-08-26, recuperada da sessão de desenho do runtime | OpenCode como único harness oficial, perfil `service-only`, decepador, bundle atômico e capacidades intersessão do agente |
+| S-19 | direções do responsável registradas em 2026-09-06 (`D-043`–`D-048`) | provider e modelo autorizados, rascunho legal, transporte Windows, identidade visual, interação do painel do agente e matriz de temas |
 
 `docs/fontes/` contém a fonte local `MODELO-DE-TAREFAS.pdf`, preservada durante a
 reorganização documental de 2026-08-27. Nenhuma fonte externa foi modificada.
@@ -63,25 +64,83 @@ com qualquer produto.
 ## identidade de produto
 
 **Confirmado (S-06, S-16):** a interface usa inglês como idioma padrão e oferece
-um pacote de idioma `pt-BR`. A identidade visual usa uma paleta
-roxo/magenta/violeta, com roxo como cor predominante. A direção inclui sheen
-metálico controlado como acabamento. Os temas são aplicações dessa paleta em
-fundos branco, lilás, preto e roxo-escuro, entre outros que ainda precisem ser
-especificados.
+um pacote de idioma `pt-BR`.
 
-**Confirmado (S-06):** a tagline inicial é “There's no secret.”.
+**Confirmado (S-06):** a tagline continua “There's no secret.”.
 
-**Direção confirmada com restrição (S-01, S-06, S-16):** lettering
-geométrico/block-like é referência de princípio, não cópia, para uma construção
-original por blocos verticais em roxo. A referência visual não autoriza cópia de
-lettering, ícone, proporções, composição ou outro elemento identificável de
-qualquer marca. Os ativos de unigma precisam ser distintivos. A imagem fornecida
-pelo responsável é apenas referência visual e não é um ativo distribuível.
+### paleta e uso da cor
 
-**Pendente:** `Cinderblock` é candidata para título colorido em peso forte e
-tagline branca em peso leve. A disponibilidade, licença, pesos e direitos de uso
-da fonte não foram verificados; ela não deve ser incorporada antes de todos
-esses pontos serem verificados.
+**Confirmado (S-19, D-046):** o **fundo neutro carrega a área**; **roxo e
+magenta são realce, nunca banho de tela**. “Roxo predominante”, registrado em
+S-06/S-16, é predominância **na identidade**, não em área de tela. A distinção
+fica escrita porque as duas leituras produzem produtos diferentes.
+
+**Confirmado (S-19, D-046, D-048):** as cores têm papel semântico fixo:
+
+| cor | papel |
+| --- | --- |
+| violeta `#8b5cf6` | ativo e foco |
+| magenta | **estado**: erro, atenção, permissão pendente |
+| âmbar | aviso |
+
+Magenta como segundo acento de marca ou acento decorativo foi recusado: quando
+magenta aparecer, ele significa alguma coisa. O sheen metálico controlado
+(S-06, S-16) permanece acabamento de superfície de marca, não de superfície de
+trabalho.
+
+**Confirmado (S-19, D-048):** são **cinco arquivos de tema**: quatro temas de
+paleta — branco, lilás, preto (padrão) e roxo-escuro — mais o de **alto
+contraste**, que fica à parte porque é acessibilidade e não gosto. A
+especificação proposta está em [`THEME-PALETTE-DRAFT.md`](THEME-PALETTE-DRAFT.md);
+`D-048` autoriza implementação **somente** do recorte “arquivos de tema e
+auditor de contraste”, com prova exigida sobre o pacote no runner.
+
+### onde a identidade aparece
+
+**Confirmado (S-19, D-046):** **expressão nas superfícies de marca** — splash,
+Welcome, About, instalador, ícone, site e documentação recebem grade,
+micro-tipografia, dithering e brilho controlado. **Nas superfícies de trabalho,
+só paleta e geometria** — editor, painéis e barra lateral não recebem grade
+decorativa, rótulo ornamental nem textura.
+
+**Exceção confirmada (S-19, D-046):** a **barra de status** e o **painel do
+agente** podem carregar micro-rótulo, desde que ele traga **fato verificável**:
+commit, versão fixada, run id, modelo que respondeu. **Número não medido não
+aparece.**
+
+**Confirmado (S-19, D-046, D-047):** geometria — **quadrado e grade são
+estrutura e estado; arredondado é o que se clica**. O marcador de todo é
+quadrado com um quadrado menor dentro para feito, e por ser quadrado já diz que
+não é botão.
+
+### logotipo e wordmark
+
+**Confirmado (S-19, D-046):** o logotipo e o wordmark **já existem no
+repositório**, em [`resources/unigma/`](../resources/unigma/README.md), e já
+estão integrados ao empacotamento Linux e Windows. A marca é o **`U` em bloco
+com uma célula ativa violeta**; off-white `#efeff4` e violeta `#8b5cf6`, PNG
+RGBA **sem fonte embutida**. O conjunto final é `unigma-lockup-dark.png`
+(logo + wordmark) e `unigma-icon-256/512.png`, com as derivações de plataforma
+registradas por SHA-256 em
+[`BRANDING-PROVENANCE.md`](../resources/unigma/BRANDING-PROVENANCE.md). Os
+arquivos `unigma-cipher*` e `unigma-wordmark.png` são exploratórios e não entram
+em pacote.
+
+**Correção de registro (S-19, D-046):** `Cinderblock` **saiu do caminho**. O
+texto anterior a tratava como fonte candidata a verificar licença, pesos e
+direitos; não há o que licenciar, porque o lettering do lockup não depende de
+face nenhuma. A construção original por blocos, direção de S-01/S-06/S-16, já
+está feita — a restrição de cópia continua integral: nenhuma referência recebida
+é ativo distribuível, e nada autoriza cópia de lettering, ícone, proporções,
+composição ou outro elemento identificável de qualquer marca.
+
+**`AC-012` continua bloqueado, e nada desta seção o move.** Proveniência por
+hash registra derivação raster; ela **não** é concessão de licença, atribuição
+de autoria, afirmação de originalidade, clearance de marca nem avaliação de
+colisão. Os ativos seguem **impedidos de release público** até essa revisão
+fechar. `D-046` decide **como a identidade se usa**, não que ela esteja
+liberada; decisão de desenho não é liberação. As lacunas formais estão em
+[`status/BRANDING-CLEARANCE.md`](status/BRANDING-CLEARANCE.md).
 
 ## distribuição e identificadores
 
@@ -106,7 +165,7 @@ não autoriza publicação.
 | MCP, plugins e regras | configuração local explícita via OpenCode; política concreta pendente | S-01, S-11 |
 | subagentes e worktrees | arquitetura aprovada; comportamento detalhado pendente | S-01, S-11 |
 | terminal e SSH obrigatório | OpenSSH e extension host remoto definidos; compatibilidade detalhada pendente | S-01, S-11 |
-| providers abertos, modelos locais e APIs | integração delegada ao OpenCode; direção de classificação e roteamento confirmada, suporte concreto pendente | S-01, S-11, S-17 |
+| providers abertos, modelos locais e APIs | integração delegada ao OpenCode; **um par autorizado e provado** (`openrouter` / `nvidia/nemotron-3.5-lightning:free`, run `34052368433`). Um par provado não é suporte a provider; nenhum outro nome é anunciado como integrado | S-01, S-11, S-17, S-19 |
 | roteamento por `intelligence index` e `Autopilot!` | direção confirmada; contrato operacional e validação pendentes | S-17 |
 | bundle `unigma+opencode`; perfil `service-only` opcional (D-026) | direção confirmada; patchset, workflow e auditoria implementados para o perfil opcional; artefato aceito e suporte oficial pendentes | S-18 |
 | atalhos `@` para ferramentas e `/` para skills | direção confirmada; contrato da UI nativa pendente | S-18 |
@@ -152,6 +211,27 @@ ferramentas, `/` para skills, mensagens entre sessões locais e chips de agentes
 ou subagentes com estados `thinking`, `typing` e `idle`. Um protocolo de controle
 remoto pode ser construído de forma dormente, sem listener ativo, cloud,
 colaboração em tempo real ou backend no MVP.
+
+## provider e modelo autorizados
+
+**Confirmado (S-19, D-043):** existe **um** par autorizado para as provas:
+`openrouter` com `nvidia/nemotron-3.5-lightning:free`, pelo ID exato, sem alias
+e sem fallback. Os critérios são verificáveis, não reputacionais: é gratuito, é
+`toolcall: true` e estava presente na resposta `/provider` do binário fixado no
+momento da escolha. A credencial é secret do repositório criado pelo
+responsável, entregue ao ambiente do runner e atravessando para o WSL por
+`WSLENV`; o produto não a lê nem a escreve, e ela nunca aparece em `argv`.
+
+**Prova citada:** o run `34052368433` (`smoke=pass`, `check.prompt-answered=pass`,
+`answer=answered`) contra o binário fixado `1.18.23`. **Isso é suporte a um par,
+não suporte a provider.** `openrouter` não é anunciado como suportado e nenhum
+outro provider ou modelo é anunciado como integrado; `AC-008` permanece
+bloqueado. `connected` em `/provider` não prova credencial válida — só o prompt
+respondido prova.
+
+Modelo gratuito implica limite de taxa e disponibilidade variável: recusa do
+provider, inclusive quota, é categoria de erro própria e nunca falha de contrato
+silenciosa.
 
 ## roteamento de modelos e Autopilot!
 
@@ -253,6 +333,23 @@ condicionais.
 **Restrição confirmada (S-01):** não usar nem extrair tokens, caches OAuth,
 tráfego interceptado ou meios de contornar entitlement. Integrações devem usar
 APIs autorizadas, modelos locais ou interfaces documentadas.
+
+## documentos de desenho em revisão
+
+Autorizados pelas decisões de 2026-09-06 e marcados `[EM REVISÃO]`. Definem
+desenho ou registram opções; **não autorizam implementação** (a exceção é o
+recorte de temas/auditor liberado por `D-048`) e não fecham aceite:
+
+| documento | cobre | decisão |
+| --- | --- | --- |
+| [`AGENT-UX-DRAFT.md`](AGENT-UX-DRAFT.md) | regiões fixas do painel do agente, pergunta pendente, permissão e marcador de todo | D-047 |
+| [`VISUAL-IDENTITY-DRAFT.md`](VISUAL-IDENTITY-DRAFT.md) | leitura das referências, separação marca/trabalho e geometria | D-046 |
+| [`THEME-PALETTE-DRAFT.md`](THEME-PALETTE-DRAFT.md) | paleta dos quatro temas, semânticas de cor e divergências dos temas atuais | D-046, D-048 |
+| [`LEGAL-DRAFT.md`](LEGAL-DRAFT.md) | proposta de `NOTICE`, `LICENSE` e política de cabeçalho — **não afirma clearance** | D-044 |
+| [`WINDOWS-TRANSPORT.md`](WINDOWS-TRANSPORT.md) | opções de transporte do cliente Windows sem `ControlMaster`, com custo e prova de cada uma | D-045 |
+
+`T-002` e `T-004` não fecham com o rascunho legal; `T-056` continua sem
+implementação autorizada.
 
 ## questões abertas
 

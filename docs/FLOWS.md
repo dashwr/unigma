@@ -137,6 +137,101 @@ sessões e eventos.
 
 **Base:** S-18, D-021, RQ-026 a RQ-028.
 
+## F-010 — responder ou rejeitar uma pergunta do agente (D-047) — 2026-09-06
+
+```text
+runtime recebe `question.asked` ou `question.v2.asked`
+  -> normaliza para o tipo interno (domain/projections.ts)
+  -> RPC: evento `question` com as perguntas do request
+  -> painel exibe a pergunta na região de atenção e desabilita a composição
+  -> as opções mostradas são: as do agente, seguidas de `digitar` e `cancelar`
+  -> usuário escolhe
+       -> opção do agente ou texto livre
+            -> comando `answerQuestion` { questionRequestId, answers: string[][] }
+            -> runtime: POST /question/{requestID}/reply
+       -> `cancelar`
+            -> comando `rejectQuestion` { questionRequestId }
+            -> runtime: POST /question/{requestID}/reject
+  -> evento `questionResolved` com `replied` ou `rejected`
+  -> composição volta a aceitar entrada
+```
+
+`digitar` e `cancelar` são **sempre as duas últimas opções**, nunca as posições
+fixas 4 e 5: se o agente mandar seis opções, elas são a sétima e a oitava.
+Posição relativa existe para que a barra de espaço não caia sobre `cancelar` por
+acidente de contagem — cancelar é o único desfecho que não se desfaz de dentro
+da pergunta.
+
+Responder **nunca** concede permissão, nem quando o texto da opção sugere isso;
+permissão tem comando, corpo e evento próprios. A saída mora dentro da pergunta,
+e é isso que torna a composição desabilitada segura em vez de armadilha. Uma
+pergunta chegada pela família `question.v2.*` é aceita na entrada e respondida
+pela rota sem `v2`.
+
+**Base:** D-047 e §3 do [contrato de projeções](PROJECTIONS-CONTRACT.md). Os
+tipos, a normalização e os dois comandos existem em código (etapas `J-1` e
+`J-2`); a rota HTTP no runtime (`J-3`) e o painel (`J-4`) são **contrato ainda
+não implementado**.
+
+## F-011 — recuperação depois de queda do SSE — 2026-09-06
+
+```text
+conexão /event cai
+  -> reconecta /event (sem replay, sem Last-Event-ID)
+  -> GET /session/status                    estado das sessões
+  -> GET /session/{id}/todo                 lista inteira, substitui a projeção
+  -> GET /question                          perguntas pendentes
+  -> GET /session/{id}/children             árvore de filhos
+  -> GET /session/{id}/message              reconcilia a transcrição
+```
+
+Regras que a reconexão não pode violar:
+
+- **reconciliar, não descartar.** Transcrição não é limpa. Uma pergunta que
+  sumiu de `/question` entre a queda e a volta foi respondida ou rejeitada por
+  outro caminho: a UI a remove e registra, em vez de deixá-la clicável.
+- uma pergunta que estava na tela só continua clicável se voltar em
+  `GET /question` com o **mesmo `id`**.
+- **nunca reenviar prompt.** O SSE cair não é o prompt ter falhado.
+- nenhuma dessas respostas é persistida em disco pelo unigma; nenhuma
+  autorização antiga é restaurada.
+
+**Base:** §6 do [contrato de projeções](PROJECTIONS-CONTRACT.md), D-040, D-047.
+**Contrato ainda não implementado**: a reconciliação é a etapa `J-3` e não
+existe no `runtimeTransport` hoje.
+
+## F-012 — prova do provider autorizado (D-043) — 2026-09-06
+
+```text
+credencial no ambiente (OPENROUTER_API_KEY), criada pelo responsável
+  -> estado isolado estabelecido ANTES de subir o processo
+  -> runtime inicia `opencode serve`; o filho herda o env (ProcessManager não sobrescreve)
+  -> GET /provider  -> connected / source=env / modelo autorizado presente
+  -> POST /session
+  -> POST /session/{id}/prompt_async  { model: { providerID, modelID }, parts }
+  -> assina /event e classifica o evento terminal
+       -> session.error                      -> recusa do provider (inclui quota)
+       -> session.idle com progresso anterior -> respondido
+       -> session.idle sem nenhum progresso   -> recusa, não sucesso
+       -> estouro de orçamento                -> timed-out
+```
+
+**Só o prompt respondido prova a credencial.** `connected` em `/provider`
+aparece com **qualquer** valor na variável, inclusive um deliberadamente
+inválido — um probe com chave inválida devolveu `connected: ["opencode",
+"openrouter"]` e `source: "env"`. Ler `/provider` sozinho seria um check verde
+que não prova nada sobre a credencial, então o relatório separa os dois fatos.
+
+Recusa do provider é categoria de erro própria, distinta de defeito do produto:
+uma quota gratuita esgotada não pode aparecer como falha de contrato. O modelo
+autorizado é o id exato, sem alias e sem fallback; se ele sair do catálogo, a
+resposta é uma decisão nova, não um segundo candidato no código. A credencial
+não é lida para o relatório, não vai a log e não passa por `argv`.
+
+**Base:** D-043 e `build/unigma/smoke-opencode-provider.ts`, que implementa este
+fluxo. A execução no runner autolocado é a prova que fecha `AC`; execução local
+não fecha.
+
 ## questões abertas por fluxo
 
 ### F-008 — contexto explícito sem índice próprio (D-038)
@@ -168,5 +263,7 @@ Sem duplicar histórico nem criar outro scheduler.
   de atualização/rollback do bundle.
 - F-007: semântica detalhada de `@`, `/`, mensagens, chips e protocolo remoto
   dormente.
+- F-010/F-011: assinatura dos eventos de projeção no runtime, reconciliação
+  pós-queda e a UI do painel (etapas `J-3` e `J-4`).
 
 Nenhuma dessas questões é resolvida por este documento.
