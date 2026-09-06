@@ -445,9 +445,34 @@ Sobre as cinco referências entregues e a
   barra de status e o painel do agente**, que podem carregar o registro de
   micro-rótulo desde que ele traga **fato verificável**: commit, versão fixada,
   run id, modelo que respondeu. Número não medido não aparece.
-- **Lettering por construção própria**, em blocos com terminais de canto
-  arredondado. `Cinderblock` sai do caminho: sem licença a verificar, sem
-  dependência, sem risco de cópia. Só o logotipo; a UI usa a fonte do sistema.
+- **Logotipo: palavra e marca — e as duas já existem no repositório.**
+  `resources/unigma/` traz o conjunto final: `unigma-lockup-dark.png` (logo +
+  wordmark), `unigma-icon-256/512.png` (marca quadrada) e as derivações de
+  plataforma. A marca é o **`U` em bloco com uma célula ativa violeta**;
+  off-white `#efeff4` e violeta `#8b5cf6`, RGBA sem fonte embutida.
+
+  **Isto corrige o que eu havia registrado.** Eu propus "construção própria de
+  lettering" sem antes procurar em `resources/`; a construção já estava feita,
+  integrada ao empacotamento e com proveniência por SHA-256 em
+  [`BRANDING-PROVENANCE.md`](../resources/unigma/BRANDING-PROVENANCE.md).
+  `Cinderblock` sai do caminho de qualquer modo, mas por outro motivo: não há o
+  que licenciar, porque o lettering não depende de face nenhuma.
+
+  Os arquivos `unigma-cipher*` e `unigma-wordmark.png` são **exploratórios** e
+  não entram em pacote; o wordmark final é o do lockup.
+
+- **`AC-012` continua bloqueado, e nada aqui o move.** A proveniência registra
+  hash e derivação; ela **não** é concessão de licença, atribuição de autoria,
+  afirmação de originalidade, clearance de marca nem avaliação de colisão. Os
+  ativos seguem impedidos de release público até essa revisão fechar. `D-046`
+  decide **como a identidade se usa**, não que ela esteja liberada.
+
+- **A célula ativa violeta é token, não enfeite.** A marca resolve com um único
+  quadrado saturado sobre campo neutro — exatamente o padrão para o qual as
+  cinco referências convergem. Proposta decorrente: o violeta `#8b5cf6` da
+  célula é a **mesma cor de ativo e foco** na interface, e o magenta fica com
+  estado (`erro`, `atenção`, `permissão pendente`). Assim o logotipo não é uma
+  peça à parte: ele mostra, em miniatura, a regra de cor do produto inteiro.
 - Nenhuma referência é ativo distribuível. A restrição de cópia de
   [`PRODUCT.md`](PRODUCT.md) continua integral.
 

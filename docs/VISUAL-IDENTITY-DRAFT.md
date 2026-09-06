@@ -135,17 +135,38 @@ foram verificados, e ela não entra antes disso.
    paleta e geometria nas de trabalho — **exceto a barra de status e o painel do
    agente**, que podem carregar o registro de micro-rótulo desde que ele traga
    fato verificável. Número não medido não aparece.
-4. **Lettering por construção própria**, em blocos com terminais de canto
-   arredondado. `Cinderblock` sai do caminho: sem licença a verificar, sem
-   dependência, sem risco de cópia. Só o logotipo; a UI usa a fonte do sistema.
+4. **Logotipo: palavra e marca, ambas já existentes.** `resources/unigma/` traz
+   o conjunto final — lockup, marca quadrada e derivações de plataforma. A marca
+   é o `U` em bloco com uma **célula ativa violeta**; `#efeff4` e `#8b5cf6`.
+   `Cinderblock` sai do caminho porque o lettering não depende de face nenhuma.
 
-## 6. o que ainda falta você responder
+   Isto corrige a §4.5 desta proposta, escrita antes de eu procurar em
+   `resources/`. A construção própria não é trabalho a fazer: está feita,
+   integrada ao empacotamento e com proveniência por SHA-256.
 
-1. **Dithering como linguagem de ilustração** (§4.3) entra para Welcome e
-   walkthrough? Não foi perguntado ainda e é a única das ideias da §4 sem
-   resposta.
-2. Os quatro fundos já nomeados eram branco, lilás, preto e roxo-escuro.
-   `D-046` diz "preto, cinza e os demais": **branco e lilás continuam na
-   matriz de temas**, ou o produto passa a ser só escuro?
-3. O logotipo por blocos: quantas letras? `unigma` inteiro, ou uma marca curta
-   que funcione em 16 px na barra de tarefas?
+   **`AC-012` continua bloqueado.** A proveniência registra hash e derivação, e
+   não é licença, autoria, originalidade nem clearance de marca. Os ativos
+   seguem impedidos de release público.
+
+5. **A célula ativa violeta é token.** A marca resolve com um quadrado saturado
+   sobre campo neutro — o mesmo padrão das cinco referências. `#8b5cf6` é a cor
+   de **ativo e foco** na interface; magenta fica com estado. O logotipo passa a
+   mostrar, em miniatura, a regra de cor do produto inteiro.
+
+6. **Dithering entra** como linguagem de ilustração para Welcome e walkthrough:
+   monocromático, tinge com o tema, escala sem borrar e não depende de licenciar
+   imagem de terceiro.
+
+7. **Os quatro temas continuam** — branco, lilás, preto e roxo-escuro — com
+   fundo neutro carregando a área em cada um. `D-046` vale dentro de todos.
+
+## 6. o que ainda falta
+
+Nada de desenho. O que resta é fora do desenho e continua bloqueado:
+
+- **`AC-012`** — autoria, direitos e não-colisão dos ativos de marca. Revisão
+  humana registrada; o executor não a substitui.
+- **paleta completa dos quatro temas**, com contraste auditado. `#efeff4` e
+  `#8b5cf6` são as duas âncoras que os ativos já fixam; o resto da rampa e o
+  magenta de estado precisam ser especificados e passar pelo auditor de
+  contraste antes de virar tema.
