@@ -76,8 +76,22 @@ máquina tem, o número é recusado com o que foi observado, em vez de publicado
 Entraram também o papel `other` — `zygote` e `utility-network-service` não
 tinham papel e sumiam de qualquer total — e a resolução de `ready-ms`, que era
 o próprio intervalo de sondagem: 500 ms para um spread de 2011 ms, agora 250 ms
-e declarada no relatório. `node --test` 14/14, `test-build-scripts` 346/346,
-eslint limpo nos três arquivos.
+e declarada no relatório. Entraram ainda
+`--disable-workspace-trust` no lançamento — o diálogo de trust segura o startup
+e sob Xvfb não há quem responda — e a escrita de `measured=absent` com a razão
+no arquivo de evidência quando a medição não acontece, porque o log do CI não é
+onde um baseline é lido depois.
+
+**E o workflow cumpria a própria intenção pela metade:** o comentário do passo
+diz que uma medição que falha não deve reter um pacote já auditado, mas sem
+`continue-on-error` a falha derrubava o job e retinha o pacote assim mesmo.
+Corrigido. Junto, dois limites de tempo que faltavam: o smoke de desktop, que é
+quem lança GUI sob Xvfb e espera, não tinha nenhum e podia segurar o runner
+compartilhado pelas quatro horas do job; e o passo de baseline tinha dez minutos
+para um trabalho que pode levar doze.
+
+`node --test` 16/16, `test-build-scripts` 346/346, eslint limpo nos três
+arquivos, YAML validado.
 
 **o que esses contratos destravaram e o que não destravaram.** Cada um termina
 com a decomposição e a lista de provas do aceite. As duas decisões humanas que ficaram na

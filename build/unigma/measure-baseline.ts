@@ -341,6 +341,12 @@ async function measureOnce(options: Options, profile: string): Promise<Run> {
 		'--disable-telemetry',
 		'--disable-experiments',
 		'--disable-updates',
+		// Part of the scenario, not a convenience: the workspace trust dialog is
+		// a first-run surface that holds startup until someone answers it, and
+		// nobody is there to answer under Xvfb. The smoke that reaches a window
+		// solves the same problem by seeding trust into shared storage. A
+		// baseline taken with this flag is not comparable to one taken without.
+		'--disable-workspace-trust',
 		// The smoke that is known to reach a window diagnoses itself from the
 		// product's own log files, not from stdout: an Electron launch says
 		// almost nothing on the pipes, and the run that produced `exit=0` with
@@ -500,6 +506,22 @@ async function main(): Promise<void> {
 		const profile = mkdtempSync(join(tmpdir(), 'unigma-baseline-'));
 		try {
 			runs.push(await measureOnce(options, profile));
+		} catch (error) {
+			// The evidence artifact has to carry the reason too. Failing with the
+			// message only on stderr leaves the uploaded logs silent about a
+			// measurement that was attempted and did not happen, and the CI log
+			// is not where a baseline is read from later.
+			const reason = error instanceof Error ? error.message : String(error);
+			const text = [
+				`scenario=${options.scenario}`,
+				'measured=absent',
+				`absent-reason=${reason.replace(/\n/g, ' ')}`
+			].join('\n') + '\n';
+			if (options.out) {
+				writeFileSync(options.out, text, 'utf8');
+			}
+			process.stdout.write(text);
+			throw error;
 		} finally {
 			rmSync(profile, { recursive: true, force: true });
 		}

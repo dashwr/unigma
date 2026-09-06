@@ -362,3 +362,60 @@ test('memory is refused when the processes do not fit in the machine', () => {
 		rmSync(root, { recursive: true, force: true });
 	}
 });
+
+test('a failed measurement writes the reason into the evidence file too', () => {
+	const root = mkdtempSync(join(tmpdir(), 'unigma-baseline-test-'));
+	try {
+		const executable = join(root, 'unigma');
+		mkdirSync(join(root, 'resources', 'app'), { recursive: true });
+		writeFileSync(join(root, 'resources', 'app', 'product.json'), JSON.stringify({ applicationName: 'unigma' }));
+		writeFileSync(executable, [
+			'#!/usr/bin/env node',
+			'const argv = process.argv.slice(2);',
+			'if (argv.includes("--status")) { process.stdout.write("Version: stand-in\\n"); process.exit(0); }',
+			'setTimeout(() => { }, 60000);'
+		].join('\n') + '\n');
+		chmodSync(executable, 0o700);
+
+		const out = join(root, 'report.txt');
+		const result = run(['--exe', executable, '--scenario', 'clean-profile', '--repeat', '1', '--timeout', '3000', '--out', out]);
+		assert.equal(result.status, 1);
+		// The CI log is not where a baseline is read from later; the uploaded
+		// evidence has to say a measurement was attempted and why it did not
+		// happen, in the same shape a blocked scenario uses.
+		const report = readFileSync(out, 'utf8');
+		assert.match(report, /^scenario=clean-profile$/m);
+		assert.match(report, /^measured=absent$/m);
+		assert.match(report, /^absent-reason=.*did not report a renderer/m);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test('the launch disables the trust dialog, which would hold startup under Xvfb', () => {
+	const root = mkdtempSync(join(tmpdir(), 'unigma-baseline-test-'));
+	try {
+		const executable = join(root, 'unigma');
+		const seen = join(root, 'args.txt');
+		mkdirSync(join(root, 'resources', 'app'), { recursive: true });
+		writeFileSync(join(root, 'resources', 'app', 'product.json'), JSON.stringify({ applicationName: 'unigma' }));
+		writeFileSync(executable, [
+			'#!/usr/bin/env node',
+			'const { writeFileSync } = require("node:fs");',
+			'const argv = process.argv.slice(2);',
+			'if (argv.includes("--status")) {',
+			`\tprocess.stdout.write(${JSON.stringify(REAL_STATUS_TABLE)} + "\\n");`,
+			'\tprocess.exit(0);',
+			'}',
+			`writeFileSync(${JSON.stringify(seen)}, argv.join("\\n"));`,
+			'setTimeout(() => { }, 60000);'
+		].join('\n') + '\n');
+		chmodSync(executable, 0o700);
+
+		const result = run(['--exe', executable, '--scenario', 'clean-profile', '--repeat', '1', '--timeout', '20000']);
+		assert.equal(result.status, 0, result.stderr);
+		assert.match(readFileSync(seen, 'utf8'), /^--disable-workspace-trust$/m);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});

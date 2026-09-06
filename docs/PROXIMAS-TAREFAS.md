@@ -200,8 +200,32 @@ primeiro `ready-ms` medido até a janela.
    observado 2011 ms — um quinto do spread era o próprio instrumento. Passou a
    250 ms, e o valor entra no relatório como `ready-resolution-ms`.
 
-Verificação local: `node --test` 14/14, `test-build-scripts` 346/346, eslint
-limpo em `diagnosticsService.ts` e nos dois arquivos do harness.
+5. **`--disable-workspace-trust` no lançamento.** O diálogo de trust é uma
+   superfície de primeira execução que segura o startup até alguém responder, e
+   sob Xvfb não há ninguém. O smoke resolve o mesmo problema semeando trust em
+   shared storage. É parte da definição do cenário: baseline com a flag não é
+   comparável a baseline sem ela.
+6. **Falha de medição passa a escrever evidência.** Antes, uma medição que não
+   acontecia deixava o motivo só no stderr do CI, e o artefato subia silencioso
+   sobre ela. Agora o `--out` recebe `measured=absent` com a razão, na mesma
+   forma que um cenário bloqueado já usava — o log do CI não é onde um baseline
+   é lido depois.
+7. **O workflow cumpria sua própria intenção pela metade.** O comentário do
+   passo diz que “uma medição que falha não deve reter um pacote que já passou
+   auditoria e smoke”, mas sem `continue-on-error` a falha derrubava o job e o
+   pacote era retido do mesmo jeito. Corrigido; o passo continua reportando a
+   própria falha e o relatório continua subindo com a evidência.
+8. **Dois limites de tempo.** O smoke de desktop não tinha `timeout-minutes` —
+   é justamente o passo que lança GUI sob Xvfb e espera, e o limite do job
+   deixaria um smoke sem janela segurar o runner compartilhado por quatro horas;
+   agora são 30 minutos. E o passo de baseline passou de 10 para 15, porque dois
+   cenários de três repetições podem esperar até dois minutos cada por uma
+   janela, e um passo morto pelo próprio limite não reporta nada, enquanto o
+   harness com folga reporta quais papéis viu.
+
+Verificação local: `node --test` 16/16, `test-build-scripts` 346/346, eslint
+limpo em `diagnosticsService.ts` e nos dois arquivos do harness; YAML do
+workflow validado.
 
 **Instrumentação aplicada antes disso, e foi ela que entregou a causa:** o
 lançamento passou a usar `--log=trace` como o smoke, e as duas mensagens de

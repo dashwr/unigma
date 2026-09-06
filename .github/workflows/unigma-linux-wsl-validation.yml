@@ -329,7 +329,11 @@ jobs:
           Remove-Item -Force $scriptPath -ErrorAction SilentlyContinue
           if ($exitCode -ne 0) { exit $exitCode }
 
+      # Bounded because this is the step that launches a GUI under Xvfb and waits
+      # for it: the job's own 240 minute limit would let a smoke that never gets
+      # a window hold the shared self-hosted runner for four hours.
       - name: run Linux desktop smoke test in WSL
+        timeout-minutes: 30
         run: |
           $scriptPath = Join-Path $env:RUNNER_TEMP 'unigma-wsl-smoke.sh'
           $script = @'
@@ -397,9 +401,21 @@ jobs:
       # Runs after the artifact is published on purpose: a baseline is a
       # measurement, not a gate, and a measurement that fails must not withhold
       # a package that already passed the audit and the smoke.
+      #
+      # That intent was written here and not implemented: without
+      # continue-on-error a failed measurement still failed the job, so the
+      # package it was not supposed to withhold was withheld anyway. The step
+      # still reports its own failure, and the report it writes is uploaded with
+      # the rest of the evidence, so a broken baseline stays visible without
+      # turning a validated build red.
+      # Fifteen, not ten: two scenarios of three repetitions each can wait up to
+      # two minutes apiece for a window, and a step killed by its own limit
+      # reports nothing, while the harness given room to time out reports which
+      # roles it saw.
       - name: measure startup baseline in WSL
         if: success()
-        timeout-minutes: 10
+        continue-on-error: true
+        timeout-minutes: 15
         run: |
           $scriptPath = Join-Path $env:RUNNER_TEMP 'unigma-wsl-baseline.sh'
           $script = @'
