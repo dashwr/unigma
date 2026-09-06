@@ -1622,6 +1622,16 @@ errada: `RQ-103`/`RQ-104` recusam o produto como custodiante de credencial.
 
 ### T-070 — criar instrumentação de baseline
 
+> parcial em 2026-09-06, run `34047514749`: com cinco repetições, `ready-probes`
+> deu 3/3 — todas as execuções usaram o mesmo número de sondas, então o spread
+> não mede o produto — e a resolução observada é 2596 ms. Uma medição de 6408 ms
+> com ±2596 ms não sustenta comparação nem regressão. A sonda relança o Electron
+> inteiro para perguntar `--status`, e esse lançamento é ~2,3 s do intervalo: o
+> instrumento pesa quase metade do que mede. Caminho aberto: prontidão pelo log
+> do produto, como o smoke faz, com `--status` uma vez só no fim. `idle-folder`
+> falhou no mesmo run e foi reportado como ausente com a razão; causa não
+> estabelecida. Detalhe em `status/EVIDENCE.md`.
+
 - **objetivo:** medir startup, RSS por processo e CPU nos perfis limpo, idle,
   streaming e SSH, por plataforma.
 - **responsável lógico:** performance/QA.

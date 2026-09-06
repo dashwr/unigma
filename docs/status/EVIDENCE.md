@@ -459,3 +459,52 @@ não prova:       **o `spread` não é medida de variância do produto.** Cada s
                  Também não prova cenário de agente nem de SSH, ambos ausentes
                  por dependência declarada, nem qualquer comparação com outra
                  máquina ou plataforma.
+
+### baseline com cinco repetições — o instrumento é grosso demais — 2026-09-06
+
+data:            2026-09-06
+tarefa/gate:     `T-070` — baseline por cenário
+run id:          `34047514749`
+workflow:        `unigma-linux-wsl-validation.yml`
+commit/head:     `d7598717954336853741114c9505d69e7c1b53f5`
+resultado:       job verde; `clean-profile` mediu, `idle-folder` falhou e foi
+                 reportado como ausente com a razão
+
+`clean-profile`, 5 repetições:
+
+| campo | valor |
+| --- | --- |
+| `ready-ms.median` | 6408 |
+| `ready-ms.min` / `max` | 5376 / 7402 |
+| `ready-ms.spread` | 2026 |
+| `ready-probes.min` / `max` | **3 / 3** |
+| `ready-resolution-ms` | **2596** |
+
+prova:           a hipótese da quantização está confirmada. As cinco execuções
+                 precisaram **exatamente do mesmo número de sondas**, então o
+                 spread não mede consistência do produto; mede onde, dentro de
+                 um mesmo intervalo, a janela apareceu.
+não prova:       **estes números não servem como baseline de inicialização.** O
+                 intervalo real entre sondas é 2596 ms, dez vezes o que o run
+                 anterior publicou como resolução. Uma medição de 6408 ms com
+                 incerteza de ±2596 ms não sustenta comparação, regressão nem
+                 otimização. A causa é o desenho da sonda: cada uma **relança o
+                 executável Electron inteiro** para perguntar `--status`, e esse
+                 lançamento é ~2,3 s dos 2,6 s de intervalo. O instrumento pesa
+                 quase metade do que mede.
+
+`idle-folder`: `measured=absent`. O produto encerrou antes de responder, com
+`Lifecycle#kill()` 5 ms depois de o file watcher iniciar e
+`connect ENOENT /run/user/1000/vscode-<hash>-main.sock` no mesmo milissegundo.
+O mesmo cenário mediu no run `34045994035` com 3 repetições; aqui falhou na
+primeira repetição, depois de 5 repetições de `clean-profile` em sucessão. A
+causa **não está estabelecida**; a suspeita é o encerramento da repetição
+anterior, que espera 2 s fixos e não a morte da árvore de processos. Não tratar
+como diagnosticado.
+
+o que funcionou:  todos os mecanismos adicionados neste dia fizeram o que foram
+                 escritos para fazer. A falha virou `measured=absent` com razão
+                 no arquivo de evidência em vez de só no log do CI; o
+                 `continue-on-error` impediu que uma medição derrubasse um pacote
+                 já auditado; e `ready-probes` tornou a quantização legível em
+                 vez de deixá-la passar por precisão.

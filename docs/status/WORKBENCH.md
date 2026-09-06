@@ -81,7 +81,30 @@ ser medida por observação e o relatório carrega a ressalva. Foi o quarto defe
 do dia da mesma família — um número ou uma string que descrevia a intenção em vez
 do que acontecia.
 
-**Lote que produziu esse resultado.** A dupla conversão de memória foi corrigida
+**2026-09-06, run `34047514749` — a quantização está confirmada e o instrumento
+é grosso demais.** Com cinco repetições, as cinco precisaram **exatamente do
+mesmo número de sondas** (`ready-probes` 3/3): o spread não mede consistência do
+produto. E a resolução medida por observação deu **2596 ms**, dez vezes o que eu
+havia publicado. Uma medição de 6408 ms com incerteza de ±2596 ms não sustenta
+comparação, regressão nem otimização.
+
+A causa é o desenho da sonda: cada uma **relança o executável Electron inteiro**
+para perguntar `--status`, e esse lançamento é ~2,3 s dos 2,6 s de intervalo. O
+instrumento pesa quase metade do que mede. O caminho é o que o smoke já faz —
+ler o log do próprio produto, que custa ~zero — e usar `--status` uma única vez
+no fim, só para a tabela de processos.
+
+`idle-folder` falhou nesse run (`measured=absent`), com `Lifecycle#kill()` 5 ms
+após o file watcher iniciar e `connect ENOENT` no socket principal. O mesmo
+cenário mediu com 3 repetições no run anterior. **Causa não estabelecida**;
+suspeita é o encerramento da repetição anterior esperar 2 s fixos em vez da
+morte da árvore. Não está diagnosticado.
+
+O que funcionou: os três mecanismos do dia. A falha virou evidência escrita em
+vez de log de CI; o `continue-on-error` impediu que uma medição derrubasse um
+pacote já auditado; e `ready-probes` tornou a quantização legível.
+
+**Lote que produziu o resultado anterior.** A dupla conversão de memória foi corrigida
 no produto: `ProcessItem.mem` já é bytes em toda plataforma, e
 `formatProcessItem` aplicava a conversão do `ps` uma segunda vez — o Process
 Explorer sempre leu o campo certo, então só a coluna do `--status` estava
