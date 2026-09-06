@@ -38,13 +38,27 @@ fixture que dependa dele testa outra coisa; e `GET /path` pode devolver
 Também registrado: `/usr/bin/opencode` desta máquina **deriva** para `1.18.25`.
 O probe usou a cópia `1.18.23` preservada em snapshot, conferida por SHA-256.
 
-**2026-09-06 — T-071 ganhou diagnóstico, não número.** A comparação de flags
-pedida pela fila foi feita: o smoke que abre janela lê os logs do produto e
-semeia workspace trust, e nunca chama `--status`; o baseline não faz nenhuma das
-três coisas. O harness passou a tracejar e a citar a cauda dos logs do produto
-nas duas mensagens de falha, com dois testes reproduzindo a forma do run
-`33950524239`. Trust e a confiabilidade de `--status` sob Xvfb ficam como
-hipóteses nomeadas, não como causa. Continua sem baseline numérico.
+**2026-09-06 — T-071: o baseline media o produto errado, e a causa é embaraçosa.**
+O harness esperava a string `Process Info` para decidir que o produto estava
+pronto. O produto nunca a imprime: ela é um **comentário** em
+`electron-main/main.ts:435`. O cabeçalho real da tabela é
+`CPU %\tMem MB\t   PID\tProcess`. Ou seja, o harness não podia ter sucesso em
+run nenhum, e todo `exit=0 sem Process Info` era o produto respondendo
+corretamente — o run `34036136102` mostra a tabela inteira dentro da própria
+mensagem de falha, com janela, shared process, file watcher e extension host
+vivos.
+
+Minhas duas hipóteses anteriores — modal de trust e `--status` não confiável sob
+Xvfb — estavam erradas. O que as derrubou foi a instrumentação da rodada
+anterior, que passou a citar a saída do `--status` na falha.
+
+Dois defeitos irmãos apareceram na mesma leitura: os papéis de processo usavam
+nomes de módulo que não existem na saída (`main`, `extensionHost`, `ptyHost`) e
+fundiam extension host com shared process; e a coluna de memória é escalada por
+`totalmem()/100` **duas vezes** (`ps.ts:29` e `diagnosticsService.ts:554`), logo
+não é megabyte. Os três foram corrigidos, e a memória passou a ser recusada com
+a trilha de arquivos no relatório em vez de publicada. Continua sem baseline
+numérico até o próximo run — mas agora por falta de run, não por defeito.
 
 **o que esses contratos destravaram e o que não destravaram.** Cada um termina
 com a decomposição e a lista de provas do aceite. As duas decisões humanas que ficaram na

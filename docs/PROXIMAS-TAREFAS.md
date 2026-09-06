@@ -126,21 +126,50 @@ run `33950524239`. As diferenças materiais:
 | janela | sem `--new-window` | `--new-window` |
 | diagnóstico na falha | os logs do produto | stdout/stderr, que naquele run vieram vazios |
 
-Duas hipóteses saem daí, e **nenhuma delas é conclusão**: o smoke precisou semear
-trust para chegar a uma janela, e o baseline não semeia — em `idle-folder`, que
-abre `$build`, um modal de trust seguraria o startup e produziria exatamente
-`exit=0` sem `Process Info`; e `--status` é um caminho que o smoke nunca exercita,
-então sua confiabilidade sob Xvfb neste produto não tem prova nenhuma.
+Duas hipóteses saíram daí — modal de trust segurando o startup, e `--status` não
+sendo confiável sob Xvfb. **As duas estavam erradas**, e o log do run
+`34036136102` mostrou por quê: `--status` respondeu `exit=0` **com a tabela de
+processos completa** (`unigma`, `zygote`, `window [1] (unigma)`,
+`utility-network-service`, `shared-process`, `file-watcher [1]`,
+`extension-host [1]`). A janela abriu. Quem não reconheceu foi o harness.
 
-**Instrumentação aplicada em 2026-09-06** (`measure-baseline.ts`): o lançamento
-passou a usar `--log=trace` como o smoke, e as duas mensagens de falha — saída
-prematura e timeout — passaram a citar a cauda dos logs do próprio produto, com
-os três arquivos mais recentes. Antes disso a falha era um cronômetro dizendo
-apenas “não”. Dois testes novos reproduzem a forma exata do run `33950524239` —
-`--status` respondendo `exit=0` com cabeçalho e sem `Process Info` — e exigem que
-a mensagem carregue o log. `node --test`: 9/9 local; `eslint` limpo nos dois
-arquivos. **Isso é diagnóstico local e não fecha nada**: o próximo run do
-workflow Linux dirá qual das hipóteses é a causa, ou nomeará uma terceira.
+**Causa raiz, com trilha de código.** `STATUS_READY` era `/Process Info/`, e o
+produto **nunca imprime essa string**: ela existe apenas como comentário em
+`src/vs/code/electron-main/main.ts:435`. O cabeçalho real é
+`CPU %\tMem MB\t   PID\tProcess`, de
+`DiagnosticsService.formatProcessList`. O harness procurava um comentário do
+fonte, então **não podia ter sucesso em nenhum run, nunca** — e o que ele
+reportava como “o produto não respondeu” era o produto respondendo.
+
+**Dois defeitos irmãos, achados na mesma leitura:**
+
+1. **Os nomes de papel também eram do módulo, não da saída.** `main`,
+   `extensionHost` e `ptyHost` não aparecem em lugar nenhum de `--status`; o
+   processo principal é a linha com o `applicationName` do `product.json`, e o
+   extension host chama-se `extension-host [1]`. Pior, o mapa antigo casava
+   extension host e shared process no mesmo papel — exatamente a fusão silenciosa
+   que o comentário dele dizia impedir.
+2. **A coluna de memória não é megabyte.** `src/vs/base/node/ps.ts:29` já
+   converte o percentual do `ps` em bytes (`totalMemory * (mem / 100)`), e
+   `diagnosticsService.ts:554` aplica **a mesma conversão de novo** antes de
+   dividir por um megabyte. O valor é escalado por `totalmem()/100` duas vezes.
+   Publicar isso como baseline seria inventar número, que é o que este harness
+   existe para recusar.
+
+**Correções aplicadas em 2026-09-06:** o cabeçalho real como sinal de prontidão;
+papéis renomeados para os nomes que o produto imprime, com `shared-process` e
+`file-watcher` separados e o processo principal resolvido pelo `applicationName`
+do pacote; e a memória **não publicada**, com o motivo e a trilha de arquivos no
+próprio relatório. `ready-ms`, presença e CPU continuam. Quatro testes novos
+usam a tabela real do run `34036136102` — o harness anterior não passaria em
+nenhum deles. Local: `node --test` 11/11, `test-build-scripts` 343/343, eslint
+limpo. **Falta o run** que produza o primeiro relatório com processo vivo.
+
+**Instrumentação aplicada antes disso, e foi ela que entregou a causa:** o
+lançamento passou a usar `--log=trace` como o smoke, e as duas mensagens de
+falha passaram a citar a cauda dos logs do produto. A mensagem de timeout já
+citava a saída do `--status`, e foi lendo a tabela dentro dela que o defeito
+apareceu.
 
 
 

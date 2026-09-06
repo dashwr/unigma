@@ -22,19 +22,53 @@ import { join, resolve } from 'node:path';
 
 /** A row of `--status`: `CPU %`, `Mem MB`, `PID`, `Process`. */
 const PROCESS_ROW = /^\s*([0-9]+(?:\.[0-9]+)?)\s+([0-9]+(?:\.[0-9]+)?)\s+([0-9]+)\s+(.+?)\s*$/;
-const STATUS_READY = /Process Info/;
 
 /**
- * The four process roles the baseline has to separate. `--status` names them
- * differently from the command line, so the mapping is explicit: a rename
- * upstream should break this loudly instead of silently merging two roles.
+ * The header the product actually prints above the process table, from
+ * `DiagnosticsService.formatProcessList`.
+ *
+ * This used to be `/Process Info/`, which the product never prints: that string
+ * exists only as a source comment in `electron-main/main.ts`. The harness was
+ * therefore unable to succeed on any run, and reported every launch as one that
+ * "did not answer --status" while `--status` was answering with a full process
+ * table. Matching the header by its columns keeps a rename upstream loud.
+ */
+const STATUS_READY = /CPU %\s+Mem MB\s+PID\s+Process/;
+
+/**
+ * The process roles the baseline separates, named as `--status` actually names
+ * them. The previous mapping was written from the module names — `main`,
+ * `extensionHost`, `ptyHost` — and none of the three appears in the output: run
+ * `34036136102` printed `unigma`, `zygote`, `window [1] (unigma)`,
+ * `utility-network-service`, `shared-process`, `file-watcher [1]` and
+ * `extension-host [1]`. It also merged the extension host with the shared
+ * process into one row, which is exactly the silent merge the mapping is
+ * supposed to prevent.
+ *
+ * The main process is the row named after `applicationName`, so it is resolved
+ * from the package rather than hard-coded.
  */
 const ROLES: ReadonlyArray<{ readonly role: string; readonly match: RegExp }> = [
-	{ role: 'main', match: /^main$/ },
 	{ role: 'renderer', match: /^window\b/ },
-	{ role: 'extension-host', match: /extensionHost|shared-process/ },
-	{ role: 'pty-host', match: /ptyHost/ }
+	{ role: 'extension-host', match: /^extension-host\b/ },
+	{ role: 'shared-process', match: /^shared-process\b/ },
+	{ role: 'pty-host', match: /^pty-host\b/ },
+	{ role: 'file-watcher', match: /^file-watcher\b/ }
 ];
+
+/**
+ * Why the memory column of `--status` is not published as a baseline number.
+ *
+ * `ps.ts` already turns the percentage `ps` reports into bytes
+ * (`totalMemory * (mem / 100)`), and `DiagnosticsService.formatProcessItem`
+ * then applies the very same conversion to that result before dividing by a
+ * megabyte. The column is scaled by `totalmem() / 100` twice, so it is not a
+ * memory figure in any unit. A baseline that published it would be inventing a
+ * number, which is the one thing this harness exists to refuse.
+ *
+ * Presence and CPU are unaffected and stay in the report.
+ */
+const MEMORY_UNREPORTED = 'unreported: the --status memory column is scaled by totalmem()/100 twice (src/vs/base/node/ps.ts and src/vs/platform/diagnostics/node/diagnosticsService.ts), so it is not megabytes';
 
 type ScenarioName = 'clean-profile' | 'idle-folder' | 'agent-session' | 'ssh-session';
 
@@ -62,6 +96,7 @@ interface Run {
 
 interface Options {
 	readonly executable: string;
+	readonly applicationName: string;
 	readonly scenario: ScenarioName;
 	readonly repeat: number;
 	readonly folder?: string;
@@ -117,8 +152,12 @@ function parseOptions(argv: readonly string[]): Options {
 		fail('scenario idle-folder needs --folder');
 	}
 
+	const resolved = resolve(executable);
 	return {
-		executable: resolve(executable),
+		executable: resolved,
+		// The main process row is named after `applicationName`; reading it from
+		// the package keeps a rebranded build from losing its own main process.
+		applicationName: productField(resolve(resolved, '..'), 'applicationName', 'unigma'),
 		scenario,
 		repeat,
 		folder: folder ? resolve(folder) : undefined,
@@ -127,7 +166,10 @@ function parseOptions(argv: readonly string[]): Options {
 	};
 }
 
-function roleOf(processName: string): string {
+function roleOf(processName: string, applicationName: string): string {
+	if (processName === applicationName) {
+		return 'main';
+	}
 	for (const { role, match } of ROLES) {
 		if (match.test(processName)) {
 			return role;
@@ -136,7 +178,7 @@ function roleOf(processName: string): string {
 	return 'other';
 }
 
-function parseStatus(text: string): ProcessSample[] {
+function parseStatus(text: string, applicationName: string): ProcessSample[] {
 	const samples: ProcessSample[] = [];
 	let inTable = false;
 	for (const line of text.split(/\r?\n/)) {
@@ -156,7 +198,7 @@ function parseStatus(text: string): ProcessSample[] {
 			memoryMb: Number(row[2]),
 			pid: Number(row[3]),
 			process: row[4],
-			role: roleOf(row[4])
+			role: roleOf(row[4], applicationName)
 		});
 	}
 	return samples;
@@ -307,7 +349,7 @@ async function measureOnce(options: Options, profile: string): Promise<Run> {
 			lastCode = status.status;
 			lastOutput = `${status.stdout ?? ''}${status.stderr ?? ''}`;
 			if (status.status === 0 && STATUS_READY.test(status.stdout ?? '')) {
-				const samples = parseStatus(status.stdout);
+				const samples = parseStatus(status.stdout, options.applicationName);
 				if (samples.length > 0) {
 					return { readyMs: Date.now() - started, samples };
 				}
@@ -339,16 +381,16 @@ function spread(values: readonly number[]): number {
 	return Math.max(...values) - Math.min(...values);
 }
 
-function commitOf(executableDir: string): string {
+function productField(executableDir: string, field: string, fallback: string): string {
 	const product = join(executableDir, 'resources', 'app', 'product.json');
 	if (!existsSync(product)) {
-		return 'unknown';
+		return fallback;
 	}
 	try {
 		const parsed = JSON.parse(readFileSync(product, 'utf8'));
-		return typeof parsed.commit === 'string' ? parsed.commit : 'unknown';
+		return typeof parsed[field] === 'string' ? parsed[field] : fallback;
 	} catch {
-		return 'unknown';
+		return fallback;
 	}
 }
 
@@ -356,7 +398,8 @@ function report(options: Options, runs: readonly Run[]): string {
 	const lines: string[] = [];
 	lines.push(`scenario=${options.scenario}`);
 	lines.push(`executable=${options.executable}`);
-	lines.push(`commit=${commitOf(resolve(options.executable, '..'))}`);
+	lines.push(`commit=${productField(resolve(options.executable, '..'), 'commit', 'unknown')}`);
+	lines.push(`application-name=${options.applicationName}`);
 	lines.push(`platform=${platform()}-${process.arch}`);
 	lines.push(`os-release=${release()}`);
 	lines.push(`host=${hostname()}`);
@@ -368,14 +411,15 @@ function report(options: Options, runs: readonly Run[]): string {
 	lines.push(`ready-ms.median=${median(readyValues)}`);
 	lines.push(`ready-ms.spread=${spread(readyValues)}`);
 
-	for (const { role } of ROLES) {
-		const memory = runs.map(run => run.samples.filter(sample => sample.role === role).reduce((sum, sample) => sum + sample.memoryMb, 0));
+	lines.push(`memory=${MEMORY_UNREPORTED}`);
+
+	// `main` is not in ROLES because it is matched by name from the package, not
+	// by pattern; it still has to be reported, and first.
+	for (const role of ['main', ...ROLES.map(entry => entry.role)]) {
 		const cpu = runs.map(run => run.samples.filter(sample => sample.role === role).reduce((sum, sample) => sum + sample.cpuPercent, 0));
-		const present = memory.some(value => value > 0);
+		const present = runs.some(run => run.samples.some(sample => sample.role === role));
 		lines.push(`process.${role}.present=${present ? 'yes' : 'no'}`);
 		if (present) {
-			lines.push(`process.${role}.memory-mb.median=${median(memory)}`);
-			lines.push(`process.${role}.memory-mb.spread=${spread(memory)}`);
 			lines.push(`process.${role}.cpu-percent.median=${median(cpu)}`);
 		}
 	}

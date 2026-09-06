@@ -5,7 +5,7 @@
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
@@ -168,6 +168,95 @@ test('a launch that dies carries the product log too', () => {
 		assert.equal(result.status, 1);
 		assert.match(result.stderr, /exited before it answered --status/);
 		assert.match(result.stderr, /product logs: main\.log: refused the profile/);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+/**
+ * The process table `--status` really prints, copied from run `34036136102`.
+ * The header is the product's own, not the `Process Info` string the harness
+ * used to look for, and the names are the ones the product uses rather than the
+ * module names. Keeping the real shape here is what makes this a regression
+ * test: the previous harness could not succeed against it.
+ */
+const REAL_STATUS_TABLE = [
+	'Version:          unigma 1.134.0',
+	'OS Version:       Linux x64 6.6.0',
+	'CPUs:             stand-in (8 x 2400)',
+	'',
+	'CPU %\tMem MB\t   PID\tProcess',
+	'    0\t   412\t 20262\tunigma',
+	'    0\t    18\t 20263\t     zygote',
+	'    3\t   289\t 20424\twindow [1] (unigma)',
+	'    0\t    41\t 20323\t   utility-network-service',
+	'    1\t   142\t 20480\tshared-process',
+	'    0\t    33\t 20481\tfile-watcher [1]',
+	'    2\t   198\t 20510\textension-host [1]'
+].join('\n');
+
+test('a product that answers --status the way the real one does is measured', () => {
+	const root = mkdtempSync(join(tmpdir(), 'unigma-baseline-test-'));
+	try {
+		const executable = join(root, 'unigma');
+		mkdirSync(join(root, 'resources', 'app'), { recursive: true });
+		writeFileSync(join(root, 'resources', 'app', 'product.json'), JSON.stringify({ applicationName: 'unigma', commit: 'stand-in-commit' }));
+		writeFileSync(executable, [
+			'#!/usr/bin/env node',
+			'const argv = process.argv.slice(2);',
+			'if (argv.includes("--status")) {',
+			`\tprocess.stdout.write(${JSON.stringify(REAL_STATUS_TABLE)} + "\\n");`,
+			'\tprocess.exit(0);',
+			'}',
+			'setTimeout(() => { }, 60000);'
+		].join('\n') + '\n');
+		chmodSync(executable, 0o700);
+
+		const out = join(root, 'report.txt');
+		const result = run(['--exe', executable, '--scenario', 'clean-profile', '--repeat', '1', '--timeout', '20000', '--out', out]);
+		assert.equal(result.status, 0, result.stderr);
+		const report = readFileSync(out, 'utf8');
+
+		assert.match(report, /commit=stand-in-commit/);
+		assert.match(report, /application-name=unigma/);
+		assert.match(report, /ready-ms\.median=[0-9]+/);
+		// Every role the real table contains has to be found, and the main
+		// process is the row named after applicationName rather than "main".
+		for (const role of ['main', 'renderer', 'extension-host', 'shared-process', 'file-watcher']) {
+			assert.ok(report.includes(`process.${role}.present=yes`), `${role} missing from:\n${report}`);
+		}
+		assert.match(report, /process\.pty-host\.present=no/);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test('the report refuses to publish the --status memory column as megabytes', () => {
+	const root = mkdtempSync(join(tmpdir(), 'unigma-baseline-test-'));
+	try {
+		const executable = join(root, 'unigma');
+		mkdirSync(join(root, 'resources', 'app'), { recursive: true });
+		writeFileSync(join(root, 'resources', 'app', 'product.json'), JSON.stringify({ applicationName: 'unigma' }));
+		writeFileSync(executable, [
+			'#!/usr/bin/env node',
+			'const argv = process.argv.slice(2);',
+			'if (argv.includes("--status")) {',
+			`\tprocess.stdout.write(${JSON.stringify(REAL_STATUS_TABLE)} + "\\n");`,
+			'\tprocess.exit(0);',
+			'}',
+			'setTimeout(() => { }, 60000);'
+		].join('\n') + '\n');
+		chmodSync(executable, 0o700);
+
+		const out = join(root, 'report.txt');
+		const result = run(['--exe', executable, '--scenario', 'clean-profile', '--repeat', '1', '--timeout', '20000', '--out', out]);
+		assert.equal(result.status, 0, result.stderr);
+		const report = readFileSync(out, 'utf8');
+
+		assert.match(report, /^memory=unreported: .*twice/m);
+		// `total-memory-mb` is the machine's, not the product's; no process row
+		// may carry a megabyte figure.
+		assert.doesNotMatch(report, /process\..*memory-mb/);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}

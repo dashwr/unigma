@@ -1680,8 +1680,24 @@ estiverem medidos, `T-071` não começa — publicar baseline parcial como se fo
 
 ### T-071 — publicar baseline inicial
 
-> parcial em 2026-09-06: a comparação de flags pedida pela fila foi feita por
-> leitura de código. O smoke que abre janela lê os logs do produto e semeia
+> parcial em 2026-09-06 — **causa raiz encontrada**: o harness procurava
+> `Process Info`, string que o produto nunca imprime (só existe como comentário
+> em `electron-main/main.ts:435`); o cabeçalho real é `CPU %\tMem MB\t   PID\t
+> Process`. O run `34036136102` mostrou `--status` respondendo `exit=0` com a
+> tabela completa: a janela abria e o harness não reconhecia. Ele não podia ter
+> sucesso em nenhum run. Junto vieram dois defeitos irmãos: os papéis usavam
+> nomes de módulo (`main`, `extensionHost`, `ptyHost`) que não existem na saída e
+> fundiam extension host com shared process; e a coluna de memória é escalada
+> por `totalmem()/100` duas vezes (`ps.ts:29` e `diagnosticsService.ts:554`),
+> logo não é megabyte e não pode ser publicada. Corrigidos os três: cabeçalho
+> real, papéis pelos nomes impressos com o principal resolvido pelo
+> `applicationName` do pacote, e memória não publicada com a trilha no relatório.
+> Quatro testes usam a tabela real do run; local `node --test` 11/11,
+> `test-build-scripts` 343/343, eslint limpo. Falta o run que produza o primeiro
+> relatório com processo vivo.
+
+> parcial anterior em 2026-09-06: a comparação de flags pedida pela fila foi
+> feita por leitura de código. O smoke que abre janela lê os logs do produto e semeia
 > workspace trust; o baseline não faz nem uma coisa nem outra e depende de uma
 > segunda invocação com `--status`, caminho que nenhum smoke exercita. O harness
 > passou a lançar com `--log=trace` e a citar a cauda dos logs do produto nas
