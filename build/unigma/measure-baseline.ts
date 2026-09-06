@@ -19,6 +19,7 @@ import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { hostname, platform, release, tmpdir, totalmem } from 'node:os';
 import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 /** A row of `--status`: `CPU %`, `Mem MB`, `PID`, `Process`. */
 const PROCESS_ROW = /^\s*([0-9]+(?:\.[0-9]+)?)\s+([0-9]+(?:\.[0-9]+)?)\s+([0-9]+)\s+(.+?)\s*$/;
@@ -141,6 +142,8 @@ interface Run {
 	 * log carries no parseable timestamp.
 	 */
 	readonly logReadyMs?: number;
+	/** The renderer enumeration probe, or the reason it could not run. */
+	readonly rendererProbe?: RendererProbe | string;
 }
 
 interface Options {
@@ -433,6 +436,126 @@ const READY_MARKER_NOTE = 'log marker, not --status polling';
  */
 const POLL_SLEEP_MS = 100;
 
+
+/**
+ * Why the process table has no window row, measured instead of guessed.
+ *
+ * Run `34052368433` logged a ready window in every repetition and then printed
+ * a table with no `window` line. A read of the source narrowed the cause to a
+ * single point without settling it:
+ *
+ * - the row can only come from two places, and **both require the renderer PID
+ *   to be a node of the tree `listProcesses(mainPID)` returns** —
+ *   `diagnosticsService.ts:525` renames it from `info.windows`, and `findName`
+ *   at `ps.ts:69` falls back to the literal `window` for `--type=renderer`.
+ *   `formatProcessItem` only prints nodes already in the tree, so the absence
+ *   of both forms means the PID is not in the tree, not that it was misnamed.
+ * - the tree is fragile by construction: `addToTree` (`ps.ts:21-24`) keeps a
+ *   process only if it is the root or if its `ppid` is **already in the map**
+ *   when its line is read, in the order `ps` happened to print. A process whose
+ *   parent is not in the tree, or whose line arrives before its parent's, is
+ *   dropped in silence along with its whole subtree.
+ * - two earlier hypotheses are refuted. Not Xvfb: `getAllWindowsExcludingOffscreen`
+ *   only filters `info.windows`, and a filtered window would still print as
+ *   `window` through `findName`. Not collection timing: `setReady` is only
+ *   reached from an IPC the workbench sends from inside the renderer, and the
+ *   `--status` call comes after it.
+ *
+ * What remains is enumeration, and this probe measures it. It runs the exact
+ * command `ps.ts:223` runs and reports three facts, each of which eliminates a
+ * different possibility. It reads; it changes nothing.
+ *
+ * **Nothing here is published raw.** No PID, no command line, no path — a
+ * renderer's argv carries the workspace. Only counts and categories.
+ */
+const PS_ARGS = ['-ax', '-o', 'pid=,ppid=,pcpu=,pmem=,command='];
+
+export interface RendererProbe {
+	/** How many processes carry `--type=renderer`. Zero means there is no renderer to find. */
+	readonly renderers: number;
+	/**
+	 * Whether each renderer's `ppid` chain reaches the launched process.
+	 * `out-of-tree` is the reparenting case; `in-tree` means the chain is
+	 * intact and the drop happened for another reason.
+	 */
+	readonly parentage: 'in-tree' | 'out-of-tree' | 'mixed' | 'no-renderer';
+	/**
+	 * Whether every renderer line appears **after** its parent's line. `ps.ts`
+	 * builds the tree in one pass, so a child printed before its parent is
+	 * discarded even when the chain is perfectly valid. This is the one fact
+	 * that tests the ordering dependency directly.
+	 */
+	readonly ordering: 'after-parent' | 'before-parent' | 'parent-absent' | 'no-renderer';
+}
+
+interface PsRow { readonly pid: number; readonly ppid: number; readonly index: number; readonly renderer: boolean }
+
+/** Parses the same output `parsePsOutput` reads, keeping only what the probe reports on. */
+export function parsePsRows(stdout: string): readonly PsRow[] {
+	const rows: PsRow[] = [];
+	for (const line of stdout.split('\n')) {
+		const match = /^\s*([0-9]+)\s+([0-9]+)\s+[0-9.]+\s+[0-9.]+\s+(.*)$/.exec(line);
+		if (!match) {
+			continue;
+		}
+		rows.push({ pid: Number(match[1]), ppid: Number(match[2]), index: rows.length, renderer: match[3].includes('--type=renderer') });
+	}
+	return rows;
+}
+
+/** Answers the three questions from the rows, without quoting any of them. */
+export function inspectRenderers(rows: readonly PsRow[], rootPid: number): RendererProbe {
+	const byPid = new Map(rows.map(row => [row.pid, row]));
+	const renderers = rows.filter(row => row.renderer);
+	if (renderers.length === 0) {
+		return { renderers: 0, parentage: 'no-renderer', ordering: 'no-renderer' };
+	}
+	const reaches = (row: PsRow): boolean => {
+		const seen = new Set<number>();
+		let current: PsRow | undefined = row;
+		while (current && !seen.has(current.pid)) {
+			if (current.pid === rootPid) {
+				return true;
+			}
+			seen.add(current.pid);
+			current = byPid.get(current.ppid);
+		}
+		return false;
+	};
+	const inTree = renderers.filter(reaches).length;
+	const parentage = inTree === renderers.length ? 'in-tree' : inTree === 0 ? 'out-of-tree' : 'mixed';
+
+	let ordering: RendererProbe['ordering'] = 'after-parent';
+	for (const renderer of renderers) {
+		const parent = byPid.get(renderer.ppid);
+		if (!parent) {
+			ordering = 'parent-absent';
+			break;
+		}
+		if (parent.index > renderer.index) {
+			ordering = 'before-parent';
+			break;
+		}
+	}
+	return { renderers: renderers.length, parentage, ordering };
+}
+
+/** Runs the probe. Any failure is reported as such, never as an absent renderer. */
+function probeRenderers(rootPid: number): RendererProbe | string {
+	if (platform() === 'win32') {
+		return 'unreported: the probe reads the same ps output ps.ts reads, which is not the Windows path';
+	}
+	const result = spawnSync('ps', PS_ARGS, { encoding: 'utf8', timeout: 15000, env: { ...process.env, LC_NUMERIC: 'en_US.UTF-8' } });
+	if (result.status !== 0 || typeof result.stdout !== 'string') {
+		return 'unreported: ps did not answer';
+	}
+	const rows = parsePsRows(result.stdout);
+	if (rows.length === 0) {
+		return 'unreported: ps answered nothing this probe could parse';
+	}
+	return inspectRenderers(rows, rootPid);
+}
+
 /**
  * Launches the product against a throwaway profile and waits until the product
  * logs that the window reported ready. See `READY_MARKER_NOTE` for why this is
@@ -522,7 +645,11 @@ async function measureOnce(options: Options, profile: string): Promise<Run> {
 				const samples = status.status === 0 && STATUS_READY.test(status.stdout ?? '')
 					? parseStatus(status.stdout, options.applicationName)
 					: [];
-				return { readyMs, probes, probeIntervalMs, samples, logReadyMs: logReadyMs(text) };
+				// Taken at the same moment as `--status`, so the two describe
+				// the same process tree. Asking later would measure a different
+				// one and answer nothing.
+				const rendererProbe = probeRenderers(child.pid ?? -1);
+				return { readyMs, probes, probeIntervalMs, samples, logReadyMs: logReadyMs(text), rendererProbe };
 			}
 			await sleep(POLL_SLEEP_MS);
 		}
@@ -655,6 +782,22 @@ function report(options: Options, runs: readonly Run[]): string {
 	}
 	lines.push(`process.names-seen=${[...namesSeen].sort().join(' ') || 'none'}`);
 
+	// The probe that separates the three remaining possibilities for the
+	// missing window row. Published from the first run only: five repetitions
+	// of the same answer add nothing, and a disagreement between them would
+	// mean something changed mid-scenario, which the count makes visible.
+	const probe = runs[0]?.rendererProbe;
+	if (typeof probe === 'string') {
+		lines.push(`renderer-probe=${probe}`);
+	} else if (probe) {
+		const agreed = runs.every(run => typeof run.rendererProbe === 'object' && run.rendererProbe?.parentage === probe.parentage && run.rendererProbe?.ordering === probe.ordering);
+		lines.push(`renderer-probe.count=${probe.renderers}`);
+		lines.push(`renderer-probe.parentage=${probe.parentage}`);
+		lines.push(`renderer-probe.ordering=${probe.ordering}`);
+		lines.push(`renderer-probe.repetitions-agree=${agreed ? 'yes' : 'no'}`);
+		lines.push('renderer-probe.note=counts and categories only; no pid, no command line, no path, because a renderer argv carries the workspace');
+	}
+
 	return `${lines.join('\n')}\n`;
 }
 
@@ -708,4 +851,9 @@ async function main(): Promise<void> {
 	}
 }
 
-main().catch(error => fail(error instanceof Error ? error.message : String(error)));
+// Guarded so the pure helpers above can be imported by a test without
+// launching a product. Every other test in the suite spawns this file as a
+// process, which is right for the end-to-end report and wrong for a parser.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+	main().catch(error => fail(error instanceof Error ? error.message : String(error)));
+}

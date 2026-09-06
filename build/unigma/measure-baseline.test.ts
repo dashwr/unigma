@@ -9,6 +9,7 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync 
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
+import { inspectRenderers, parsePsRows } from './measure-baseline.ts';
 
 const script = resolve(import.meta.dirname, 'measure-baseline.ts');
 
@@ -570,6 +571,65 @@ test('the report names the processes the table printed, without their titles', (
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}
+});
+
+// The rows `ps -ax -o pid=,ppid=,pcpu=,pmem=,command=` prints, in the shape
+// `parsePsOutput` reads them. Order matters here as much as content: the
+// product builds its tree in one pass and drops a child whose parent has
+// not been seen yet.
+const row = (pid: number, ppid: number, cmd: string) => `${String(pid).padStart(6)} ${String(ppid).padStart(6)}   0.0  0.5 ${cmd}`;
+
+test('a renderer whose chain reaches the launched process is reported in-tree', () => {
+	const rows = parsePsRows([
+		row(100, 1, '/opt/unigma/unigma'),
+		row(101, 100, '/opt/unigma/unigma --type=zygote'),
+		row(102, 101, '/opt/unigma/unigma --type=renderer --enable-crashpad'),
+	].join('\n'));
+	assert.deepEqual(inspectRenderers(rows, 100), { renderers: 1, parentage: 'in-tree', ordering: 'after-parent' });
+});
+
+test('a reparented renderer is reported out-of-tree instead of missing', () => {
+	// This is the case the source read left open: the renderer exists and
+	// its parent is not in the launched tree, so `addToTree` drops it.
+	// `init` is in the output too, so the ordering answer stays clean and the
+	// only thing this case reports is the parentage.
+	const rows = parsePsRows([
+		row(1, 0, '/sbin/init'),
+		row(100, 1, '/opt/unigma/unigma'),
+		row(102, 1, '/opt/unigma/unigma --type=renderer'),
+	].join('\n'));
+	assert.deepEqual(inspectRenderers(rows, 100), { renderers: 1, parentage: 'out-of-tree', ordering: 'after-parent' });
+});
+
+test('a renderer printed before its parent is reported, because one pass discards it', () => {
+	// `ps.ts:21-24` keeps a process only if its ppid is already in the map.
+	// A perfectly valid chain still loses the child when ps prints it
+	// first, and no other field would show that.
+	const rows = parsePsRows([
+		row(100, 1, '/opt/unigma/unigma'),
+		row(102, 101, '/opt/unigma/unigma --type=renderer'),
+		row(101, 100, '/opt/unigma/unigma --type=zygote'),
+	].join('\n'));
+	const probe = inspectRenderers(rows, 100);
+	assert.equal(probe.ordering, 'before-parent');
+	assert.equal(probe.parentage, 'in-tree');
+});
+
+test('no renderer at all is its own answer, not an error', () => {
+	const rows = parsePsRows([row(100, 1, '/opt/unigma/unigma'), row(101, 100, '/opt/unigma/unigma --type=gpu-process')].join('\n'));
+	assert.deepEqual(inspectRenderers(rows, 100), { renderers: 0, parentage: 'no-renderer', ordering: 'no-renderer' });
+});
+
+test('the probe survives a cycle in the reported parentage', () => {
+	// Defensive: a chain that loops must terminate rather than hang the
+	// measurement it was added to explain.
+	const rows = parsePsRows([row(102, 103, 'x --type=renderer'), row(103, 102, 'y')].join('\n'));
+	assert.equal(inspectRenderers(rows, 100).parentage, 'out-of-tree');
+});
+
+test('ps lines that do not parse are skipped without losing the rest', () => {
+	const rows = parsePsRows(['header nonsense', '', `${String(100).padStart(6)} ${String(1).padStart(6)}   0.0  0.5 /opt/unigma/unigma`, 'also not a row'].join('\n'));
+	assert.equal(rows.length, 1);
 });
 
 test('a failed measurement writes the reason into the evidence file too', () => {
