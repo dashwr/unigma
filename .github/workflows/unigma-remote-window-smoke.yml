@@ -13,6 +13,11 @@ on:
         type: boolean
         required: true
         default: true
+      artifact_commit:
+        description: Optional full commit of an existing desktop/server pair (no build or staging)
+        type: string
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -169,3 +174,4 @@ jobs:
     uses: ./.github/workflows/unigma-remote-reconnect-smoke.yml
     with:
       alias: ${{ inputs.alias }}
+      artifact_commit: ${{ inputs.artifact_commit }}

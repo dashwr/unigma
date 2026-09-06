@@ -8,12 +8,22 @@ on:
         type: string
         required: true
         default: unigma-vps
+      artifact_commit:
+        description: Full commit of an existing artifact pair
+        type: string
+        required: false
+        default: ''
   workflow_call:
     inputs:
       alias:
         description: SSH config alias of the external VPS
         type: string
         required: true
+      artifact_commit:
+        description: Full commit of an existing artifact pair
+        type: string
+        required: false
+        default: ''
 
 concurrency:
   group: unigma-remote-smoke
@@ -53,6 +63,7 @@ jobs:
       - name: run remote reconnect smoke in WSL
         env:
           VPS_ALIAS: ${{ inputs.alias }}
+          ARTIFACT_COMMIT: ${{ inputs.artifact_commit }}
         run: |
           $scriptPath = Join-Path $env:RUNNER_TEMP 'unigma-remote-reconnect-smoke.sh'
           $script = @'
@@ -60,6 +71,7 @@ jobs:
 
           source="$1"
           alias="$2"
+          artifact_commit="${3:-}"
           case "$source" in
             /mnt/[a-z]/*) ;;
             *) echo "Unsupported WSL source path: $source" >&2; exit 2 ;;
@@ -81,6 +93,10 @@ jobs:
           export UNIGMA_VPS_ALIAS="$alias"
           export UNIGMA_REMOTE_RECONNECT=1
           export UNIGMA_ARTIFACT_ROOT="$HOME/.local/share/unigma-artifacts"
+          if [ -n "$artifact_commit" ] && [[ ! "$artifact_commit" =~ ^[0-9a-f]{40}$ ]]; then
+            fail_preflight 'Invalid artifact commit'
+          fi
+          export UNIGMA_ARTIFACT_COMMIT="$artifact_commit"
 
           node_version="$(tr -d '[:space:]' < "$source/.nvmrc")"
           if [[ ! "$node_version" =~ ^24\.[0-9]+\.[0-9]+$ ]]; then
@@ -102,8 +118,11 @@ jobs:
           if [ "$(node --version)" != "v$node_version" ]; then
             fail_preflight "Unexpected Node version: $(node --version)"
           fi
-          for artifact in unigma-latest unigma-server-latest; do
-            artifact_path="$UNIGMA_ARTIFACT_ROOT/$artifact"
+          for artifact in unigma unigma-server; do
+            artifact_path="$UNIGMA_ARTIFACT_ROOT/$artifact-latest"
+            if [ -n "$artifact_commit" ]; then
+              artifact_path="$UNIGMA_ARTIFACT_ROOT/versions/$artifact/$artifact_commit"
+            fi
             if [ ! -d "$artifact_path" ] || [ ! -f "$artifact_path/PROVENANCE.txt" ]; then
               fail_preflight "Missing WSL artifact: $artifact_path"
             fi
@@ -116,7 +135,7 @@ jobs:
           $script = $script -replace "`r`n?", "`n"
           [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))
           $scriptPathWsl = "/mnt/$($scriptPath.Substring(0, 1).ToLowerInvariant())/$($scriptPath.Substring(3).Replace('\', '/'))"
-          & wsl.exe -d Ubuntu --user dasher -- bash $scriptPathWsl $env:WSL_SOURCE $env:VPS_ALIAS
+          & wsl.exe -d Ubuntu --user dasher -- bash $scriptPathWsl $env:WSL_SOURCE $env:VPS_ALIAS $env:ARTIFACT_COMMIT
           $exitCode = $LASTEXITCODE
           Remove-Item -Force $scriptPath -ErrorAction SilentlyContinue
           if ($exitCode -ne 0) { exit $exitCode }

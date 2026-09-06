@@ -102,8 +102,15 @@ function readProvenanceCommit(directory: string): string {
 
 function artifactPair(): ArtifactPair {
 	const store = process.env['UNIGMA_ARTIFACT_ROOT'] ?? join(homedir(), '.local', 'share', 'unigma-artifacts');
-	const desktopDirectory = join(store, 'unigma-latest');
-	const serverDirectory = join(store, 'unigma-server-latest');
+	const requestedCommit = process.env['UNIGMA_ARTIFACT_COMMIT'] ?? '';
+	if (requestedCommit && !COMMIT.test(requestedCommit)) {
+		throw new Error('Invalid artifact commit');
+	}
+	const desktopDirectory = requestedCommit ? join(store, 'versions/unigma', requestedCommit) : join(store, 'unigma-latest');
+	const serverDirectory = requestedCommit ? join(store, 'versions/unigma-server', requestedCommit) : join(store, 'unigma-server-latest');
+	if (requestedCommit && (readProvenanceCommit(desktopDirectory) !== requestedCommit || readProvenanceCommit(serverDirectory) !== requestedCommit)) {
+		throw new Error('Requested artifact provenance mismatch');
+	}
 	return {
 		desktopDirectory,
 		serverDirectory,
