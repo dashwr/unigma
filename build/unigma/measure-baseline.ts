@@ -21,8 +21,24 @@ import { hostname, platform, release, tmpdir, totalmem } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-/** A row of `--status`: `CPU %`, `Mem MB`, `PID`, `Process`. */
-const PROCESS_ROW = /^\s*([0-9]+(?:\.[0-9]+)?)\s+([0-9]+(?:\.[0-9]+)?)\s+([0-9]+)\s+(.+?)\s*$/;
+/**
+ * A row of `--status`: `CPU %`, `Mem MB`, `PID`, `Process`.
+ *
+ * The CPU column accepts `NaN`, and that is not tolerance -- it is the fix for
+ * a defect in this parser.
+ *
+ * `listProcesses` sets `load = parseFloat(cpuUsage[i])` (`ps.ts:190`), which is
+ * `NaN` whenever `cpuUsage.sh` returns fewer lines than there are PIDs.
+ * `formatProcessItem` then prints `item.load.toFixed(0)` (`diagnosticsService.ts:560`),
+ * so the row reads `NaN`. The previous pattern required a digit in that column,
+ * did not match, and the row was **dropped in silence** by the `continue`
+ * below -- the process disappeared from the report as if it had never run.
+ *
+ * That is consistent with what the runs showed: `shared-process` present in run
+ * `34051073811` and absent in `34056404723`, for a process that always exists.
+ * Rows were being lost, and nothing said so.
+ */
+const PROCESS_ROW = /^\s*([0-9]+(?:\.[0-9]+)?|NaN)\s+([0-9]+(?:\.[0-9]+)?|NaN)\s+([0-9]+)\s+(.+?)\s*$/;
 
 /**
  * The header the product actually prints above the process table, from
@@ -137,6 +153,8 @@ interface Run {
 	 */
 	readonly probeIntervalMs: number;
 	readonly samples: readonly ProcessSample[];
+	/** Table rows that looked like rows and did not parse. Zero is the only good value. */
+	readonly unparsedRows: number;
 	/**
 	 * The product's own clock, first log line to window-ready. Absent when the
 	 * log carries no parseable timestamp.
@@ -230,19 +248,34 @@ function roleOf(processName: string, applicationName: string): string {
 	return 'other';
 }
 
-function parseStatus(text: string, applicationName: string): ProcessSample[] {
+/**
+ * Parses the process table, and **counts what it could not parse**.
+ *
+ * The count is the point. This function used to `continue` past any line it did
+ * not recognise, which turned a parser gap into a missing process rather than
+ * into an error. A table row that does not parse is now reported, so the next
+ * gap is loud on the first run instead of looking like a process that was not
+ * there.
+ */
+function parseStatus(text: string, applicationName: string): { readonly samples: ProcessSample[]; readonly unparsedRows: number } {
 	const samples: ProcessSample[] = [];
 	let inTable = false;
+	let unparsedRows = 0;
 	for (const line of text.split(/\r?\n/)) {
 		if (STATUS_READY.test(line)) {
 			inTable = true;
 			continue;
 		}
-		if (!inTable) {
+		if (!inTable || line.trim().length === 0) {
 			continue;
 		}
 		const row = PROCESS_ROW.exec(line);
 		if (!row) {
+			// `--status` prints more than the table; only a line that looks like
+			// a row and still fails to parse is a gap worth counting.
+			if (/^\s*\S+\s+\S+\s+[0-9]+\s+\S/.test(line)) {
+				unparsedRows++;
+			}
 			continue;
 		}
 		samples.push({
@@ -253,7 +286,7 @@ function parseStatus(text: string, applicationName: string): ProcessSample[] {
 			role: roleOf(row[4], applicationName)
 		});
 	}
-	return samples;
+	return { samples, unparsedRows };
 }
 
 function sleep(ms: number): Promise<void> {
@@ -642,14 +675,15 @@ async function measureOnce(options: Options, profile: string): Promise<Run> {
 					encoding: 'utf8',
 					timeout: 30000
 				});
-				const samples = status.status === 0 && STATUS_READY.test(status.stdout ?? '')
+				const parsed = status.status === 0 && STATUS_READY.test(status.stdout ?? '')
 					? parseStatus(status.stdout, options.applicationName)
-					: [];
+					: { samples: [], unparsedRows: 0 };
+				const { samples, unparsedRows } = parsed;
 				// Taken at the same moment as `--status`, so the two describe
 				// the same process tree. Asking later would measure a different
 				// one and answer nothing.
 				const rendererProbe = probeRenderers(child.pid ?? -1);
-				return { readyMs, probes, probeIntervalMs, samples, logReadyMs: logReadyMs(text), rendererProbe };
+				return { readyMs, probes, probeIntervalMs, samples, unparsedRows, logReadyMs: logReadyMs(text), rendererProbe };
 			}
 			await sleep(POLL_SLEEP_MS);
 		}
@@ -757,7 +791,11 @@ function report(options: Options, runs: readonly Run[]): string {
 		const present = runs.some(run => run.samples.some(sample => sample.role === role));
 		lines.push(`process.${role}.present=${present ? 'yes' : 'no'}`);
 		if (present) {
-			lines.push(`process.${role}.cpu-percent.median=${median(cpu)}`);
+			// A role whose CPU column came back `NaN` is reported as unreadable
+			// rather than as a number: `median` of NaN is NaN, and `NaN` printed
+			// as a measurement is the kind of value that gets quoted later.
+			const cpuReadable = cpu.every(value => Number.isFinite(value));
+			lines.push(`process.${role}.cpu-percent.median=${cpuReadable ? median(cpu) : 'unreported: the --status CPU column was NaN, which ps.ts:190 produces when cpuUsage.sh returns fewer lines than PIDs'}`);
 			if (!refusal) {
 				lines.push(`process.${role}.memory-mb.median=${median(memory)}`);
 				lines.push(`process.${role}.memory-mb.spread=${spread(memory)}`);
@@ -786,6 +824,12 @@ function report(options: Options, runs: readonly Run[]): string {
 	// missing window row. Published from the first run only: five repetitions
 	// of the same answer add nothing, and a disagreement between them would
 	// mean something changed mid-scenario, which the count makes visible.
+	// Published always, including the zero: a silent parser gap is what made a
+	// process look absent, and the only way that stays fixed is if the number is
+	// on every report rather than only when it is bad.
+	const unparsed = runs.reduce((total, run) => total + run.unparsedRows, 0);
+	lines.push(`process.rows-unparsed=${unparsed}`);
+
 	const probe = runs[0]?.rendererProbe;
 	if (typeof probe === 'string') {
 		lines.push(`renderer-probe=${probe}`);

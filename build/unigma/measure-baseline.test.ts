@@ -632,6 +632,95 @@ test('ps lines that do not parse are skipped without losing the rest', () => {
 	assert.equal(rows.length, 1);
 });
 
+test('a row whose CPU column is NaN is kept, not dropped in silence', () => {
+	const root = mkdtempSync(join(tmpdir(), 'unigma-baseline-test-'));
+	try {
+		const executable = join(root, 'unigma');
+		mkdirSync(join(root, 'resources', 'app'), { recursive: true });
+		writeFileSync(join(root, 'resources', 'app', 'product.json'), JSON.stringify({ applicationName: 'unigma' }));
+		// `listProcesses` sets `load = parseFloat(cpuUsage[i])` (ps.ts:190),
+		// which is NaN when cpuUsage.sh returns fewer lines than PIDs, and
+		// `formatProcessItem` prints it with toFixed (diagnosticsService.ts:560).
+		// The old pattern required a digit there, so the whole process vanished
+		// from the report as if it had never run -- which is what made
+		// shared-process appear in one run and not the next.
+		const withNaN = [
+			'CPU %\tMem MB\t   PID\tProcess',
+			'    4\t   412\t 20262\tunigma',
+			'  NaN\t   289\t 20399\twindow [1] (unigma)',
+			'    1\t   142\t 20480\tshared-process'
+		].join('\n');
+		writeFileSync(executable, [
+			'#!/usr/bin/env node',
+			'const { mkdirSync, writeFileSync } = require("node:fs");',
+			'const { join } = require("node:path");',
+			'const argv = process.argv.slice(2);',
+			'if (argv.includes("--status")) {',
+			`\tprocess.stdout.write(${JSON.stringify(withNaN)} + "\\n");`,
+			'\tprocess.exit(0);',
+			'}',
+			READY_LOG,
+			'setTimeout(() => { }, 60000);'
+		].join('\n') + '\n');
+		chmodSync(executable, 0o700);
+
+		const out = join(root, 'report.txt');
+		const result = run(['--exe', executable, '--scenario', 'clean-profile', '--repeat', '1', '--timeout', '20000', '--out', out]);
+		assert.equal(result.status, 0, result.stderr);
+		const report = readFileSync(out, 'utf8');
+		// The window is present, which is the whole point.
+		assert.match(report, /^process\.renderer\.present=yes$/m);
+		assert.match(report, /^process\.names-seen=shared-process unigma window$/m);
+		// Its memory still counts; only the CPU reading was unreadable.
+		assert.match(report, /^process\.renderer\.memory-mb\.median=289$/m);
+		assert.match(report, /^process\.renderer\.cpu-percent\.median=unreported: the --status CPU column was NaN/m);
+		// A role whose CPU did read is still published as a number.
+		assert.match(report, /^process\.main\.cpu-percent\.median=4$/m);
+		assert.match(report, /^process\.rows-unparsed=0$/m);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test('a table row that does not parse is counted instead of skipped', () => {
+	const root = mkdtempSync(join(tmpdir(), 'unigma-baseline-test-'));
+	try {
+		const executable = join(root, 'unigma');
+		mkdirSync(join(root, 'resources', 'app'), { recursive: true });
+		writeFileSync(join(root, 'resources', 'app', 'product.json'), JSON.stringify({ applicationName: 'unigma' }));
+		// The general fix behind the specific one: a parser gap used to look
+		// exactly like a process that was not running. Now it has a number, and
+		// the number is on every report so the next gap is loud on the first run.
+		const withGap = [
+			'CPU %\tMem MB\t   PID\tProcess',
+			'    4\t   412\t 20262\tunigma',
+			'  ???\t   ???\t 20399\twindow [1] (unigma)'
+		].join('\n');
+		writeFileSync(executable, [
+			'#!/usr/bin/env node',
+			'const { mkdirSync, writeFileSync } = require("node:fs");',
+			'const { join } = require("node:path");',
+			'const argv = process.argv.slice(2);',
+			'if (argv.includes("--status")) {',
+			`\tprocess.stdout.write(${JSON.stringify(withGap)} + "\\n");`,
+			'\tprocess.exit(0);',
+			'}',
+			READY_LOG,
+			'setTimeout(() => { }, 60000);'
+		].join('\n') + '\n');
+		chmodSync(executable, 0o700);
+
+		const out = join(root, 'report.txt');
+		const result = run(['--exe', executable, '--scenario', 'clean-profile', '--repeat', '1', '--timeout', '20000', '--out', out]);
+		assert.equal(result.status, 0, result.stderr);
+		const report = readFileSync(out, 'utf8');
+		assert.match(report, /^process\.rows-unparsed=1$/m);
+		assert.match(report, /^process\.renderer\.present=no$/m);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
 test('a failed measurement writes the reason into the evidence file too', () => {
 	const root = mkdtempSync(join(tmpdir(), 'unigma-baseline-test-'));
 	try {

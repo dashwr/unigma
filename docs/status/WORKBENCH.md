@@ -81,6 +81,36 @@ ser medida por observação e o relatório carrega a ressalva. Foi o quarto defe
 do dia da mesma família — um número ou uma string que descrevia a intenção em vez
 do que acontecia.
 
+**2026-09-06 — a linha de janela sumia no meu parser, não na tabela.** A sonda
+rodou em `34056404723` e **eliminou as três possibilidades** que a leitura de
+fonte apontava: `renderer-probe.count=1`, `parentage=in-tree`,
+`ordering=after-parent`, iguais nos dois cenários e concordantes nas cinco
+repetições. O renderer existe, a cadeia alcança o processo lançado, e a linha
+vem depois da do pai.
+
+Com a enumeração descartada, a segunda leitura de fonte achou o candidato, e ele
+é do harness: `listProcesses` faz `load = parseFloat(cpuUsage[i])`
+(`ps.ts:190`), que é `NaN` sempre que `cpuUsage.sh` devolve menos linhas que
+PIDs, e `formatProcessItem` imprime `item.load.toFixed(0)`
+(`diagnosticsService.ts:560`) — a linha sai com `NaN` na coluna de CPU. O
+`PROCESS_ROW` do harness exigia dígito ali, não casava, e o `continue`
+**descartava a linha em silêncio**. O processo sumia do relatório como se nunca
+tivesse rodado.
+
+Isso é consistente com a anomalia que eu tinha registrado sem explicar:
+`shared-process` presente em `34051073811` e ausente em `34056404723`, para um
+processo que sempre existe. Linhas estavam caindo, e nada dizia isso.
+
+**Ainda é hipótese quanto ao runner.** O teste prova que o parser descartava uma
+linha assim; que a saída real trazia `NaN` é o que o próximo run diz, por
+`process.rows-unparsed` e `renderer.present`.
+
+A correção geral importa mais que a específica: linha de tabela que não casa
+passa a ser **contada**, e a contagem sai em todo relatório, inclusive quando é
+zero. Uma lacuna de parser parecia exatamente igual a um processo ausente; agora
+tem número, e o número aparece antes de alguém precisar procurar. CPU `NaN` é
+publicada como recusa com o motivo, nunca como número.
+
 **2026-09-06, run `34052368433` — o primeiro prompt respondido no runner.**
 `smoke=pass`, 17 checks, contra o binário fixado `1.18.23`. O par autorizado por
 `D-043` — `openrouter` / `nvidia/nemotron-3.5-lightning:free` — completou um
