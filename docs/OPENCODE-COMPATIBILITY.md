@@ -597,3 +597,46 @@ arquivos local, verificada pelo SHA-256 já registrado neste documento. Qualquer
 evidência anterior que dependa de `/usr/bin/opencode` sem citar hash deve ser
 relida com essa deriva em mente, e a regra de falhar fechado fora de `1.18.23`
 continua valendo.
+
+## probe de provider — 2026-09-06
+
+Feito para `D-043`, **no binário desta máquina (`1.18.25`)**, não no fixado.
+O que se buscava era o **mecanismo** — como a credencial entra e o que `/provider`
+diz sobre ela — e não um número comparável. A confirmação no binário empacotado
+é o que a prova de runner de `T-011` faz.
+
+Ambiente isolado por `HOME`/`XDG_*` explícitos, com uma chave **deliberadamente
+inválida**. Nenhuma requisição autenticada foi emitida.
+
+### o que `/provider` devolve
+
+Três chaves de topo: `all`, `default` e `connected`. Cada entrada de `all` traz
+`id`, `name`, `source`, `env`, `options` e `models` — e `env` é **o próprio
+provider declarando qual variável de ambiente o autentica** (para `openrouter`,
+`OPENROUTER_API_KEY`). São 213 providers listados; `openrouter` traz 360 modelos,
+dos quais 19 marcados `:free`.
+
+### o achado que muda o desenho da prova
+
+Com a chave inválida no ambiente, `connected` já continha `"openrouter"` e a
+entrada do provider já vinha com `source: "env"`.
+
+**`connected` significa "há credencial presente", não "a credencial funciona".**
+Uma prova que lesse só `/provider` seria um check verde que não prova nada sobre
+a credencial. Por isso o smoke de provider separa os dois fatos e trata **apenas
+o prompt respondido** como prova; `provider-connected` e
+`provider-source-environment` são condições necessárias, publicadas como linhas
+próprias, e a evidência carrega essa distinção escrita.
+
+`source: "env"` tem valor próprio e continua sendo verificado: ele é o que diz
+que a credencial veio do ambiente e não de um arquivo que o produto escreveu.
+O unigma não chama `PUT /auth/{id}` e não administra credencial; este é o check
+que mantém isso verdadeiro dentro do runner.
+
+### achado lateral
+
+`opencode serve` avisa `OPENCODE_SERVER_PASSWORD is not set; server is
+unsecured`. No perfil deste projeto o servidor é loopback e de vida curta, o que
+é a mitigação real, mas o aviso é do próprio binário e fica registrado: ele não
+foi silenciado nem configurado, e qualquer mudança para um endpoint não-loopback
+teria de tratá-lo antes, não depois.

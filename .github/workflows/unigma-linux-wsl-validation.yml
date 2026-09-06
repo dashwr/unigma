@@ -187,6 +187,11 @@ jobs:
           # but the extension still has to be built for it to be there.
           node --experimental-strip-types --max-old-space-size=12288 ./node_modules/gulp/bin/gulp.js compile-extension:unigma-remote-ssh
           npm --prefix extensions/unigma-remote-ssh test
+          # The build/unigma harnesses had no CI step at all: every claim about
+          # them rested on a local run nothing enforced. They are 87 tests and
+          # about sixteen seconds, and they guard the scripts that decide
+          # whether a package ships.
+          node --test --experimental-strip-types build/unigma/*.test.ts
           '@
           $script = $script -replace "`r`n?", "`n"
           [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))
@@ -296,6 +301,68 @@ jobs:
           source="$2"
           mkdir -p "$source/.build/logs"
           for report in "$build"/.build/logs/unigma-opencode-service-smoke.*; do
+            if [ -f "$report" ]; then
+              cp -f "$report" "$source/.build/logs/"
+            fi
+          done
+          '@
+          $script = $script -replace "`r`n?", "`n"
+          [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))
+          $scriptPathWsl = "/mnt/$($scriptPath.Substring(0, 1).ToLowerInvariant())/$($scriptPath.Substring(3).Replace('\', '/'))"
+          & wsl.exe -d Ubuntu --user dasher -- bash $scriptPathWsl $env:WSL_BUILD $env:WSL_SOURCE
+          $exitCode = $LASTEXITCODE
+          Remove-Item -Force $scriptPath -ErrorAction SilentlyContinue
+          if ($exitCode -ne 0) { exit $exitCode }
+
+      - name: run authorised provider smoke in WSL
+        # The credential crosses into WSL through WSLENV, never as a script
+        # argument: argv is visible in the host's process table, and this is
+        # the one secret in the job.
+        #
+        # continue-on-error for the same reason the baseline has it: the
+        # authorised model is a free tier, so an exhausted quota is a refusal
+        # by the provider and not a defect in a package that has already been
+        # audited. The smoke reports those as separate categories, and the
+        # uploaded report is the evidence — not this step's colour.
+        continue-on-error: true
+        timeout-minutes: 10
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          WSLENV: OPENROUTER_API_KEY
+        run: |
+          if (-not $env:OPENROUTER_API_KEY) {
+            Write-Host 'provider smoke skipped: OPENROUTER_API_KEY is not configured for this repository'
+            exit 0
+          }
+          $scriptPath = Join-Path $env:RUNNER_TEMP 'unigma-wsl-opencode-provider-smoke.sh'
+          $script = @'
+          set -euo pipefail
+          build="$1"
+          export PATH="/opt/node-current/bin:$PATH"
+          cd "$build"
+          mkdir -p .build/logs
+          node --experimental-strip-types build/unigma/smoke-opencode-provider.ts \
+            "$build/../VSCode-linux-x64" \
+            "$build/.build/logs/unigma-opencode-provider-smoke.txt" | tee .build/logs/unigma-opencode-provider-smoke.log
+          '@
+          $script = $script -replace "`r`n?", "`n"
+          [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))
+          $scriptPathWsl = "/mnt/$($scriptPath.Substring(0, 1).ToLowerInvariant())/$($scriptPath.Substring(3).Replace('\', '/'))"
+          & wsl.exe -d Ubuntu --user dasher -- bash $scriptPathWsl $env:WSL_BUILD
+          $exitCode = $LASTEXITCODE
+          Remove-Item -Force $scriptPath -ErrorAction SilentlyContinue
+          if ($exitCode -ne 0) { exit $exitCode }
+
+      - name: collect authorised provider smoke report
+        if: always()
+        run: |
+          $scriptPath = Join-Path $env:RUNNER_TEMP 'unigma-wsl-opencode-provider-report.sh'
+          $script = @'
+          set -euo pipefail
+          build="$1"
+          source="$2"
+          mkdir -p "$source/.build/logs"
+          for report in "$build"/.build/logs/unigma-opencode-provider-smoke.*; do
             if [ -f "$report" ]; then
               cp -f "$report" "$source/.build/logs/"
             fi

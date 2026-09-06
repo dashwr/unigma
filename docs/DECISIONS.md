@@ -391,8 +391,19 @@ licença, pesos e direitos de uso antes de qualquer incorporação.
 - Modelo gratuito implica limite de taxa e disponibilidade variável. A prova
   precisa distinguir **recusa do provider** de **defeito do produto**: falha de
   quota é categoria de erro própria, nunca falha de contrato silenciosa.
-- Enquanto o secret não existir no repositório, as linhas dependentes seguem
-  `[BLOQUEADO]` por credencial ausente, não mais por falta de autorização.
+- Secret `OPENROUTER_API_KEY` criado pelo responsável em 2026-09-06 (nome
+  verificado por `gh secret list`; valor nunca lido pelo executor).
+- **Modelo autorizado: `openrouter/nvidia/nemotron-3.5-lightning:free`.**
+  Critérios verificáveis, não reputacionais: é gratuito, é `toolcall: true` — o
+  perfil agentivo precisa disso — e estava presente na resposta `/provider` do
+  binário no momento da escolha. ID exato, sem alias e sem fallback: se ele sair
+  do catálogo, a resposta é uma decisão nova, não um segundo candidato no código.
+- A credencial atravessa para o WSL por `WSLENV`, nunca como argumento de script:
+  `argv` é visível na tabela de processos do host.
+- **`connected` em `/provider` não prova credencial válida.** Um probe com chave
+  deliberadamente inválida já devolveu `connected: ["opencode","openrouter"]` e
+  `source: "env"`. Só o prompt respondido prova; ver o
+  [probe de provider](OPENCODE-COMPATIBILITY.md).
 
 ### D-044 — rascunho legal proposto antes da decisão — 2026-09-06
 
