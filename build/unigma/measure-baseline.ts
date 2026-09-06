@@ -188,7 +188,30 @@ async function measureOnce(options: Options, profile: string): Promise<Run> {
 	mkdirSync(userDataDir, { recursive: true });
 	mkdirSync(extensionsDir, { recursive: true });
 
-	const args = ['--user-data-dir', userDataDir, '--extensions-dir', extensionsDir, '--new-window'];
+	// The first measurement attempt launched the product with nothing but the
+	// throwaway directories and never saw `Process Info`, on a run whose stderr
+	// was empty. These are the flags the remote window smoke uses to reach a
+	// window under the same Xvfb, minus anything that would change what is being
+	// measured: they only remove the first-run surfaces and the network work an
+	// unattended launch must not wait for. They are part of the scenario
+	// definition, so a baseline taken with them is not comparable to one taken
+	// without them.
+	const logsDir = join(profile, 'logs');
+	const crashesDir = join(profile, 'crashes');
+	mkdirSync(logsDir, { recursive: true });
+	mkdirSync(crashesDir, { recursive: true });
+	const args = [
+		'--user-data-dir', userDataDir,
+		'--extensions-dir', extensionsDir,
+		'--skip-release-notes',
+		'--skip-welcome',
+		'--disable-telemetry',
+		'--disable-experiments',
+		'--disable-updates',
+		`--logsPath=${logsDir}`,
+		`--crash-reporter-directory=${crashesDir}`,
+		'--new-window'
+	];
 	if (options.folder) {
 		args.push(options.folder);
 	}
@@ -226,7 +249,10 @@ async function measureOnce(options: Options, profile: string): Promise<Run> {
 			}
 			await sleep(500);
 		}
-		throw new Error(`the product did not answer --status within ${options.timeoutMs} ms (last --status exit=${lastCode ?? 'none'})${describeOutput(lastOutput, 'status')}${describeOutput(launchOutput)}`);
+		// Whether the launched process was still alive separates "the window never
+		// came up" from "the instance is up but does not answer", and the previous
+		// failure could not tell those apart.
+		throw new Error(`the product did not answer --status within ${options.timeoutMs} ms (last --status exit=${lastCode ?? 'none'}; launched process ${exited ? 'exited' : 'still running'})${describeOutput(lastOutput, 'status')}${describeOutput(launchOutput)}`);
 	} finally {
 		if (!exited) {
 			child.kill();
