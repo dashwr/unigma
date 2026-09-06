@@ -5,16 +5,22 @@
 
 // Test-only executable placed on PATH for one isolated desktop. Never records
 // arguments, environment, SSH output or PIDs. Signals only its own child object.
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
+const args = process.argv.slice(2);
+// The production availability probe intentionally strips every non-PATH
+// variable. Preserve its read-only -V behavior without requiring test control.
+if (args.length === 1 && args[0] === '-V') {
+	const result = spawnSync('/usr/bin/ssh', ['-V'], { stdio: 'inherit' });
+	process.exit(result.status ?? 1);
+}
 const directory = process.env['UNIGMA_RECONNECT_CONTROL'];
 if (!directory) {
 	process.exit(2);
 }
-const args = process.argv.slice(2);
 let owned = false;
 if (args.includes('-M')) {
 	try {
