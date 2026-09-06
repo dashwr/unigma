@@ -47,6 +47,14 @@ const STATUS_READY = /CPU %\s+Mem MB\s+PID\s+Process/;
  *
  * The main process is the row named after `applicationName`, so it is resolved
  * from the package rather than hard-coded.
+ *
+ * The four names below were read from the source that registers them, not
+ * guessed from the convention of their neighbours — `extension-host`
+ * (`extensionHostStarter.ts`), `shared-process` (`sharedProcess.ts`),
+ * `pty-host` (`electronPtyHostStarter.ts`) and `file-watcher`
+ * (`watcherClient.ts`). `window [N] (title)` comes from `mapProcessToName`.
+ * `zygote` and `utility-network-service` are Chromium's own and land in
+ * `other`, which is why `other` is reported rather than dropped.
  */
 const ROLES: ReadonlyArray<{ readonly role: string; readonly match: RegExp }> = [
 	{ role: 'renderer', match: /^window\b/ },
@@ -103,6 +111,12 @@ interface ProcessSample {
 
 interface Run {
 	readonly readyMs: number;
+	/**
+	 * How many probes it took. Reported because it is the quantisation itself:
+	 * runs that took the same number of probes produce a small spread whatever
+	 * the product did between them.
+	 */
+	readonly probes: number;
 	/**
 	 * The longest gap observed between two consecutive readiness probes. It is
 	 * the upper bound on how much `readyMs` overshoots the moment the window
@@ -391,11 +405,13 @@ async function measureOnce(options: Options, profile: string): Promise<Run> {
 	const rolesSeen = new Set<string>();
 	let previousProbeAt = started;
 	let probeIntervalMs = 0;
+	let probes = 0;
 	try {
 		while (Date.now() - started < options.timeoutMs) {
 			if (exited) {
 				throw new Error(`the product exited before it answered --status${describeOutput(launchOutput)}${describeProductLogs(logsDir)}`);
 			}
+			probes++;
 			const probeAt = Date.now();
 			probeIntervalMs = Math.max(probeIntervalMs, probeAt - previousProbeAt);
 			previousProbeAt = probeAt;
@@ -408,7 +424,7 @@ async function measureOnce(options: Options, profile: string): Promise<Run> {
 			if (status.status === 0 && STATUS_READY.test(status.stdout ?? '')) {
 				const samples = parseStatus(status.stdout, options.applicationName);
 				if (samples.some(sample => sample.role === READY_ROLE)) {
-					return { readyMs: Date.now() - started, probeIntervalMs, samples };
+					return { readyMs: Date.now() - started, probes, probeIntervalMs, samples };
 				}
 				// Keep the roles seen so a timeout can say how far startup got
 				// instead of repeating that nothing answered.
@@ -472,6 +488,13 @@ function report(options: Options, runs: readonly Run[]): string {
 
 	const readyValues = runs.map(run => run.readyMs);
 	lines.push(`ready-definition=first --status reporting a ${READY_ROLE} row`);
+	// Minimum and maximum, not only the spread: two runs at the extremes and one
+	// in the middle read the same as three clustered runs when only the
+	// difference is published.
+	lines.push(`ready-ms.min=${Math.min(...readyValues)}`);
+	lines.push(`ready-ms.max=${Math.max(...readyValues)}`);
+	lines.push(`ready-probes.min=${Math.min(...runs.map(run => run.probes))}`);
+	lines.push(`ready-probes.max=${Math.max(...runs.map(run => run.probes))}`);
 	// Observed, not assumed: the sleep between probes is the smaller half of the
 	// gap, and quoting it alone made a spread look like precision it did not
 	// have.

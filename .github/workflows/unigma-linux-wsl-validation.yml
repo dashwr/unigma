@@ -428,12 +428,12 @@ jobs:
           xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' \
             node --experimental-strip-types build/unigma/measure-baseline.ts \
               --exe "$build/../VSCode-linux-x64/unigma" \
-              --scenario clean-profile \
+              --scenario clean-profile --repeat 5 \
               --out "$source/.build/logs/unigma-linux-baseline-clean-profile.txt"
           xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' \
             node --experimental-strip-types build/unigma/measure-baseline.ts \
               --exe "$build/../VSCode-linux-x64/unigma" \
-              --scenario idle-folder --folder "$build" \
+              --scenario idle-folder --repeat 5 --folder "$build" \
               --out "$source/.build/logs/unigma-linux-baseline-idle-folder.txt"
           '@
           $script = $script -replace "`r`n?", "`n"

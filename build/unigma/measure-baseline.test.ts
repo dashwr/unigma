@@ -327,6 +327,12 @@ test('the report states which event ready-ms measures', () => {
 		const resolution = Number(/ready-resolution-ms=([0-9]+)/.exec(report)?.[1]);
 		assert.ok(resolution > 0, `resolution not observed in:\n${report}`);
 		assert.match(report, /ready-ms\.note=overstates by at most one probe interval/);
+		// The shape of the sample, not only its width: a spread hides whether the
+		// runs clustered, and the probe count is the quantisation made visible.
+		assert.match(report, /ready-ms\.min=[0-9]+/);
+		assert.match(report, /ready-ms\.max=[0-9]+/);
+		assert.match(report, /ready-probes\.min=[0-9]+/);
+		assert.match(report, /ready-probes\.max=[0-9]+/);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}

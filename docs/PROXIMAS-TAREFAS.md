@@ -127,6 +127,16 @@ sondas ter sido o mesmo nas três execuções. A resolução passou a ser medida
 observação, e o relatório carrega a nota de que `ready-ms` superestima em até um
 intervalo de sonda. Sem isso, um spread pequeno passa por precisão que não existe.
 
+**Preparado para o próximo run** (2026-09-06, depois do fechamento): repetições
+de 3 para 5 nos dois cenários, `ready-ms.min/max` e `ready-probes.min/max` no
+relatório. Spread sozinho esconde a forma da amostra — duas execuções nos
+extremos lêem igual a três agrupadas — e a contagem de sondas é a quantização
+tornada visível: mesmo número de sondas explica spread pequeno sem que o produto
+tenha sido consistente. Os quatro nomes de papel foram conferidos no fonte que os
+registra (`extensionHostStarter`, `sharedProcess`, `electronPtyHostStarter`,
+`watcherClient`), para não repetir hoje o erro de deduzir nome pela convenção
+dos vizinhos. Isso alimenta `T-070`, não reabre `T-071`.
+
 ## [PENDENTE] T-071 — histórico do diagnóstico
 
 **Comparação de flags feita em 2026-09-06** (leitura de código, sem runner),
