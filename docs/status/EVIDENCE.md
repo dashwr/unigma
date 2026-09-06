@@ -568,3 +568,73 @@ comparabilidade: **o número muda de significado pela terceira vez.** `5394`/`65
                  e `6408` foram medidos com a sonda que se relançava; `1708` é
                  outro instrumento. Os anteriores ficam como histórico, não como
                  série comparável.
+
+### primeiro prompt respondido no runner — 2026-09-06
+
+data:            2026-09-06
+tarefa/gate:     `T-011` / `AC-003` — provider e modelo autorizados
+run id:          `34052368433`
+workflow:        `unigma-linux-wsl-validation.yml`
+commit/head:     `9c1e09fa`
+resultado:       `smoke=pass`, 17 checks, nenhum `fail`
+
+| campo | valor |
+| --- | --- |
+| `opencode.version` / `supported-version` | `1.18.23` / `1.18.23` |
+| `provider` | `openrouter` |
+| `model` | `nvidia/nemotron-3.5-lightning:free` |
+| `check.provider-source-environment` | `pass` |
+| `check.model-authorized-present` | `pass` |
+| `check.prompt-answered` | **`pass`** |
+| `answer` | `answered` |
+
+prova:           **o par autorizado por `D-043` responde a um prompt real, no
+                 runner, contra o binário fixado.** É a primeira vez no projeto
+                 que um envio ao agente completa fora de fixture. Prova junto
+                 que a credencial atravessa por `WSLENV` sem passar por `argv`,
+                 que o produto não a escreve em lugar nenhum
+                 (`source: "env"`), que o processo é derrubado e a porta fecha,
+                 e que o estado isolado é removido.
+
+não prova:       **não é suporte a provider, é suporte a este par.** Um envio
+                 respondido não cobre streaming parcial, cancelamento,
+                 permissão, diff, recuperação de SSE nem versão incompatível —
+                 que são `T-024`, `T-031`–`T-034` e o resto de `T-011`. O prompt
+                 usado é trivial e deliberadamente não toca o repositório: ele
+                 exercita a credencial, não o modelo.
+
+                 Também não prova quota: o modelo é de tier gratuito, e um run
+                 futuro pode legitimamente voltar `refused-by-provider` sem que
+                 nada tenha regredido no produto. A categoria existe para isso.
+
+armadilha        `connected` em `/provider` aparece com **qualquer** valor na
+evitada:         variável, inclusive inválido — medido antes de escrever a
+                 prova. Se o smoke lesse só `/provider`, teria ficado verde sem
+                 provar credencial nenhuma. `check.prompt-answered` é o único
+                 check tratado como prova, e a distinção está escrita dentro do
+                 próprio relatório.
+
+### a tabela de processos não tem linha de janela — 2026-09-06
+
+data:            2026-09-06
+tarefa/gate:     `T-070` — baseline por cenário
+run id:          `34052368433`
+resultado:       `process.names-seen=file-watcher gpu-process shared-process
+                 unigma utility-network-service zygote` (`clean-profile`) e o
+                 mesmo mais `extension-host` (`idle-folder`)
+
+prova:           a pergunta que `names-seen` foi criada para responder está
+                 respondida: **não há linha `window` na tabela.** O mapeamento
+                 de papéis não perdeu a linha; a linha não existe. Isso remove a
+                 hipótese de erro no `ROLES` e desloca a questão para o lado do
+                 produto — `getMainDiagnostics` não lista a janela num run em
+                 que o log do próprio produto registrou `setReady` nas cinco
+                 repetições.
+
+não prova:       **a causa não está estabelecida.** Não sei ainda se é do Xvfb,
+                 do momento da coleta ou do que `getMainDiagnostics` enumera.
+                 Não tratar como diagnosticado; é questão aberta de `T-070`.
+
+nota:            neste run não houve linha `memory=` de recusa — nenhum processo
+                 reportou zero. O zero do run `34051073811` é portanto
+                 intermitente, o que torna o portão mais necessário, não menos.

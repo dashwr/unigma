@@ -261,12 +261,13 @@ replica credenciais, catalogos ou modelos em settings do unigma.
 | `lmstudio` local | A documentacao mostra configuracao local via provider OpenAI-compatible e `baseURL`. | Candidato documental; **nao suportado ainda**, pois nao ha modelo testado no perfil bundled. |
 | `llama.cpp` local | A documentacao mostra configuracao local via provider OpenAI-compatible e `baseURL`. | Candidato documental; **nao suportado ainda**, pois nao ha modelo testado no perfil bundled. |
 | Provider customizado OpenAI-compatible | O schema e a documentacao permitem `npm`, `name`, `options.baseURL` e `models`. | Fixture de transporte apenas; nao e uma allowlist de provider. |
-| Providers remotos do diretorio OpenCode | A pagina de providers lista muitos providers, mas isso prova capacidade do OpenCode, nao teste do unigma, entitlement ou politica de dados. | **Nao suportado pelo perfil T-011**. Nenhum nome e anunciado como integrado. |
+| `openrouter` com `nvidia/nemotron-3.5-lightning:free` | `GET /provider` do binario fixado lista o par; `toolcall: true`; credencial por `OPENROUTER_API_KEY` no ambiente. | **Suportado.** Os quatro fatos abaixo estao satisfeitos, com prova de runner: `34052368433`, `check.prompt-answered=pass`, `answer=answered`, contra `1.18.23`. E o unico par nesse estado. |
+| Demais providers remotos do diretorio OpenCode | A pagina de providers lista muitos providers, mas isso prova capacidade do OpenCode, nao teste do unigma, entitlement ou politica de dados. | **Nao suportado pelo perfil T-011**. Nenhum outro nome e anunciado como integrado. |
 
-Nao ha modelo fixo suportado nesta etapa. Exemplos como `llama2`,
-`google/gemma-3n-e4b` ou outros IDs mostrados na documentacao sao exemplos de
-configuracao e nao uma promessa de disponibilidade. Para um teste futuro, o
-modelo so pode ser aceito quando:
+Ha exatamente **um** par suportado, o da linha acima, autorizado por `D-043`.
+Exemplos como `llama2`, `google/gemma-3n-e4b` ou outros IDs mostrados na
+documentacao continuam sendo exemplos de configuracao e nao uma promessa de
+disponibilidade. Qualquer outro modelo so pode ser aceito quando:
 
 - o provider e o modelo aparecem na resposta validada de `/provider` ou
   `/config/providers`;
@@ -278,6 +279,12 @@ modelo so pode ser aceito quando:
 
 Sem esses quatro fatos, o estado e `nao suportado`, mesmo que o provider seja
 listado na documentacao do OpenCode.
+
+O quarto fato merece uma nota, porque o smoke que o produz teve de ser desenhado
+contra uma armadilha: `connected` em `/provider` aparece com **qualquer** valor
+na variavel de ambiente, inclusive um invalido. Listagem nao e credencial. So a
+resposta completa a um prompt prova o par, e e por isso que
+`check.prompt-answered` e o unico check tratado como prova no relatorio.
 
 ## 8. Politica de credenciais
 

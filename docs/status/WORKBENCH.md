@@ -81,6 +81,33 @@ ser medida por observação e o relatório carrega a ressalva. Foi o quarto defe
 do dia da mesma família — um número ou uma string que descrevia a intenção em vez
 do que acontecia.
 
+**2026-09-06, run `34052368433` — o primeiro prompt respondido no runner.**
+`smoke=pass`, 17 checks, contra o binário fixado `1.18.23`. O par autorizado por
+`D-043` — `openrouter` / `nvidia/nemotron-3.5-lightning:free` — completou um
+envio real: `check.prompt-answered=pass`, `answer=answered`. É a primeira vez no
+projeto que um envio ao agente completa fora de fixture.
+
+Prova junto o que estava só escrito: a credencial atravessa por `WSLENV` e nunca
+por `argv`, o produto não a escreve em lugar nenhum (`source: "env"`), o processo
+é derrubado, a porta fecha e o estado isolado some.
+
+**Não é suporte a provider; é suporte a este par.** Streaming parcial,
+cancelamento, permissão, diff, recuperação de SSE e versão incompatível
+continuam sem prova — são `T-024`, `T-031`–`T-034` e o resto de `T-011`.
+
+A armadilha que quase produziu um verde vazio: `connected` em `/provider`
+aparece com **qualquer** valor na variável, inclusive inválido. Medi isso antes
+de escrever a prova. Um smoke que lesse só `/provider` teria ficado verde sem
+provar credencial nenhuma.
+
+**E o `names-seen` respondeu a pergunta do run anterior: não há linha `window`
+na tabela.** O mapeamento de papéis não perdeu a linha — a linha não existe.
+Isso descarta erro no `ROLES` e desloca a questão para o produto:
+`getMainDiagnostics` não lista a janela num run em que o log registrou `setReady`
+nas cinco repetições. **Causa não estabelecida**, questão aberta de `T-070`.
+Neste run não houve recusa de memória; o zero do run anterior é intermitente, o
+que torna o portão mais necessário, não menos.
+
 **2026-09-06, run `34051073811` — a prontidão passou a valer; a memória não.**
 Os dois cenários mediram, 5 repetições cada. Resolução **101 ms**, era 2596.
 `ready-ms` 1708 (`clean-profile`) e 1709 (`idle-folder`), spread ~100 — o

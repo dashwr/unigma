@@ -765,6 +765,20 @@ como suportado.
 > health, `/doc`, `/path`, SSE e as operações do perfil; a suíte padrão continua
 > sem depender do executável externo.
 
+> feito em parte: 2026-09-06 (`34052368433`) — o **conjunto inicial de
+> providers/modelos permitido** deixou de estar vazio. `D-043` autorizou
+> `openrouter` com `nvidia/nemotron-3.5-lightning:free`, e o
+> `smoke-opencode-provider` provou o par no runner contra `1.18.23`:
+> `check.prompt-answered=pass`, `answer=answered`. A credencial atravessa por
+> `WSLENV` e nunca por `argv`, e `source: "env"` confirma que o produto não a
+> escreve. O smoke foi desenhado contra uma armadilha medida antes: `connected`
+> em `/provider` aparece com qualquer valor na variável, inclusive inválido, de
+> modo que listagem não é credencial.
+>
+> **O resto de `T-011` continua aberto:** enumeração de eventos, tratamento de
+> reinício e o teste de versão incompatível não foram exercitados. Um par
+> respondendo não é suporte a provider.
+
 - **objetivo:** enumerar versão/protocolo HTTP/SSE, endpoints usados, eventos,
   tratamento de reinício e conjunto inicial de providers/modelos permitido.
 - **responsável lógico:** integração OpenCode + responsável de produto.
