@@ -172,7 +172,10 @@ function sleep(ms: number): Promise<void> {
  * unbounded splice of a product's output is how a log stops being readable.
  */
 function describeOutput(text: string, label = 'launch'): string {
-	const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0).slice(0, 4);
+	// The last lines, not the first: a launch that never becomes ready stops
+	// somewhere, and the opening banner says nothing about where. The first
+	// diagnosable run quoted four startup lines and left the actual stall out.
+	const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0).slice(-6);
 	return lines.length === 0 ? '' : `; ${label}: ${lines.join(' | ')}`;
 }
 
