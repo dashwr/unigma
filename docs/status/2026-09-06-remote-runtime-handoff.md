@@ -80,6 +80,16 @@ com 1 pendente, `unigma-remote-ssh` 98, harnesses de `build/unigma` 97, contrato
 RPC serializado 7 — este pela primeira vez num runner —, pacote, auditoria e os
 smokes. Detalhe em `EVIDENCE.md`.
 
+**Run `34079783571`, head `9caeaf0b`: falhou, e o que ele provou antes de
+falhar importa.** A suíte do runtime foi de 172 para 178 passando — os seis
+testes de layout de OpenCode rodaram — e o passo de testes do workbench executou
+de verdade pela primeira vez, com 47 passando. Depois disso o smoke desktop caiu
+de 40/0 para 34/6, em áreas upstream. A causa foi o próprio passo novo:
+`ensureCompiled` em `build/lib/preLaunch.ts` roda `npm run compile` **só quando
+`out` não existe**, e o smoke roda a partir das fontes; transpilar `out` antes
+fez o smoke pular o compile completo. Corrigido em `2d4d4e35`, que faz o passo
+devolver a árvore como a encontrou.
+
 **Um dos passos verdes não provava nada, e isso foi apurado.** `run workbench
 agent unit tests in WSL` reportava sucesso sem executar teste algum: `--build`
 aponta o harness para `out-build`, e a task de empacotamento segue o caminho

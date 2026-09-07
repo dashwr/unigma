@@ -1532,9 +1532,15 @@ conexão caiu e a janela voltou sem ser recriada. Menos que isso não fecha
   que bundla em `out-vscode` e nunca popula `out-build/vs`. O harness falhou ao
   importar `errors.js`, nunca chegou a `runner.run` e o processo terminou com
   status 0. `test/unit/node/index.js` passa a sair com status 1 nesse caminho, e
-  o passo passa a usar `npm run transpile-client` contra `out`. Consequência
-  honesta: **o reducer de streaming movido em `acd6d274` ainda não tem prova de
-  runner**, e a suíte `test/common` do workbench nunca teve.
+  o passo passa a usar `npm run transpile-client` contra `out`.
+- **run `34079783571`, head `9caeaf0b`:** com a correção, a suíte do runtime foi
+  de 172 para **178 passando** — os seis testes de layout de OpenCode de
+  `18644365` rodaram — e o passo do workbench executou de verdade pela primeira
+  vez, **47 passando**, incluindo o reducer de streaming. O run terminou em
+  falha por efeito colateral do próprio passo: transpilar `out` fez o smoke
+  desktop pular o `npm run compile` que `build/lib/preLaunch.ts` só dispara
+  quando `out` não existe, e seis testes upstream caíram. Corrigido em
+  `2d4d4e35`, que faz o passo devolver a árvore como a encontrou.
 - **2026-09-07 — defeito que bloqueava o recorte agentivo, corrigido em
   `18644365`:** o resolver do runtime só conhecia o layout do pacote desktop,
   `<appRoot>/opencode/bin/opencode`, escrito por `getOpenCodeBundle` em

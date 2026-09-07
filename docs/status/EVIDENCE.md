@@ -816,3 +816,40 @@ achado do dia, sem run que o exercite:
                  seis testes contra um filesystem falso. **É condição
                  necessária, não prova:** só um smoke contra host real fecha
                  isso, e ele não existe.
+
+### o passo de teste passou a executar, e derrubou o smoke — 2026-09-07
+
+data:            2026-09-07
+tarefa/gate:     T-054 (cobertura de teste); nenhum aceite se move
+run id:          `34079783571`
+workflow:        `unigma-linux-wsl-validation.yml`, `--ref remote-runtime`
+commit/head:     `9caeaf0b`
+plataforma:      linux-x64 (Ubuntu WSL2)
+resultado:       **falha**, no passo `run Linux desktop smoke test in WSL`
+
+o que provou:    a suíte do runtime foi de **172 para 178 passando**, com 1
+                 pendente: os seis testes de layout de OpenCode de `18644365`
+                 rodaram no runner. E o passo `run workbench agent unit tests`
+                 executou de verdade pela primeira vez — **47 passando** —,
+                 incluindo os quatro testes de reducer movidos em `acd6d274`.
+                 O passo que antes durava 2 s passou a durar 10 s.
+
+o que quebrou:   o smoke desktop caiu de 40 passando e 0 falhando para 34
+                 passando e **6 falhando**, todos em áreas upstream —
+                 `languages`, `statusbar` e `scm` —, com timeout de elemento.
+
+causa, e é do próprio passo novo:
+                 `ensureCompiled` em `build/lib/preLaunch.ts` roda
+                 `npm run compile` **somente quando `out` não existe**, e o
+                 smoke desktop roda a partir das fontes. Ao transpilar `out`
+                 antes, o passo fez o smoke pular o compile completo e rodar
+                 contra uma árvore só transpilada. Nada a ver com o produto: é
+                 acoplamento entre passos por um diretório compartilhado.
+
+correção:        `2d4d4e35`. O passo remove `out` ao terminar, sob guarda de que
+                 o caminho é o diretório de build e tem `package.json`, e a
+                 suíte de browser deixa de mandar `scripts/test.sh` reapagar
+                 `.build/electron`.
+
+não prova:       nada de sessão de agente remota. `AC-007` continua parcial.
+
