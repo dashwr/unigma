@@ -140,6 +140,13 @@ o comentário do próprio passo afirmava.
    menos que evidência de runner; vira evidência quando o PR
    [#15](https://github.com/dashwr/unigma/pull/15) for integrado e o workflow
    focado puder rodar.
+
+   Nota para quem for mexer nisso: o job Linux **também** deixa sua árvore no
+   `$HOME` do WSL, em `/home/dasher/unigma-linux-build`, mas ela não acumula —
+   é caminho fixo, que o próprio passo de bootstrap remove e recria a cada run
+   (`rm -rf "$build"; mkdir -p "$build"`). O defeito era do `mktemp -d` do
+   workflow focado, que criava um diretório novo por execução. Não são o mesmo
+   problema.
 4. **`AC-007` parcial, sessão agentiva remota não provada — continua aberto, com
    causa identificada.** Ver abaixo.
 
