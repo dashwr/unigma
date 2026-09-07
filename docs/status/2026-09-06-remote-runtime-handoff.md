@@ -406,6 +406,33 @@ workflow o carrega, e ele não é empacotado.
    divergente por desenho (`smoke-remote-window.ts`, gate
    `artifact-commit-pair`). Provar exige publicar o par novo e re-stage na VPS.
 
+### o smoke de sessão agentiva na bancada — estado das iterações
+
+`build/unigma/smoke-remote-agent-session.ts` existe e é despachável por
+`unigma-remote-staging-smoke.yml` com `agent_session=true`, que já está na branch
+default. A bancada inteira funciona; o que ainda não fechou é a janela remota
+entregar o driver.
+
+| # | run | último check verde | o que quebrou |
+| --- | --- | --- | --- |
+| 1 | `34112759364` | — | `esbuild` vive em `build/node_modules`, não na raiz |
+| 2 | `34113512347` | `sshd` | o depósito guarda o servidor **extraído**; o payload transporta um arquivo, e é reempacotado |
+| 3 | `34114651671` | driver compilado | semente de trust com chave inventada; o workbench lê `content.trust.model.key` mais o marcador de target |
+| 4 | `34115604981` | trust semeado | driver mudo, e o smoke cego: sem instrumentação isso é indistinguível de resolver falho, extensão não carregada ou bridge recusando |
+| 5 | `34116619812` | trust semeado | `window.log-bytes=0` — `bin/unigma` é o wrapper CLI, que sob WSL para num prompt interativo esperando stdin. O binário certo é o Electron na raiz do pacote |
+
+Cada falha foi legível porque os checks estão em ordem de custo: ferramentas,
+par, binário, bancada, payload, staging, driver, trust, janela. Um verde no
+último não pode significar outra coisa, porque os anteriores já afirmaram o
+resto.
+
+**O que falta são os quatro últimos:** a janela remota abrir, o driver reportar,
+e então os três que valem — driver hospedado do lado remoto, `StartSession`
+aceito, e `opencode serve` escutando **naquele** host.
+
+**E vale repetir:** verde aqui prova o mecanismo e **não fecha `AC-007`**. Aquela
+matriz pede host real, e uma bancada efêmera na própria máquina não é um.
+
 ### a sonda somente-leitura ficou pronta e não pôde ser disparada
 
 `d2a366f2` estendeu `build/unigma/remote-native-probe.ts` com dois testes
