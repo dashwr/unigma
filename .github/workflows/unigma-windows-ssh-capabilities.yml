@@ -11,6 +11,17 @@ name: unigma Windows SSH capabilities
 
 on:
   workflow_dispatch:
+    inputs:
+      # Diagnostic, added on this branch only and absent from the default
+      # branch. Dispatching with it answers whether GitHub validates
+      # workflow_dispatch inputs against the ref being dispatched or against the
+      # default branch. The answer decides whether a guarded read-only mode that
+      # exists only on a feature branch can be selected at all. This workflow was
+      # chosen because it connects to no host and reads no key.
+      probe_input_resolution:
+        description: Diagnostic only; echoed and otherwise ignored
+        type: string
+        required: false
 
 permissions:
   contents: read
@@ -24,6 +35,13 @@ jobs:
       run:
         shell: powershell
     steps:
+      - name: report which workflow definition is running
+        env:
+          PROBE_INPUT: ${{ inputs.probe_input_resolution }}
+        run: |
+          Write-Host "definition=feature-branch"
+          Write-Host "probe_input_resolution=$env:PROBE_INPUT"
+
       - name: probe the client
         run: |
           $ErrorActionPreference = 'Continue'
