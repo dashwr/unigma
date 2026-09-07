@@ -156,6 +156,12 @@ Corrigido em `18644365`: `resolveEmbeddedOpenCodeCandidate` conhece os dois
 layouts, com o desktop na frente, e seis testes fixam as duas formas contra um
 filesystem falso. **Condição necessária, não prova.**
 
+**O bloqueio que fecha a porta nesta rodada é de autorização, não de desenho.**
+Todo caminho até a VPS passa por um `workflow_dispatch`, e disparar workflow que
+alcança a VPS externa foi negado pela política de permissões desta sessão.
+Escrever o harness completo produziria mil linhas que não poderiam ser
+exercitadas — que é exatamente o que `AGENTS.md` proíbe tratar como entrega.
+
 O que falta para a prova, e cada item é decisão humana, não trabalho pendente:
 
 1. **Escrita no host.** O único caminho de produção para iniciar sessão é o
