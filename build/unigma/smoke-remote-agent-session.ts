@@ -198,9 +198,13 @@ function seedTrust(databasePath: string, authority: string, folderPath: string):
 async function main(): Promise<void> {
 	const sshd = executable('/usr/sbin/sshd') ?? executable('sshd');
 	const keygen = executable('ssh-keygen');
-	const esbuild = join(repoRoot, 'node_modules', '.bin', 'esbuild');
+	// esbuild is a dependency of `build/`, not of the repository root, so the
+	// binary lives under build/node_modules — the same install `optimize.ts`
+	// imports from.
+	const esbuild = join(repoRoot, 'build', 'node_modules', 'esbuild', 'bin', 'esbuild');
 	check('tools', Boolean(sshd && keygen && existsSync(esbuild)));
 	if (!sshd || !keygen || !existsSync(esbuild)) {
+		fact('tools.missing', [sshd ? '' : 'sshd', keygen ? '' : 'ssh-keygen', existsSync(esbuild) ? '' : 'esbuild'].filter(Boolean).join(',') || 'none');
 		writeReport();
 		return;
 	}
