@@ -316,8 +316,9 @@ e suíte do runtime (172, 1 pendente), `unigma-remote-ssh` (98), harnesses de
 distribuição e os smokes. **O passo de testes `test/common` do workbench
 reportava sucesso sem executar nada** — `--build` aponta o harness para
 `out-build`, que o caminho esbuild do empacotamento nunca popula. Corrigido no
-harness e no workflow; no run `34079783571` a suíte executou pela primeira vez,
-com 47 passando, e a do runtime subiu de 172 para 178. O PR
+harness e no workflow. O run **`34081018988`** fecha a cobertura: runtime 178
+com 1 pendente, `test/common` 47, `test/browser` 13 em Electron sob Xvfb,
+contrato RPC 7, e smoke desktop de volta a 40 passando com 0 falhando. O PR
 [#15](https://github.com/dashwr/unigma/pull/15) continua aberto para tornar o
 workflow focado despachável, que é a rota barata para iterar. Ver EVIDENCE.
 

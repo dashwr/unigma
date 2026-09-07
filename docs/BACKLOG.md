@@ -1541,6 +1541,12 @@ conexão caiu e a janela voltou sem ser recriada. Menos que isso não fecha
   desktop pular o `npm run compile` que `build/lib/preLaunch.ts` só dispara
   quando `out` não existe, e seis testes upstream caíram. Corrigido em
   `2d4d4e35`, que faz o passo devolver a árvore como a encontrou.
+- **run `34081018988`, head `ca5dd98b`, verde:** fecha a cobertura. Runtime 178
+  com 1 pendente, `unigma-remote-ssh` 98, harnesses de `build/unigma` 98,
+  contrato RPC 7, workbench `test/common` 47 e `test/browser` 13 em Electron sob
+  Xvfb, com o smoke desktop de volta a 40 passando e 0 falhando. As três suítes
+  do `unigmaAgent` executam em CI pela primeira vez, e cada número tem nome de
+  teste no log. **`AC-007` não se move:** nada disso é sessão de agente remota.
 - **2026-09-07 — defeito que bloqueava o recorte agentivo, corrigido em
   `18644365`:** o resolver do runtime só conhecia o layout do pacote desktop,
   `<appRoot>/opencode/bin/opencode`, escrito por `getOpenCodeBundle` em

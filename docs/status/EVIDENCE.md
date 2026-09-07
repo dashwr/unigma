@@ -853,3 +853,41 @@ correção:        `2d4d4e35`. O passo remove `out` ao terminar, sob guarda de q
 
 não prova:       nada de sessão de agente remota. `AC-007` continua parcial.
 
+### a cobertura de teste do unigmaAgent passa a existir de verdade — 2026-09-07
+
+data:            2026-09-07
+tarefa/gate:     T-054 / T-055 (recorte puro e cobertura); `AC-007` **não se move**
+run id:          `34081018988`
+workflow:        `unigma-linux-wsl-validation.yml`, `--ref remote-runtime`
+commit/head:     `ca5dd98b`
+plataforma:      linux-x64 (Ubuntu WSL2 no runner `WIREDNEOMKII`)
+node/npm:        v24.18.0 / npm 11.x
+resultado:       **sucesso**, 19 minutos
+
+números do log:
+  suíte do runtime                172 passando, 1 pendente
+  `unigma-remote-ssh`             98/98
+  harnesses de `build/unigma`     98/98
+  contrato RPC serializado        7/7
+  workbench `test/common`         47 passando
+  workbench `test/browser`        13 passando, em Electron sob Xvfb
+  smoke desktop                   40 passando, 52 pendentes, 0 falhando
+
+  A suíte do runtime aparece como **178 passando** neste run: 172 do estado
+  anterior mais os seis testes de layout de OpenCode de `18644365`.
+
+prova:           as três suítes do `unigmaAgent` executam em CI pela primeira
+                 vez, e cada uma tem nome de teste no log — não apenas um passo
+                 verde. `test/common` cobre o reducer de streaming movido em
+                 `acd6d274`; `test/browser` cobre a contribuição, o bridge
+                 serializável e o `Cancel` sob `stopSession` pendente, em
+                 Electron. O smoke desktop voltou a 40 passando e 0 falhando,
+                 confirmando que a remoção de `out` ao fim do passo desfez a
+                 regressão de `34079783571`.
+
+não prova:       nada de sessão de agente em host remoto. Não houve staging, não
+                 houve VPS, e a sonda de layout de OpenCode acrescentada em
+                 `d2a366f2` **não foi executada contra host algum** — ver
+                 `2026-09-06-remote-runtime-handoff.md` para a razão.
+                 `AC-007` continua parcial. Não é release.
+

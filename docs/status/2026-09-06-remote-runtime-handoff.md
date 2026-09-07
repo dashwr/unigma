@@ -90,6 +90,13 @@ de 40/0 para 34/6, em áreas upstream. A causa foi o próprio passo novo:
 fez o smoke pular o compile completo. Corrigido em `2d4d4e35`, que faz o passo
 devolver a árvore como a encontrou.
 
+**Run `34081018988`, head `ca5dd98b`: verde, e é o que fecha a cobertura.**
+Runtime 178 com 1 pendente, `unigma-remote-ssh` 98, harnesses de `build/unigma`
+98, contrato RPC 7, workbench `test/common` 47 e `test/browser` 13 em Electron
+sob Xvfb, com o smoke desktop de volta a 40 passando e 0 falhando. As três
+suítes do `unigmaAgent` executam em CI pela primeira vez, e cada número tem nome
+de teste no log — não apenas um passo verde.
+
 **Um dos passos verdes não provava nada, e isso foi apurado.** `run workbench
 agent unit tests in WSL` reportava sucesso sem executar teste algum: `--build`
 aponta o harness para `out-build`, e a task de empacotamento segue o caminho
@@ -117,7 +124,7 @@ o comentário do próprio passo afirmava.
    ele disparava um literal `version: 2` esperando que o envelope recusasse,
    coisa que deixou de ser verdade quando `ace14a12` tornou v2 a versão
    suportada. Agora a versão inválida é derivada da constante. Com as duas
-   correções a suíte fica 13 passando, verificado em Electron nesta máquina.
+   correções a suíte fica 13 passando, provado no runner em `34081018988`.
 2. **Nenhum item do Trello marcado — fechado.** Os itens do TD-3 cobertos pelo
    run foram marcados, com comentário no cartão descrevendo a rota usada. O que
    não tem prova de runner continua desmarcado.
