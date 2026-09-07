@@ -1,0 +1,18 @@
+{
+	"name": "unigma-agent-session-driver",
+	"displayName": "unigma agent session driver",
+	"description": "Smoke-only driver: starts an agent session in the extension host it runs in and reports what happened, for build/unigma/smoke-remote-agent-session.ts. Never packaged.",
+	"version": "0.0.1",
+	"publisher": "unigma",
+	"license": "MIT",
+	"engines": {
+		"vscode": "^1.135.0"
+	},
+	"extensionKind": [
+		"workspace"
+	],
+	"activationEvents": [
+		"onStartupFinished"
+	],
+	"main": "./out/extension.js"
+}

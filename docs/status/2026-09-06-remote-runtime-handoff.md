@@ -321,15 +321,43 @@ confere o efeito, escreve relatório), um smoke que reúna a bancada do staging 
 o lançamento de janela do `smoke-remote-window.ts`, e um passo no workflow que já
 é despachável. Ordem de 400 a 500 linhas.
 
-**Por que não fiz nesta rodada, e é escolha, não impedimento:** mesmo verde, isso
-não fecha o item como ele está escrito. A matriz de `AC-007` pede host real, e
-`AGENTS.md` é explícito sobre a diferença — "um check verde merece a pergunta o
-que exatamente isso provou", e uma bancada efêmera na própria máquina não é o
-host que o critério quer. Entregar 500 linhas de harness novo, sem supervisão,
-para um recorte que o backlog marca `[BLOQUEADO]` aguardando decisão, e cujo
-verde ainda assim não moveria o aceite, é o tipo de trabalho que o mantenedor
-deve poder moldar. O que fica é o mapa correto, que é melhor do que o mapa errado
-que estava aqui.
+**Tentei construir, e o que apareceu ao montar corrige o parágrafo acima.** A
+rota da bancada é real, mas "sem autorização nenhuma" era otimismo meu. Ao
+escrever o harness surgiram três coisas que só aparecem quando se monta:
+
+1. **O ext host remoto não herda o ambiente do desktop.** O driver não pode
+   receber o caminho do relatório por variável passada na linha de comando do
+   produto. Contornável — caminho fixo sob o `$HOME` do host, que a bancada
+   compartilha —, mas é mais uma coisa que escreve no `$HOME` e precisa de
+   limpeza.
+2. **O alias exige mutar o `~/.ssh/config` do runner.** `remoteServerTransport.ts`
+   tem seam para `known_hosts` (`knownHostsFile`) e **não** para `-F <config>`:
+   o alias vai byte a byte para o `ssh`, e `docs/SSH-CONTRACT.md` §4 faz da
+   configuração do usuário a fonte de verdade. Por isso `unigma-wsl-ssh-alias.yml`
+   existe como **ação de manutenção separada**, e não como algo que um smoke faz.
+   Uma bancada com alias exige ou essa mutação de estado compartilhado a partir
+   de dentro do smoke, ou um seam de configuração no transporte — que é código de
+   produto e decisão de desenho.
+3. **Nada disso é testável fora do runner**, e cada sondagem custa um ciclo de
+   quinze a vinte e cinco minutos. Restam seis incógnitas: a mutação do
+   `ssh_config`, se `--extensionDevelopmentPath` com URI `vscode-remote://` de
+   fato carrega no lado remoto, se `executeCommand` do bridge funciona de outra
+   extensão no mesmo ext host, se preflight e trust passam nesse contexto, o par
+   e o staging, e o tempo.
+
+Somado: é trabalho de sessão supervisionada, não de madrugada. Fazê-lo sem
+supervisão terminaria com código parcial **e** com o `ssh_config` do runner
+alterado sem rollback verificado, o que é pior do que um handoff preciso. E, ainda
+verde, não fecharia o item: a matriz de `AC-007` pede host real, e `AGENTS.md` é
+explícito — "um check verde merece a pergunta o que exatamente isso provou".
+
+O que fica concreto desta tentativa, além do mapa: **o driver está escrito**, em
+`build/unigma/agent-session-driver/`. É a peça que não existia e sem a qual não
+há como provocar uma sessão num ext host remoto — o caminho de produção é o botão
+da view, e `unigma.agent.runtime.transport.send` é `when: false`. Ele afirma o
+efeito, não os eventos: depois do `StartSession`, `opencode serve` tem de estar
+rodando naquele host com o loopback daquele host respondendo. É inerte: nenhum
+workflow o carrega, e ele não é empacotado.
 
 **Para o host real, o que falta continua sendo autorização:**
 
