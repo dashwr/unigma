@@ -1030,3 +1030,56 @@ não prova:       o workflow focado continua sem run próprio, e continuará at�
                  estar na branch default. O que tem prova é a propriedade, não a
                  execução dele.
 
+### o runtime remoto viajava vazio no pacote do servidor — 2026-09-07
+
+data:            2026-09-07
+tarefa/gate:     T-054; elo necessário de `AC-007`, que **não se move**
+runs:            `34086194290` (achado), `34087643005` (listagem), `34088089210` (correção)
+workflow:        `unigma-server-linux-artifact.yml`, `--ref remote-runtime`
+plataforma:      linux-x64 (Ubuntu WSL2)
+
+o achado:        `34086194290`, head `5b1b5d04`. Os três checks novos do perfil
+                 `--server` disseram: `server.runtime.present=pass`,
+                 `server.runtime.workspaceKind=pass`,
+                 `server.runtime.entryPoint=fail`. A extensão que **é** o
+                 extension host remoto estava no pacote, declarada `workspace`, e
+                 sem o arquivo que o `main` nomeia.
+
+a listagem:      `34087643005`, head `ae7380dd`, depois de aplicar o auditor
+                 geral ao perfil server:
+                 `extensionEntryPoints.missing=unigma-agent-runtime:./out/extension.js:[package.json]`.
+                 O diretório empacotado continha **apenas** `package.json`.
+
+a causa:         `unigma-agent-runtime` não tem config esbuild, então o
+                 empacotamento toma `fromLocalNormal` em
+                 `build/lib/extensions.ts`, que é `vsce.listFiles` sobre o que
+                 está no disco. O job desktop compila a extensão explicitamente
+                 antes de empacotar, e é só por isso que o pacote desktop está
+                 correto; o job do servidor rodava apenas
+                 `vscode-reh-linux-x64-min`, com a árvore do WSL recriada a cada
+                 run sem `extensions/**/out/`, que é ignorado pelo git.
+
+por que ninguém via:
+                 `auditExtensionEntryPoints` só era chamado no ramo desktop. O
+                 pacote cujas extensões são o extension host remoto nunca foi
+                 obrigado a provar que um `main` declarado é um arquivo que
+                 existe — apesar de o auditor ter, em comentário, a descrição
+                 exata desse defeito, que o desktop já pagara uma vez.
+
+a correção:      `a39f952f` acrescenta `compile-extension:unigma-agent-runtime`
+                 antes do empacotamento, como o job desktop já fazia.
+
+prova:           `34088089210`, head `a39f952f`: `extensionEntryPoints.missing=none`,
+                 `server.runtime.present=pass`, `server.runtime.workspaceKind=pass`,
+                 `audit=pass`, e `published unigma-server-latest ->
+                 versions/unigma-server/a39f952f…`. O pacote do servidor contém o
+                 runtime com o ponto de entrada, e o artefato voltou a ser
+                 publicável.
+
+não prova:       **`AC-007` não se move.** Isto era um elo necessário e
+                 silenciosamente quebrado, não a sessão. Continua sem sessão de
+                 agente em host remoto: o par ativado na VPS é `493dcfe7`, o
+                 ponteiro do depósito agora é `a39f952f`, e provar a sessão exige
+                 as três autorizações registradas em
+                 `2026-09-06-remote-runtime-handoff.md`.
+
