@@ -961,3 +961,35 @@ prova:           as duas guardas do par entram em CI. O script de staging passa 
 não prova:       continua sem sessão de agente em host remoto, sem staging e sem
                  VPS. `AC-007` permanece parcial.
 
+### o bit de execução do par afirmado nos quatro pontos — 2026-09-07
+
+data:            2026-09-07
+tarefa/gate:     T-054; `AC-007` **não se move**
+run id:          `34084155109`
+workflow:        `unigma-linux-wsl-validation.yml`, `--ref remote-runtime`
+commit/head:     `38638ab3`
+plataforma:      linux-x64 (Ubuntu WSL2)
+resultado:       **sucesso**
+
+números do log:
+  suíte do runtime                181 passando, 1 pendente
+  `unigma-remote-ssh`             99/99
+  harnesses de `build/unigma`     **100/100** (eram 98)
+  contrato RPC serializado        7/7
+  workbench `test/common`         47 passando
+  workbench `test/browser`        13 passando, em Electron sob Xvfb
+  smoke desktop                   40 passando, 52 pendentes, 0 falhando
+
+prova:           as duas guardas restantes do par entram em CI.
+                 `make-payload.ts` recusa uma fonte de OpenCode sem bit de
+                 execução, e `verify-payload.ts` passa a checar o modo ao lado
+                 da checagem que já exigia ELF — ser ELF não é ser executável.
+                 Com a guarda de staging de `9016876d`, a propriedade passa a
+                 ser afirmada em **montagem, verificação, staging e runtime**.
+                 `swap-opencode-bundle.ts` já a checava; o caminho do payload
+                 era o único fora da convenção.
+
+não prova:       continua sem sessão de agente em host remoto, sem staging e sem
+                 VPS. `AC-007` permanece parcial, pelas três autorizações
+                 registradas em `2026-09-06-remote-runtime-handoff.md`.
+

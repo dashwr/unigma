@@ -102,6 +102,12 @@ de teste no log — não apenas um passo verde.
 descritas mais abaixo. O resto sem mudança: harnesses 98, contrato RPC 7,
 workbench 47 e 13, smoke desktop 40 com 0 falhando.
 
+**Run `34084155109`, head `38638ab3`: verde, e é o último desta rodada.**
+Harnesses de `build/unigma` de 98 para **100** — as guardas de montagem e
+verificação do payload entraram em CI. Runtime 181 com 1 pendente,
+`unigma-remote-ssh` 99, contrato RPC 7, workbench 47 e 13, smoke desktop 40 com
+0 falhando.
+
 **Um dos passos verdes não provava nada, e isso foi apurado.** `run workbench
 agent unit tests in WSL` reportava sucesso sem executar teste algum: `--build`
 aponta o harness para `out-build`, e a task de empacotamento segue o caminho
