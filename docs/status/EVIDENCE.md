@@ -1083,3 +1083,40 @@ não prova:       **`AC-007` não se move.** Isto era um elo necessário e
                  as três autorizações registradas em
                  `2026-09-06-remote-runtime-handoff.md`.
 
+### par cliente/servidor casado em `da61097a` — 2026-09-07
+
+data:            2026-09-07
+tarefa/gate:     preparação para o recorte agentivo; `AC-007` **não se move**
+runs:            `34088913848` (cliente), `34088915524` (servidor)
+commit/head:     `da61097a`
+resultado:       ambos **sucesso**
+
+o que ficou no depósito do WSL:
+  `unigma-latest`         -> `versions/unigma/da61097a…`
+  `unigma-server-latest`  -> `versions/unigma-server/da61097a…`
+
+números do cliente:
+  suíte do runtime                181 passando, 1 pendente
+  `unigma-remote-ssh`             99/99
+  harnesses de `build/unigma`     104/104
+  contrato RPC serializado        7/7
+  workbench `test/common` 47 · `test/browser` 13
+  smoke desktop                   40 passando, 0 falhando
+
+números do servidor:
+  `extensionEntryPoints.missing=none`, `server.runtime.present=pass`,
+  `server.runtime.workspaceKind=pass`, `audit=pass`
+
+por que isto existe:
+                 o gate `artifact-commit-pair` dos smokes remotos recusa, por
+                 desenho, um par cujos commits divergem, e o depósito estava com
+                 cliente e servidor em commits diferentes. Qualquer tentativa de
+                 exercitar o recorte agentivo começaria recusada por aí. O par
+                 agora existe e está fixado: `artifact_commit=da61097a…`.
+
+                 É também o primeiro par em que o pacote do servidor comprovadamente
+                 contém o runtime com o ponto de entrada — antes de `a39f952f`
+                 ele viajava como manifesto sozinho, e nada checava.
+
+não prova:       nada de sessão. `AC-007` continua parcial.
+
