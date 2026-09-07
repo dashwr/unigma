@@ -172,16 +172,25 @@ o comentário do próprio passo afirmava.
    runner dentro dos 100 testes de `build/unigma`. O documento é a direção; o
    patchset intocado com auditoria verde é a prova de que a direção foi seguida.
    Evidência citada no backlog, como a regra exige.
-3. **Árvore temporária no `$HOME` do WSL — corrigido, e a prova é local, não de
-   runner.** `acd6d274`. O workflow focado passa a removê-la em `trap EXIT`, com
-   sentinela vazia e guarda de prefixo, na forma que `AGENTS.md` exige de
-   remoção recursiva. **Esse workflow não é despachável**, então o conserto não
-   tem run: o que existe é a verificação do texto extraído do próprio arquivo,
-   executado contra um `HOME` falso nos dois caminhos — saída limpa e saída por
-   erro —, deixando o diretório vazio nos dois. É mais que revisão de diff e
-   menos que evidência de runner; vira evidência quando o PR
-   [#15](https://github.com/dashwr/unigma/pull/15) for integrado e o workflow
-   focado puder rodar.
+3. **Árvore temporária no `$HOME` do WSL — fechado, com prova de runner.**
+   `acd6d274` fez o workflow focado removê-la em `trap EXIT`, com sentinela
+   vazia e guarda de prefixo, na forma que `AGENTS.md` exige de remoção
+   recursiva. Esse workflow não é despachável, e por um tempo isso ficou
+   registrado aqui como limite — o conserto existiria sem run. Era falta de
+   procurar o lugar certo.
+
+   O lugar certo já existia: `audit-remote-safety.ts` aplica regras de texto
+   sobre shell que é montado como string e executado noutro lugar, exatamente a
+   classe de código que nenhum type checker vê, e a suíte dele roda no runner.
+   `f95ca3e2` afirma ali a propriedade sobre o arquivo do workflow — `mktemp -d`
+   sob `$HOME`, `trap cleanup EXIT`, sentinela que começa vazia, guarda de
+   prefixo, e a remoção guardada sendo a única do arquivo —, na mesma forma que
+   `remoteStagingScript.test.ts` usa para o shell gerado.
+
+   Junto foi uma regra para **todos** os workflows, porque o defeito valia a
+   classe e não só a instância: uma remoção recursiva nunca nomeia o `$HOME` nem
+   a raiz, e nunca deixa a expansão sem aspas, já que uma variável vazia
+   transforma `rm -rf $tree/out` em `rm -rf /out`.
 
    Nota para quem for mexer nisso: o job Linux **também** deixa sua árvore no
    `$HOME` do WSL, em `/home/dasher/unigma-linux-build`, mas ela não acumula —
