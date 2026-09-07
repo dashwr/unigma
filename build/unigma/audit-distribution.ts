@@ -274,6 +274,31 @@ function auditServerPackage(packageDirectory) {
 		check(name, passed);
 	}
 
+	/*
+	 * The remote agent story rests entirely on this extension being in the server
+	 * package and being hosted on the remote side. Nothing asserted either.
+	 *
+	 * The repository already paid for the negative half of this: `gulpfile.reh.ts`
+	 * compared `extensionKind` against a string when the field is an array, so the
+	 * comparison never matched and every extension with a `main` was embedded,
+	 * `unigma-remote-ssh` included, whose code has no business on a remote host.
+	 * That was fixed and is covered by the prohibited-name check. The positive
+	 * half was not: if the inclusion rule ever drops `unigma-agent-runtime`, the
+	 * server still builds, still answers `/version`, still passes this audit, and
+	 * the remote runtime simply is not there.
+	 */
+	const runtimeDirectory = join(packageDirectory, 'extensions', 'unigma-agent-runtime');
+	const runtimeManifest = readJson(join(runtimeDirectory, 'package.json'));
+	const runtimeKinds = Array.isArray(runtimeManifest?.extensionKind) ? runtimeManifest.extensionKind : [];
+	check('server.runtime.present', Boolean(runtimeManifest));
+	// Workspace kind is what places it in the remote extension host rather than
+	// the desktop one, and it is the gate the runtime itself re-checks.
+	check('server.runtime.workspaceKind', runtimeKinds.length > 0 && runtimeKinds.includes('workspace') && !runtimeKinds.includes('ui'));
+	const runtimeEntry = typeof runtimeManifest?.main === 'string' ? join(runtimeDirectory, runtimeManifest.main) : undefined;
+	// Same tolerance the general entry-point audit uses: a manifest may omit the
+	// extension, as `./out/extension` does.
+	check('server.runtime.entryPoint', Boolean(runtimeEntry) && (isFile(runtimeEntry) || isFile(`${runtimeEntry}.js`) || isFile(join(runtimeEntry, 'index.js'))));
+
 	const product = readJson(join(packageDirectory, 'product.json'));
 	const packageJson = readJson(join(packageDirectory, 'package.json'));
 	check('product.json', Boolean(product));
