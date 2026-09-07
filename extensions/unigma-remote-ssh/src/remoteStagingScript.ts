@@ -56,6 +56,7 @@ export type RemoteStagingHandshake =
 		| 'payload-extra-file'
 		| 'server-archive-invalid'
 		| 'server-not-executable'
+		| 'opencode-not-executable'
 		| 'activation-invalid'
 		| 'activation-failed';
 	};
@@ -228,6 +229,11 @@ export function buildRemoteStagingScript(input: unknown): RemoteStagingScriptRes
 		'',
 		'if ! tar --no-same-owner --no-same-permissions -xzf "$SERVER_ARCHIVE" --strip-components=1 -C "$STAGING"; then fail server-archive-invalid 53; fi',
 		'if [ ! -x "$STAGING/bin/unigma-server" ]; then fail server-not-executable 54; fi',
+		// The manifest pins size and hash, neither of which carries the mode, and
+		// extraction runs with --no-same-permissions on purpose. Without this the
+		// activation succeeds and the failure only surfaces much later, on the
+		// remote host, as the runtime refusing to start its own bundle.
+		'if [ ! -x "$STAGING/bin/opencode" ]; then fail opencode-not-executable 56; fi',
 		'if [ -e "$VERSIONED" ] || [ -L "$VERSIONED" ]; then fail activation-invalid 49; fi',
 		'if ! mv -T "$STAGING" "$VERSIONED"; then fail activation-failed 55; fi',
 		'emit \'{"status":"activated"}\'',
@@ -289,7 +295,7 @@ export function parseRemoteStagingHandshake(line: string): RemoteStagingHandshak
 		const statuses = new Set<RemoteStagingHandshake['kind']>([
 			'home-invalid', 'staging-failed', 'manifest-invalid', 'payload-invalid', 'file-missing',
 			'file-size-mismatch', 'file-hash-mismatch', 'payload-extra-file', 'server-archive-invalid',
-			'server-not-executable', 'activation-invalid', 'activation-failed'
+			'server-not-executable', 'opencode-not-executable', 'activation-invalid', 'activation-failed'
 		]);
 		return statuses.has(payload.status as RemoteStagingHandshake['kind']) ? { kind: payload.status as RemoteStagingHandshake['kind'] } : undefined;
 	} catch {

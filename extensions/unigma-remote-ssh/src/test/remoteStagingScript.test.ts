@@ -54,6 +54,31 @@ test('parses only the redacted staging handshake statuses', () => {
 	assert.equal(parseRemoteStagingHandshake('unigma-remote:{"status":"activated","hash":"secret"}'), undefined);
 });
 
+test('refuses to activate a payload whose OpenCode lost its executable bit', () => {
+	const result = buildRemoteStagingScript({ commit, manifest });
+	assert.equal(result.valid, true);
+	if (!result.valid) {
+		return;
+	}
+
+	/*
+	 * The manifest pins size and hash, and neither carries the mode; extraction
+	 * runs with --no-same-permissions on purpose. Without this gate the
+	 * activation succeeds and the failure only surfaces much later, on the
+	 * remote host, as the runtime refusing to start the bundle the payload had
+	 * just delivered. Both members of the pair are checked the same way.
+	 */
+	assert.match(result.script, /if \[ ! -x "\$STAGING\/bin\/opencode" \]; then fail opencode-not-executable /);
+	assert.match(result.script, /if \[ ! -x "\$STAGING\/bin\/unigma-server" \]; then fail server-not-executable /);
+
+	// The gate refuses; it never repairs. A chmod here would let a payload
+	// choose its own mode on the host, which is the very thing
+	// --no-same-permissions exists to prevent.
+	assert.doesNotMatch(result.script, /chmod/);
+
+	assert.deepEqual(parseRemoteStagingHandshake('unigma-remote:{"status":"opencode-not-executable"}'), { kind: 'opencode-not-executable' });
+});
+
 test('routes every recursive removal through the guard, with no path sentinel', () => {
 	const result = buildRemoteStagingScript({ commit, manifest });
 	assert.equal(result.valid, true);

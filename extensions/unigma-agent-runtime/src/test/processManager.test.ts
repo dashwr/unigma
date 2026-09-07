@@ -6,6 +6,9 @@
 import 'mocha';
 import assert from 'assert';
 import { EventEmitter } from 'node:events';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { ChildProcessManager, type ProcessManagerOptions } from '../infrastructure/processManager';
 
@@ -48,6 +51,79 @@ function optionsFor(spawn: NonNullable<ProcessManagerOptions['spawn']>, startupT
 }
 
 suite('Unigma agent process manager', () => {
+	/*
+	 * `resolveEmbeddedOpenCodeCandidate` is covered against a fake filesystem in
+	 * openCodeResolver.test.ts. These exercise the packaged path for real, through
+	 * `ChildProcessManager`, because the defect being guarded was precisely that
+	 * the real resolution looked in a directory the remote payload never writes.
+	 */
+	suite('packaged OpenCode layouts on a real filesystem', () => {
+		const roots: string[] = [];
+		const makeRoot = () => {
+			const root = mkdtempSync(join(tmpdir(), 'unigma-approot-'));
+			roots.push(root);
+			return root;
+		};
+		const writeBinary = (directory: string, mode: number) => {
+			mkdirSync(directory, { recursive: true });
+			const binary = join(directory, 'opencode');
+			writeFileSync(binary, '#!/bin/sh\n', { mode });
+			return binary;
+		};
+		const commandFor = (applicationDirectory: string) => {
+			let spawned: string | undefined;
+			const manager = new ChildProcessManager({
+				applicationDirectory,
+				port: 43123,
+				spawn: command => {
+					spawned = command;
+					const child = new FakeProcess();
+					queueMicrotask(() => child.emit('spawn'));
+					return child as unknown as ReturnType<NonNullable<ProcessManagerOptions['spawn']>>;
+				},
+				startupTimeoutMs: 100,
+			});
+			return manager.ensureStarted(workspace).then(async () => {
+				await manager.stopOwned();
+				return spawned;
+			});
+		};
+
+		teardown(() => {
+			for (const root of roots.splice(0)) {
+				rmSync(root, { recursive: true, force: true });
+			}
+		});
+
+		test('spawns the desktop bundle written under resources/app', async () => {
+			const root = makeRoot();
+			const binary = writeBinary(join(root, 'opencode', 'bin'), 0o755);
+			assert.strictEqual(await commandFor(root), binary);
+		});
+
+		test('spawns the binary the remote payload activates beside the server', async () => {
+			// This is the layout `mv -T` leaves on a host: appRoot is the version
+			// directory, and the payload wrote bin/opencode inside it.
+			const root = makeRoot();
+			const binary = writeBinary(join(root, 'bin'), 0o755);
+			assert.strictEqual(await commandFor(root), binary);
+		});
+
+		test('refuses a staged binary without the executable bit instead of falling through', function () {
+			if (process.platform === 'win32') {
+				// Windows has no execute bit for `accessSync` to refuse.
+				this.skip();
+				return;
+			}
+			const root = makeRoot();
+			writeBinary(join(root, 'bin'), 0o644);
+			assert.throws(
+				() => new ChildProcessManager({ applicationDirectory: root, port: 43123 }),
+				/embedded-not-executable/,
+			);
+		});
+	});
+
 	test('starts one owned process for concurrent calls and reuses it', async () => {
 		const children: FakeProcess[] = [];
 		const manager = new ChildProcessManager(optionsFor((command, args, spawnOptions) => {
