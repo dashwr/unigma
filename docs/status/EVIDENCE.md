@@ -928,3 +928,36 @@ consequência:    as guardas `reconnect_only`/`native_modules_only` de
 andaime:         revertido no commit seguinte; nada deste experimento fica no
                  workflow.
 
+### as guardas do par staged, provadas no runner — 2026-09-07
+
+data:            2026-09-07
+tarefa/gate:     T-054; `AC-007` **não se move**
+run id:          `34082974153`
+workflow:        `unigma-linux-wsl-validation.yml`, `--ref remote-runtime`
+commit/head:     `9016876d`
+plataforma:      linux-x64 (Ubuntu WSL2)
+resultado:       **sucesso**
+
+números do log:
+  suíte do runtime                181 passando, 1 pendente
+  `unigma-remote-ssh`             99/99
+  harnesses de `build/unigma`     98/98
+  contrato RPC serializado        7/7
+  workbench `test/common`         47 passando
+  workbench `test/browser`        13 passando, em Electron sob Xvfb
+  smoke desktop                   40 passando, 52 pendentes, 0 falhando
+
+prova:           as duas guardas do par entram em CI. O script de staging passa a
+                 recusar, com categoria `opencode-not-executable`, um par cujo
+                 OpenCode perdeu o bit de execução — antes ele exigia isso do
+                 `unigma-server` e nada do `opencode`, e a falha só aparecia
+                 depois, no host. E a resolução dos dois layouts deixa de estar
+                 provada apenas contra um filesystem falso: três testes passam
+                 por `ChildProcessManager` com diretórios reais, incluindo o
+                 binário sem bit de execução, que tem de ser recusado em vez de
+                 cair para o `PATH`. Daí 181 contra 178 no run anterior, e 99
+                 contra 98 em `unigma-remote-ssh`.
+
+não prova:       continua sem sessão de agente em host remoto, sem staging e sem
+                 VPS. `AC-007` permanece parcial.
+
