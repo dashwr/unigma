@@ -993,3 +993,40 @@ não prova:       continua sem sessão de agente em host remoto, sem staging e s
                  VPS. `AC-007` permanece parcial, pelas três autorizações
                  registradas em `2026-09-06-remote-runtime-handoff.md`.
 
+### a limpeza da árvore temporária ganha prova de runner — 2026-09-07
+
+data:            2026-09-07
+tarefa/gate:     pendência 3 do handoff de 2026-09-06
+run id:          `34085918920`
+workflow:        `unigma-linux-wsl-validation.yml`, `--ref remote-runtime`
+commit/head:     `f95ca3e2`
+resultado:       **sucesso**
+
+números do log:
+  harnesses de `build/unigma`     **104/104** (eram 100)
+  suíte do runtime                181 passando, 1 pendente
+  `unigma-remote-ssh`             99/99
+  contrato RPC serializado        7/7
+  workbench `test/common`         47 · `test/browser` 13
+  smoke desktop                   40 passando, 0 falhando
+
+prova:           o conserto de `acd6d274` vivia num workflow que não está na
+                 branch default e portanto nunca rodou. A propriedade passou
+                 para `audit-remote-safety`, que aplica regras de texto sobre
+                 shell montado como string — a classe de código que nenhum type
+                 checker vê — e cuja suíte roda aqui: `mktemp -d` sob `$HOME`,
+                 `trap cleanup EXIT`, sentinela que começa vazia, guarda de
+                 prefixo, e a remoção guardada sendo a única do arquivo.
+
+                 Junto entrou uma regra para **todos** os workflows, porque o
+                 defeito valia a classe: uma remoção recursiva nunca nomeia o
+                 `$HOME` nem a raiz, e nunca deixa a expansão sem aspas — uma
+                 variável vazia transforma `rm -rf $tree/out` em `rm -rf /out`.
+                 O repositório inteiro satisfaz a regra, o que o teste existente
+                 "the repository itself satisfies every remote safety rule" já
+                 exige a cada run.
+
+não prova:       o workflow focado continua sem run próprio, e continuará até
+                 estar na branch default. O que tem prova é a propriedade, não a
+                 execução dele.
+
