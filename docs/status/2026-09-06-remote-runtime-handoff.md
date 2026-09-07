@@ -106,11 +106,10 @@ o comentário do próprio passo afirmava.
 1. **Reducer de streaming em `test/browser/` — fechado.** `acd6d274`.
    `unigmaAgentSession.ts` e `getUnigmaAgentStateAccessibility` não dependem de
    DOM; moravam em `browser/` só por vizinhança. Foram para `common/`, e os
-   quatro testes puros para `test/common/unigmaAgentSession.test.ts`. **A prova
-   de runner desse recorte ficou para o run seguinte**, porque o passo que
-   deveria executá-lo estava decorativo — ver acima. Localmente os quatro rodam:
-   `npm run test-node -- --runGlob "vs/workbench/contrib/unigmaAgent/test/common/*.test.js"`
-   dá 47 passando. No caminho apareceu outro defeito: a suíte de browser
+   quatro testes puros para `test/common/unigmaAgentSession.test.ts`. A prova de
+   runner veio no run `34079783571`, no passo que até então estava decorativo:
+   **47 passando**, a primeira execução dessa suíte em CI. No caminho apareceu
+   outro defeito: a suíte de browser
    **não é executada por workflow algum** e estava vermelha em silêncio, com a
    asserção de `UNIGMA_AGENT_VIEW_STATES` esperando quatro estados, sem
    `running`. **A suíte de browser também passou a rodar em CI**, em Electron

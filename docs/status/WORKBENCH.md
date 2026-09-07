@@ -4,7 +4,8 @@
 `34078327932` (head `30b3c547`, linux-x64) cobriu compile e suíte do runtime,
 contrato RPC serializado, pacote linux-x64, auditoria de distribuição e os
 smokes. O passo de testes `test/common` do workbench estava decorativo — verde
-sem executar teste algum — e foi corrigido; esse recorte espera o próximo run.
+sem executar teste algum — e foi corrigido: no run `34079783571` ele executou
+pela primeira vez, com 47 passando, e a suíte do runtime subiu de 172 para 178.
 O 404 do workflow focado não foi resolvido e sim
 contornado: `unigma-linux-wsl-validation.yml` já está em `main`, é despachável e
 passou a cobrir o mesmo conjunto; o PR

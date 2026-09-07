@@ -314,10 +314,10 @@ serializado, que o glob `build/unigma/*.test.ts` não alcançava. Passaram compi
 e suíte do runtime (172, 1 pendente), `unigma-remote-ssh` (98), harnesses de
 `build/unigma` (97), contrato RPC (7), pacote linux-x64, auditoria de
 distribuição e os smokes. **O passo de testes `test/common` do workbench
-reportou sucesso sem executar nada** — `--build` aponta o harness para
-`out-build`, que o caminho esbuild do empacotamento nunca popula; corrigido no
-harness e no workflow, e a prova desse recorte fica pendente do próximo run.
-O PR
+reportava sucesso sem executar nada** — `--build` aponta o harness para
+`out-build`, que o caminho esbuild do empacotamento nunca popula. Corrigido no
+harness e no workflow; no run `34079783571` a suíte executou pela primeira vez,
+com 47 passando, e a do runtime subiu de 172 para 178. O PR
 [#15](https://github.com/dashwr/unigma/pull/15) continua aberto para tornar o
 workflow focado despachável, que é a rota barata para iterar. Ver EVIDENCE.
 
