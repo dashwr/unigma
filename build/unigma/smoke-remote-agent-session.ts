@@ -307,7 +307,14 @@ async function main(): Promise<void> {
 		return;
 	}
 
-	const binary = join(pair.desktop, 'bin', 'unigma');
+	/*
+	 * The Electron binary at the package root, not `bin/unigma`. The latter is the
+	 * CLI wrapper, and under WSL it stops on an interactive prompt — "install
+	 * unigma in Windows … continue anyway? [y/N]" — which with stdin closed is a
+	 * process that never starts and a logs directory that stays empty. That is
+	 * exactly what run `34116619812` showed: `window.log-bytes=0`.
+	 */
+	const binary = join(pair.desktop, 'unigma');
 	check('desktop-binary', existsSync(binary));
 	if (!existsSync(binary)) {
 		writeReport();
