@@ -5,6 +5,7 @@
 
 import type { DisposableLike, OwnedProcessHandle, WorkspaceReference } from '../domain/runtime';
 import type { OpenCodeEvent, RuntimePorts } from '../application/runtimePorts';
+import { composeSessionContext } from '../application/sessionContext';
 import {
 	TRANSPORT_PROTOCOL_VERSION,
 	TransportCommandType,
@@ -17,6 +18,7 @@ import {
 	type RuntimeTransport,
 	type TransportCommand,
 	type TransportCatalogEntry,
+	type TransportContextReference,
 	type TransportLocalIntegrationInventory,
 	type TransportModelEntry,
 	type TransportDiffFile,
@@ -79,8 +81,10 @@ export class RuntimeTransportBridge implements RuntimeTransport {
 				return this.handleStartSession(validCommand.requestId, validCommand.sessionId, validCommand.workspaceUri, validCommand.localIntegrationPreflight);
 			case TransportCommandType.StopSession:
 				return this.handleStopSession(validCommand.requestId, validCommand.sessionId);
+			case TransportCommandType.CancelRun:
+				return this.handleCancelRun(validCommand.requestId, validCommand.sessionId);
 			case TransportCommandType.SendInput:
-				return this.handleSendInput(validCommand.requestId, validCommand.sessionId, validCommand.text);
+				return this.handleSendInput(validCommand.requestId, validCommand.sessionId, validCommand.text, validCommand.context);
 			case TransportCommandType.RequestDiff:
 				return this.handleRequestDiff(validCommand.requestId, validCommand.sessionId, validCommand.diffId);
 			case TransportCommandType.Approve:
@@ -238,7 +242,11 @@ export class RuntimeTransportBridge implements RuntimeTransport {
 
 	private async handleListLocalIntegrations(requestId: string, workspaceUri: string): Promise<void> {
 		const workspace = this.workspaceFromUri(workspaceUri);
-		if (!workspace || !this.ports.workspaceTrust.isTrusted(workspace)) {
+		if (!workspace) {
+			this.emitError(requestId, TransportErrorCode.InvalidPayload, 'Integration discovery requires an open folder on this host.', false);
+			return;
+		}
+		if (!this.ports.workspaceTrust.isTrusted(workspace)) {
 			this.emitError(requestId, TransportErrorCode.WorkspaceUntrusted, 'The workspace is not trusted.', false);
 			return;
 		}
@@ -273,18 +281,73 @@ export class RuntimeTransportBridge implements RuntimeTransport {
 		}
 	}
 
-	private async handleSendInput(requestId: string, sessionId: string, text: string): Promise<void> {
+	/**
+	 * Aborts the run without discarding the session: OpenCode answers the same
+	 * abort endpoint, but the reference stays so the next prompt reuses it.
+	 */
+	private async handleCancelRun(requestId: string, sessionId: string): Promise<void> {
 		try {
 			await this.ensureConnected();
 			if (!this.isKnownSession(sessionId)) {
 				this.emitError(requestId, TransportErrorCode.SessionNotFound, 'The requested session is not available.', false);
 				return;
 			}
+			await this.ports.openCodeClient.send({ method: 'POST', path: `/session/${encodeURIComponent(sessionId)}/abort`, body: {} });
+			this.emitEvent({
+				version: TRANSPORT_PROTOCOL_VERSION,
+				type: TransportEventType.Result,
+				sessionId,
+				result: { status: 'cancelled' },
+				requestId,
+			});
+			this.emitEvent({
+				version: TRANSPORT_PROTOCOL_VERSION,
+				type: TransportEventType.State,
+				sessionId,
+				state: TransportSessionState.Idle,
+				requestId,
+			});
+		} catch {
+			this.emitError(requestId, TransportErrorCode.Internal, 'The runtime could not cancel the run.', false);
+		}
+	}
+
+	/** Attached editor context becomes file parts that OpenCode reads on the executing host. */
+	private contextParts(context: readonly TransportContextReference[] | undefined): { readonly type: 'file'; readonly mime: string; readonly filename: string; readonly url: string }[] | undefined {
+		const parts: { readonly type: 'file'; readonly mime: string; readonly filename: string; readonly url: string }[] = [];
+		for (const reference of context ?? []) {
+			const resolved = this.ports.resolveWorkspaceFile(reference.uri);
+			if (!resolved) {
+				return undefined;
+			}
+			const range = reference.startLine === undefined ? '' : `?start=${reference.startLine}&end=${reference.endLine ?? reference.startLine}`;
+			parts.push({ type: 'file', mime: 'text/plain', filename: resolved.slice(resolved.lastIndexOf('/') + 1), url: `${resolved}${range}` });
+		}
+		return parts;
+	}
+
+	private async handleSendInput(requestId: string, sessionId: string, text: string, context?: readonly TransportContextReference[]): Promise<void> {
+		try {
+			await this.ensureConnected();
+			if (!this.isKnownSession(sessionId)) {
+				this.emitError(requestId, TransportErrorCode.SessionNotFound, 'The requested session is not available.', false);
+				return;
+			}
+			const attachments = this.contextParts(context);
+			if (!attachments) {
+				this.emitError(requestId, TransportErrorCode.InvalidPayload, 'Attached context must belong to an open folder.', false);
+				return;
+			}
 			await this.ports.openCodeClient.send({
 				method: 'POST',
 				path: `/session/${encodeURIComponent(sessionId)}/prompt_async`,
 				body: {
-					parts: [{ type: 'text', text }],
+					parts: [{ type: 'text', text }, ...attachments],
+					system: composeSessionContext({
+						workspaceUri: this.knownSessionWorkspaces.get(sessionId)!,
+						...(this.ports.remoteAuthority() === undefined ? {} : { remoteAuthority: this.ports.remoteAuthority()! }),
+						attachmentCount: attachments.length,
+					}),
 					...(this.selectedModels.has(sessionId) ? {
 						model: {
 							providerID: this.selectedModels.get(sessionId)!.providerId,
@@ -534,7 +597,7 @@ export class RuntimeTransportBridge implements RuntimeTransport {
 						version: TRANSPORT_PROTOCOL_VERSION,
 						type: TransportEventType.State,
 						sessionId,
-						state: TransportSessionState.Running,
+						state: TransportSessionState.Idle,
 					});
 				}
 				break;
@@ -656,8 +719,8 @@ export class RuntimeTransportBridge implements RuntimeTransport {
 	private mapSessionState(status: string): TransportSessionState | undefined {
 		switch (status) {
 			case 'idle':
+				return TransportSessionState.Idle;
 			case 'running':
-				return TransportSessionState.Running;
 			case 'busy':
 				return TransportSessionState.Running;
 			case 'error':

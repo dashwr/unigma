@@ -41,6 +41,7 @@ export type TransportLocalIntegrationPreflight =
 export const enum TransportCommandType {
 	StartSession = 'start',
 	StopSession = 'stop',
+	CancelRun = 'cancel',
 	SendInput = 'input',
 	RequestDiff = 'diff',
 	Approve = 'approve',
@@ -69,6 +70,7 @@ export const enum TransportEventType {
 
 export const enum TransportSessionState {
 	Starting = 'starting',
+	Idle = 'idle',
 	Running = 'running',
 	WaitingForApproval = 'waitingForApproval',
 	Stopping = 'stopping',
@@ -143,9 +145,22 @@ export interface TransportStopSessionCommand extends TransportSessionCommandBase
 	readonly type: TransportCommandType.StopSession;
 }
 
+/** Aborts the run in progress; the session itself stays available for the next prompt. */
+export interface TransportCancelRunCommand extends TransportSessionCommandBase {
+	readonly type: TransportCommandType.CancelRun;
+}
+
+/** Editor context attached to an input, resolved against the open folder by the runtime. */
+export interface TransportContextReference {
+	readonly uri: string;
+	readonly startLine?: number;
+	readonly endLine?: number;
+}
+
 export interface TransportSendInputCommand extends TransportSessionCommandBase {
 	readonly type: TransportCommandType.SendInput;
 	readonly text: string;
+	readonly context?: readonly TransportContextReference[];
 }
 
 export interface TransportRequestDiffCommand extends TransportSessionCommandBase {
@@ -191,6 +206,7 @@ export interface TransportModelConfiguration {
 export type TransportCommand =
 	| TransportStartSessionCommand
 	| TransportStopSessionCommand
+	| TransportCancelRunCommand
 	| TransportSendInputCommand
 	| TransportRequestDiffCommand
 	| TransportApproveCommand
@@ -305,6 +321,7 @@ function isTransportCommandType(value: unknown): value is TransportCommandType {
 	switch (value) {
 		case TransportCommandType.StartSession:
 		case TransportCommandType.StopSession:
+		case TransportCommandType.CancelRun:
 		case TransportCommandType.SendInput:
 		case TransportCommandType.RequestDiff:
 		case TransportCommandType.Approve:
@@ -323,6 +340,24 @@ function isTransportCommandType(value: unknown): value is TransportCommandType {
 function isTransportModelConfiguration(value: unknown): value is TransportModelConfiguration {
 	return isTransportRecord(value) && hasOnlyKeys(value, ['provider', 'model'])
 		&& isNonEmptyString(value.provider) && isNonEmptyString(value.model);
+}
+
+function isTransportContextReference(value: unknown): value is TransportContextReference {
+	if (!isTransportRecord(value) || !hasOnlyKeys(value, ['uri', 'startLine', 'endLine']) || !isNonEmptyString(value.uri)) {
+		return false;
+	}
+	const isLine = (line: unknown): boolean => line === undefined || (typeof line === 'number' && Number.isInteger(line) && line >= 1);
+	if (!isLine(value.startLine) || !isLine(value.endLine)) {
+		return false;
+	}
+	if (value.endLine !== undefined && value.startLine === undefined) {
+		return false;
+	}
+	return value.startLine === undefined || value.endLine === undefined || (value.endLine as number) >= (value.startLine as number);
+}
+
+function isTransportContextReferences(value: unknown): value is readonly TransportContextReference[] | undefined {
+	return value === undefined || (Array.isArray(value) && value.every(isTransportContextReference));
 }
 
 function invalidPayload(message: string): TransportError {
@@ -377,6 +412,7 @@ function getTransportCommandError(value: unknown): TransportError | undefined {
 				? undefined
 				: invalidPayload('Integration discovery requires a workspaceUri.');
 		case TransportCommandType.StopSession:
+		case TransportCommandType.CancelRun:
 		case TransportCommandType.ListWorktrees:
 		case TransportCommandType.ListCatalog:
 		case TransportCommandType.ListModels:
@@ -385,9 +421,10 @@ function getTransportCommandError(value: unknown): TransportError | undefined {
 				? undefined
 				: invalidPayload('Transport command requires a sessionId.');
 		case TransportCommandType.SendInput:
-			return hasOnlyKeys(command, ['version', 'requestId', 'type', 'sessionId', 'text'])
+			return hasOnlyKeys(command, ['version', 'requestId', 'type', 'sessionId', 'text', 'context'])
 				&& isNonEmptyString(command.sessionId)
 				&& typeof command.text === 'string'
+				&& isTransportContextReferences(command.context)
 				? undefined
 				: invalidPayload('Input command requires a sessionId and text.');
 		case TransportCommandType.RequestDiff:
@@ -550,6 +587,7 @@ function isTransportLocalIntegrationInventory(value: unknown): value is Transpor
 function isTransportSessionState(value: unknown): value is TransportSessionState {
 	switch (value) {
 		case TransportSessionState.Starting:
+		case TransportSessionState.Idle:
 		case TransportSessionState.Running:
 		case TransportSessionState.WaitingForApproval:
 		case TransportSessionState.Stopping:

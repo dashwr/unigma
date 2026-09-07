@@ -27,7 +27,9 @@ import { IViewDescriptorService } from '../../../common/views.js';
 import { UNIGMA_AGENT_MANIFEST } from './unigmaAgentManifest.js';
 import { IUnigmaAgentRuntime } from './unigmaAgentRuntime.js';
 import { evaluateWorkbenchLocalIntegrationPreflight } from '../common/localIntegrationPreflight.js';
-import { AgentEventType, type AgentCatalogEntry, type AgentLocalIntegrationPreflight, type AgentModelEntry } from '../common/agentProtocol.js';
+import { AgentEventType, type AgentCatalogEntry, type AgentContextReference, type AgentLocalIntegrationPreflight, type AgentModelEntry } from '../common/agentProtocol.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { getUnigmaAgentInputAction, parseUnigmaAgentInput } from '../common/agentInput.js';
 import {
 	EMPTY_UNIGMA_AGENT_SESSION,
@@ -42,6 +44,7 @@ export { UNIGMA_AGENT_VIEW_STATES } from './unigmaAgentSession.js';
 export function getUnigmaAgentStateAccessibility(state: UnigmaAgentSessionViewModel['state']): { readonly role?: string; readonly live?: string; readonly busy?: boolean } {
 	switch (state) {
 		case UNIGMA_AGENT_VIEW_STATES.Loading:
+		case UNIGMA_AGENT_VIEW_STATES.Running:
 			return { role: 'status', live: 'polite', busy: true };
 		case UNIGMA_AGENT_VIEW_STATES.Error:
 			return { role: 'alert', live: 'assertive', busy: false };
@@ -62,13 +65,31 @@ export class UnigmaAgentViewPane extends ViewPane {
 	private inputValue = '';
 	private isSubmitting = false;
 	private isStopping = false;
+	private isCancellingRun = false;
 	private catalogEntries: readonly AgentCatalogEntry[] = [];
 	private catalogSessionId: string | undefined;
 	private catalogUnavailable = false;
 	private modelsRequestedSession: string | undefined;
 	private modelsUnavailable = false;
 	private configurationError: string | undefined;
+	private attachActiveEditor = false;
 	private disposed = false;
+
+	/** Reads only the identity and selection already open in the workbench; no file access. */
+	private editorContext(): readonly AgentContextReference[] | undefined {
+		if (!this.attachActiveEditor) {
+			return undefined;
+		}
+		const uri = this.editorService.activeEditor?.resource;
+		if (!uri) {
+			return undefined;
+		}
+		const control = this.editorService.activeTextEditorControl;
+		const selection = isCodeEditor(control) ? control.getSelection() : undefined;
+		return [selection && !selection.isEmpty()
+			? { uri: uri.toString(), startLine: selection.startLineNumber, endLine: selection.endLineNumber }
+			: { uri: uri.toString() }];
+	}
 
 	constructor(
 		options: IViewletViewOptions,
@@ -86,6 +107,7 @@ export class UnigmaAgentViewPane extends ViewPane {
 		@IAllowedMcpServersService private readonly allowedMcpServersService: IAllowedMcpServersService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustService: IWorkspaceTrustManagementService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this._register(this.runtime.onDidReceiveEvent(event => {
@@ -251,6 +273,28 @@ export class UnigmaAgentViewPane extends ViewPane {
 		}
 	}
 
+	/** Cancels the run in progress; the session stays open for the next prompt. */
+	private async cancelRun(button: Button): Promise<void> {
+		const sessionId = this.model.sessionId;
+		if (!sessionId || this.isCancellingRun) {
+			return;
+		}
+
+		this.isCancellingRun = true;
+		const cancellingLabel = localize('unigmaAgent.cancelling', 'Cancelling...');
+		button.enabled = false;
+		button.label = cancellingLabel;
+		button.setAriaLabel(cancellingLabel);
+		try {
+			await this.runtime.cancelRun(sessionId);
+		} catch {
+			if (!this.disposed) {
+				this.isCancellingRun = false;
+				this.setState(UNIGMA_AGENT_VIEW_STATES.Error);
+			}
+		}
+	}
+
 	private setState(state: UnigmaAgentSessionViewModel['state']): void {
 		this.model = { state, sessionId: this.model.sessionId };
 		if (!this.stateContainer || !this.agentProgressBar) {
@@ -269,6 +313,9 @@ export class UnigmaAgentViewPane extends ViewPane {
 		this.element.dataset['state'] = this.model.state;
 		if (this.model.state !== UNIGMA_AGENT_VIEW_STATES.Loading) {
 			this.isStopping = false;
+		}
+		if (this.model.state !== UNIGMA_AGENT_VIEW_STATES.Running) {
+			this.isCancellingRun = false;
 		}
 		this.renderDisposables.clear();
 		DOM.clearNode(this.stateContainer);
@@ -305,22 +352,26 @@ export class UnigmaAgentViewPane extends ViewPane {
 				: '';
 		title.textContent = this.model.state === UNIGMA_AGENT_VIEW_STATES.Empty
 			? localize('unigmaAgent.emptyTitle', 'Ready when you are')
-			: this.model.state === UNIGMA_AGENT_VIEW_STATES.Loading
-				? localize('unigmaAgent.loadingTitle', 'Preparing the agent')
-				: this.model.state === UNIGMA_AGENT_VIEW_STATES.Result
-					? localize('unigmaAgent.resultTitle', 'Agent result')
-					: localize('unigmaAgent.errorTitle', 'Agent unavailable');
+			: this.model.state === UNIGMA_AGENT_VIEW_STATES.Running
+				? localize('unigmaAgent.runningTitle', 'Agent is working')
+				: this.model.state === UNIGMA_AGENT_VIEW_STATES.Loading
+					? localize('unigmaAgent.loadingTitle', 'Preparing the agent')
+					: this.model.state === UNIGMA_AGENT_VIEW_STATES.Result
+						? localize('unigmaAgent.resultTitle', 'Agent result')
+						: localize('unigmaAgent.errorTitle', 'Agent unavailable');
 
 		const message = DOM.append(this.stateContainer, DOM.$('p'));
 		message.style.margin = '0';
 		message.style.color = 'var(--vscode-descriptionForeground)';
 		message.textContent = this.model.state === UNIGMA_AGENT_VIEW_STATES.Empty
 			? localize('unigmaAgent.emptyMessage', 'No agent session is active.')
-			: this.model.state === UNIGMA_AGENT_VIEW_STATES.Loading
-				? localize('unigmaAgent.loadingMessage', 'Waiting for the agent runtime...')
-				: this.model.state === UNIGMA_AGENT_VIEW_STATES.Result
-					? this.model.result || localize('unigmaAgent.resultEmpty', 'The agent completed without a message.')
-					: this.model.errorMessage || localize('unigmaAgent.errorMessage', 'The agent runtime is not connected yet.');
+			: this.model.state === UNIGMA_AGENT_VIEW_STATES.Running
+				? localize('unigmaAgent.runningMessage', 'Streaming the answer...')
+				: this.model.state === UNIGMA_AGENT_VIEW_STATES.Loading
+					? localize('unigmaAgent.loadingMessage', 'Waiting for the agent runtime...')
+					: this.model.state === UNIGMA_AGENT_VIEW_STATES.Result
+						? this.model.result || localize('unigmaAgent.resultEmpty', 'The agent completed without a message.')
+						: this.model.errorMessage || localize('unigmaAgent.errorMessage', 'The agent runtime is not connected yet.');
 
 		if (this.model.content) {
 			const content = DOM.append(this.stateContainer, DOM.$('pre'));
@@ -363,6 +414,21 @@ export class UnigmaAgentViewPane extends ViewPane {
 			reject.label = localize('unigmaAgent.reject', 'Reject');
 			this.renderDisposables.add(approve.onDidClick(() => void this.runtime.approve(this.model.sessionId!, this.model.permission!.approvalId)));
 			this.renderDisposables.add(reject.onDidClick(() => void this.runtime.reject(this.model.sessionId!, this.model.permission!.approvalId)));
+		}
+
+		if (this.model.state === UNIGMA_AGENT_VIEW_STATES.Running) {
+			this.agentProgressBar.infinite().show();
+			if (this.model.sessionId) {
+				const runActions = DOM.append(this.stateContainer, DOM.$('.unigma-agent-action'));
+				runActions.style.marginTop = '8px';
+				const cancelRunLabel = this.isCancellingRun
+					? localize('unigmaAgent.cancelling', 'Cancelling...')
+					: localize('unigmaAgent.cancelRun', 'Cancel run');
+				const cancelRunButton = this.renderDisposables.add(new Button(runActions, { ...defaultButtonStyles, ariaLabel: cancelRunLabel, disabled: this.isCancellingRun }));
+				cancelRunButton.label = cancelRunLabel;
+				this.renderDisposables.add(cancelRunButton.onDidClick(() => void this.cancelRun(cancelRunButton)));
+			}
+			return;
 		}
 
 		if (this.model.state === UNIGMA_AGENT_VIEW_STATES.Loading) {
@@ -425,6 +491,17 @@ export class UnigmaAgentViewPane extends ViewPane {
 		}));
 		submitButton.label = submitLabel;
 
+		const attachLabel = (): string => this.attachActiveEditor
+			? localize('unigmaAgent.attachOn', 'Editor attached')
+			: localize('unigmaAgent.attachOff', 'Attach editor');
+		const attachButton = this.renderDisposables.add(new Button(inputContainer, { ...defaultButtonStyles, ariaLabel: attachLabel() }));
+		attachButton.label = attachLabel();
+		this.renderDisposables.add(attachButton.onDidClick(() => {
+			this.attachActiveEditor = !this.attachActiveEditor;
+			attachButton.label = attachLabel();
+			attachButton.setAriaLabel(attachLabel());
+		}));
+
 		const submit = (): void => {
 			const text = input.value.trim();
 			if (!text || !this.model.sessionId || this.isSubmitting) {
@@ -437,7 +514,7 @@ export class UnigmaAgentViewPane extends ViewPane {
 			submitButton.enabled = false;
 			submitButton.label = localize('unigmaAgent.sending', 'Sending...');
 			submitButton.setAriaLabel(localize('unigmaAgent.sending', 'Sending...'));
-			void this.runtime.sendInput(this.model.sessionId, text).then(() => {
+			void this.runtime.sendInput(this.model.sessionId, text, this.editorContext()).then(() => {
 				if (this.disposed) {
 					return;
 				}

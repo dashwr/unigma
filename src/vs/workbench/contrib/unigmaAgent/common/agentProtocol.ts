@@ -20,6 +20,7 @@ export type AgentProtocolVersion = typeof AGENT_PROTOCOL_VERSION;
 export const enum AgentCommandType {
 	StartSession = 'start',
 	StopSession = 'stop',
+	CancelRun = 'cancel',
 	SendInput = 'input',
 	RequestDiff = 'diff',
 	Approve = 'approve',
@@ -74,6 +75,7 @@ export const enum AgentEventType {
 
 export const enum AgentSessionState {
 	Starting = 'starting',
+	Idle = 'idle',
 	Running = 'running',
 	WaitingForApproval = 'waitingForApproval',
 	Stopping = 'stopping',
@@ -156,9 +158,23 @@ export interface AgentStopSessionCommand extends AgentSessionCommandBase {
 	readonly type: AgentCommandType.StopSession;
 }
 
+/** Aborts the run in progress; the session itself stays available for the next prompt. */
+export interface AgentCancelRunCommand extends AgentSessionCommandBase {
+	readonly type: AgentCommandType.CancelRun;
+}
+
+/** Editor context attached to an input; the runtime resolves it against the open folder. */
+export interface AgentContextReference {
+	readonly uri: string;
+	/** One-based, inclusive; omit both to attach the whole file. */
+	readonly startLine?: number;
+	readonly endLine?: number;
+}
+
 export interface AgentSendInputCommand extends AgentSessionCommandBase {
 	readonly type: AgentCommandType.SendInput;
 	readonly text: string;
+	readonly context?: readonly AgentContextReference[];
 }
 
 export interface AgentRequestDiffCommand extends AgentSessionCommandBase {
@@ -234,6 +250,7 @@ export interface AgentRejectQuestionCommand extends AgentSessionCommandBase {
 export type AgentCommand =
 	| AgentStartSessionCommand
 	| AgentStopSessionCommand
+	| AgentCancelRunCommand
 	| AgentSendInputCommand
 	| AgentRequestDiffCommand
 	| AgentApproveCommand
@@ -656,6 +673,24 @@ function hasOnlyKeys(value: Record<string, unknown>, keys: readonly string[]): b
 	return Object.keys(value).every(key => keys.includes(key));
 }
 
+function isAgentContextReference(value: unknown): value is AgentContextReference {
+	if (!isRecord(value) || !hasOnlyKeys(value, ['uri', 'startLine', 'endLine']) || !isNonEmptyString(value.uri)) {
+		return false;
+	}
+	const isLine = (line: unknown): boolean => line === undefined || (typeof line === 'number' && Number.isInteger(line) && line >= 1);
+	if (!isLine(value.startLine) || !isLine(value.endLine)) {
+		return false;
+	}
+	if (value.endLine !== undefined && value.startLine === undefined) {
+		return false;
+	}
+	return value.startLine === undefined || value.endLine === undefined || (value.endLine as number) >= (value.startLine as number);
+}
+
+function isAgentContextReferences(value: unknown): value is readonly AgentContextReference[] | undefined {
+	return value === undefined || (Array.isArray(value) && value.every(isAgentContextReference));
+}
+
 function invalidPayload(message: string): AgentError {
 	return { code: AgentErrorCode.InvalidPayload, message, retryable: false };
 }
@@ -689,6 +724,7 @@ function getEnvelopeError(value: unknown, kind: 'command' | 'event', requiresReq
 function isAgentSessionState(value: unknown): value is AgentSessionState {
 	switch (value) {
 		case AgentSessionState.Starting:
+		case AgentSessionState.Idle:
 		case AgentSessionState.Running:
 		case AgentSessionState.WaitingForApproval:
 		case AgentSessionState.Stopping:
@@ -847,6 +883,7 @@ function getAgentCommandError(value: unknown): AgentError | undefined {
 				? undefined
 				: invalidPayload('Integration discovery requires a workspaceUri.');
 		case AgentCommandType.StopSession:
+		case AgentCommandType.CancelRun:
 		case AgentCommandType.ListWorktrees:
 		case AgentCommandType.ListCatalog:
 		case AgentCommandType.ListModels:
@@ -855,9 +892,10 @@ function getAgentCommandError(value: unknown): AgentError | undefined {
 				? undefined
 				: invalidPayload('Agent command requires a sessionId.');
 		case AgentCommandType.SendInput:
-			return hasOnlyKeys(command, ['version', 'requestId', 'type', 'sessionId', 'text'])
+			return hasOnlyKeys(command, ['version', 'requestId', 'type', 'sessionId', 'text', 'context'])
 				&& isNonEmptyString(command.sessionId)
 				&& typeof command.text === 'string'
+				&& isAgentContextReferences(command.context)
 				? undefined
 				: invalidPayload('Input command requires a sessionId and text.');
 		case AgentCommandType.RequestDiff:

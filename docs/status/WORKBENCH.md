@@ -1,13 +1,16 @@
 # unigma — workbench operacional
 
-**foco atual — T-054/T-055:** correção RPC v2 e resolução segura de workspace
-SSH em revisão, ainda sem testes executados. Validação somente no runner;
-staging de novo par na VPS exige autorização separada. Projeções restantes
-fora do recorte; AC-007 continua parcial.
+**foco atual — T-054/T-055:** correção RPC v2, resolução segura de workspace
+SSH, contexto do editor no pedido, contexto-base do unigma, streaming visível e
+cancelamento da execução. Tudo em revisão: há suíte local verde do runtime e do
+contrato RPC, **não há run do runner**, porque o workflow focado não existe na
+branch default e o `workflow_dispatch` responde 404. Validação oficial só no
+runner; staging de novo par na VPS exige autorização separada. Projeções
+restantes fora do recorte; AC-007 continua parcial.
 
 | id | escopo | fase | estado | responsável | dependências | próximo passo | fonte |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| T-054/T-055 | RPC e workspace SSH | implementação | em revisão | lovelace | host remoto T-053 | validar no runner | BACKLOG T-054 |
+| T-054/T-055 | RPC, workspace SSH, contexto, streaming e cancelamento | implementação | em revisão | lovelace | host remoto T-053; workflow focado na branch default | destravar o dispatch e validar no runner | BACKLOG T-054 |
 
 **T-053 — histórico de execução:** branch `test/t053-owned-reconnect`, commit
 `cf6cb5b6`, run `34008859142`. Caminho sem staging/install/cleanup publicado e

@@ -5,7 +5,7 @@
 
 import 'mocha';
 import assert from 'assert';
-import { resolveWorkspace, type WorkspaceHost } from '../infrastructure/workspaceResolver';
+import { resolveWorkspace, resolveWorkspaceFile, type WorkspaceHost } from '../infrastructure/workspaceResolver';
 
 const uri = 'file:///workspace/project';
 const transportUri = 'vscode-remote://ssh-remote+fixture/workspace/project';
@@ -44,6 +44,22 @@ suite('Workspace resolver', () => {
 		assert.deepStrictEqual(resolveWorkspace(uri, local), { uri });
 		assert.strictEqual(resolveWorkspace(transportUri, local), undefined);
 		assert.strictEqual(resolveWorkspace(`${uri}/other`, local), undefined);
+	});
+
+	test('maps an attached file into the open folder and refuses anything outside it', () => {
+		assert.strictEqual(resolveWorkspaceFile(`${transportUri}/src/file.ts`, remote), `${uri}/src/file.ts`);
+		for (const value of [
+			transportUri,
+			`${transportUri}/../secret`,
+			`${transportUri}/src/file.ts?x`,
+			`${transportUri}/src/file.ts#x`,
+			'vscode-remote://ssh-remote+other/workspace/project/src/file.ts',
+			'file:///workspace/project/src/file.ts',
+			'file:///elsewhere/file.ts',
+		]) {
+			assert.strictEqual(resolveWorkspaceFile(value, remote), undefined, value);
+		}
+		assert.strictEqual(resolveWorkspaceFile(`${transportUri}/src/file.ts`, { ...remote, isWorkspaceHost: false }), undefined);
 	});
 
 	test('rejects virtual folders even when the wire identity matches', () => {

@@ -20,6 +20,7 @@ import {
 	type TransportCommand,
 	type TransportEvent,
 } from '../application/transport';
+import { composeSessionContext } from '../application/sessionContext';
 
 const workspacePath = process.platform === 'win32' ? 'C:\\unigma-workspace' : '/tmp/unigma-workspace';
 const workspace: WorkspaceReference = { uri: pathToFileURL(workspacePath).toString() };
@@ -44,6 +45,7 @@ function portsFor(options: {
 	readonly onEvent?: (listener: (event: OpenCodeEvent) => void) => { dispose(): void };
 	readonly trusted?: boolean | (() => boolean);
 	readonly resolveWorkspace?: RuntimePorts['resolveWorkspace'];
+	readonly resolveWorkspaceFile?: RuntimePorts['resolveWorkspaceFile'];
 	readonly ensureStarted?: (workspace: WorkspaceReference) => Promise<OwnedProcessHandle>;
 	readonly preflight?: RuntimePorts['localIntegrationPreflight'];
 	readonly enumerateLocalIntegrations?: RuntimePorts['enumerateLocalIntegrations'];
@@ -58,6 +60,8 @@ function portsFor(options: {
 				return undefined;
 			}
 		}),
+		resolveWorkspaceFile: options.resolveWorkspaceFile ?? (uri => uri.startsWith('file:') ? uri : undefined),
+		remoteAuthority: () => undefined,
 		workspaceTrust: {
 			isTrusted: () => typeof options.trusted === 'function' ? options.trusted() : options.trusted ?? true,
 		},
@@ -164,6 +168,77 @@ suite('RuntimeTransportBridge', () => {
 		bridge.dispose();
 	});
 
+	test('attaches editor context as file parts inside the open folder', async () => {
+		const requests: OpenCodeRequest[] = [];
+		const ports = portsFor({
+			resolveWorkspaceFile: uri => uri.startsWith(`${workspace.uri}/`) ? uri : undefined,
+			send: async request => {
+				requests.push(request);
+				return request.path === '/session' ? { id: 'session-new' } : { ok: true };
+			},
+		});
+		const bridge = new RuntimeTransportBridge(ports);
+
+		await bridge.send({
+			version: TRANSPORT_PROTOCOL_VERSION,
+			requestId: 'req-start',
+			type: TransportCommandType.StartSession,
+			workspaceUri: workspace.uri,
+			localIntegrationPreflight: { accepted: true },
+		});
+		await bridge.send({
+			version: TRANSPORT_PROTOCOL_VERSION,
+			requestId: 'req-input',
+			type: TransportCommandType.SendInput,
+			sessionId: 'session-new',
+			text: 'Review it.',
+			context: [{ uri: `${workspace.uri}/src/file.ts` }, { uri: `${workspace.uri}/src/other.ts`, startLine: 3, endLine: 9 }],
+		});
+
+		const prompt = requests.find(request => request.path.endsWith('/prompt_async'));
+		assert.deepStrictEqual((prompt?.body as { parts: unknown[] }).parts, [
+			{ type: 'text', text: 'Review it.' },
+			{ type: 'file', mime: 'text/plain', filename: 'file.ts', url: `${workspace.uri}/src/file.ts` },
+			{ type: 'file', mime: 'text/plain', filename: 'other.ts', url: `${workspace.uri}/src/other.ts?start=3&end=9` },
+		]);
+		bridge.dispose();
+	});
+
+	test('refuses attached context outside the open folder without sending a prompt', async () => {
+		const requests: OpenCodeRequest[] = [];
+		const ports = portsFor({
+			resolveWorkspaceFile: () => undefined,
+			send: async request => {
+				requests.push(request);
+				return request.path === '/session' ? { id: 'session-new' } : { ok: true };
+			},
+		});
+		const bridge = new RuntimeTransportBridge(ports);
+		const events: TransportEvent[] = [];
+
+		await bridge.send({
+			version: TRANSPORT_PROTOCOL_VERSION,
+			requestId: 'req-start',
+			type: TransportCommandType.StartSession,
+			workspaceUri: workspace.uri,
+			localIntegrationPreflight: { accepted: true },
+		});
+		bridge.onEvent(event => events.push(event));
+		await bridge.send({
+			version: TRANSPORT_PROTOCOL_VERSION,
+			requestId: 'req-input',
+			type: TransportCommandType.SendInput,
+			sessionId: 'session-new',
+			text: 'Review it.',
+			context: [{ uri: 'file:///elsewhere/file.ts' }],
+		});
+
+		assert.strictEqual(requests.some(request => request.path.endsWith('/prompt_async')), false);
+		assert.strictEqual(events.length, 1);
+		assert.strictEqual(events[0].type, TransportEventType.Error);
+		bridge.dispose();
+	});
+
 	test('creates a session via start command', async () => {
 		const requests: OpenCodeRequest[] = [];
 		const ports = portsFor({
@@ -266,7 +341,10 @@ suite('RuntimeTransportBridge', () => {
 		assert.deepStrictEqual(requests[1], {
 			method: 'POST',
 			path: '/session/session-new/prompt_async',
-			body: { parts: [{ type: 'text', text: 'Hello world' }] },
+			body: {
+				parts: [{ type: 'text', text: 'Hello world' }],
+				system: composeSessionContext({ workspaceUri: workspace.uri, attachmentCount: 0 }),
+			},
 		});
 		assert.deepStrictEqual(events[1], {
 			version: TRANSPORT_PROTOCOL_VERSION,
@@ -401,6 +479,67 @@ suite('RuntimeTransportBridge', () => {
 			state: TransportSessionState.Stopped,
 			requestId: 'req-2',
 		});
+		bridge.dispose();
+	});
+
+	test('cancels the run in progress and keeps the session usable', async () => {
+		const requests: OpenCodeRequest[] = [];
+		const ports = portsFor({
+			send: async request => {
+				requests.push(request);
+				return request.path === '/session' ? { id: 'session-new' } : { ok: true };
+			},
+		});
+		const bridge = new RuntimeTransportBridge(ports);
+		const events: TransportEvent[] = [];
+		bridge.onEvent(event => events.push(event));
+
+		await bridge.send({
+			version: TRANSPORT_PROTOCOL_VERSION,
+			requestId: 'req-start',
+			type: TransportCommandType.StartSession,
+			workspaceUri: workspace.uri,
+			localIntegrationPreflight: { accepted: true },
+		});
+
+		await bridge.send({
+			version: TRANSPORT_PROTOCOL_VERSION,
+			requestId: 'req-cancel',
+			type: TransportCommandType.CancelRun,
+			sessionId: 'session-new',
+		});
+
+		assert.deepStrictEqual(requests[1], {
+			method: 'POST',
+			path: '/session/session-new/abort',
+			body: {},
+		});
+		assert.deepStrictEqual(events.slice(1), [
+			{
+				version: TRANSPORT_PROTOCOL_VERSION,
+				type: TransportEventType.Result,
+				sessionId: 'session-new',
+				result: { status: 'cancelled' },
+				requestId: 'req-cancel',
+			},
+			{
+				version: TRANSPORT_PROTOCOL_VERSION,
+				type: TransportEventType.State,
+				sessionId: 'session-new',
+				state: TransportSessionState.Idle,
+				requestId: 'req-cancel',
+			},
+		]);
+
+		// The session survives the cancellation and accepts the next prompt.
+		await bridge.send({
+			version: TRANSPORT_PROTOCOL_VERSION,
+			requestId: 'req-after-cancel',
+			type: TransportCommandType.SendInput,
+			sessionId: 'session-new',
+			text: 'continue',
+		});
+		assert.strictEqual(requests[2]?.path, '/session/session-new/prompt_async');
 		bridge.dispose();
 	});
 
@@ -603,13 +742,26 @@ suite('RuntimeTransportBridge', () => {
 			type: 'session.status',
 			properties: { sessionID: 'session-1', status: 'idle' },
 		});
+		ports.eventEmitter.emit('event', {
+			type: 'session.status',
+			properties: { sessionID: 'session-1', status: 'busy' },
+		});
 
-		assert.deepStrictEqual(events, [{
-			version: TRANSPORT_PROTOCOL_VERSION,
-			type: TransportEventType.State,
-			sessionId: 'session-1',
-			state: TransportSessionState.Running,
-		}]);
+		// Idle and busy are distinct: the UI needs to know a run is in progress.
+		assert.deepStrictEqual(events, [
+			{
+				version: TRANSPORT_PROTOCOL_VERSION,
+				type: TransportEventType.State,
+				sessionId: 'session-1',
+				state: TransportSessionState.Idle,
+			},
+			{
+				version: TRANSPORT_PROTOCOL_VERSION,
+				type: TransportEventType.State,
+				sessionId: 'session-1',
+				state: TransportSessionState.Running,
+			},
+		]);
 		bridge.dispose();
 	});
 
@@ -1098,7 +1250,11 @@ suite('RuntimeTransportBridge', () => {
 		assert.deepStrictEqual(requests.at(-1), {
 			method: 'POST',
 			path: '/session/selected-model-session/prompt_async',
-			body: { parts: [{ type: 'text', text: 'hello' }], model: { providerID: 'provider-a', modelID: 'model-a' } },
+			body: {
+				parts: [{ type: 'text', text: 'hello' }],
+				system: composeSessionContext({ workspaceUri: workspace.uri, attachmentCount: 0 }),
+				model: { providerID: 'provider-a', modelID: 'model-a' },
+			},
 		});
 		bridge.dispose();
 	});

@@ -28,3 +28,24 @@ export function resolveWorkspace(uri: string, host: WorkspaceHost): WorkspaceRef
 	const folder = host.folders.find(folder => folder.transportUri === uri);
 	return folder?.uri.startsWith('file:') ? { uri: folder.uri } : undefined;
 }
+
+/**
+ * Resolve a file inside an open folder, so attached editor context never escapes it.
+ * Only the folder prefix is rewritten; the remainder is preserved verbatim.
+ */
+export function resolveWorkspaceFile(uri: string, host: WorkspaceHost): string | undefined {
+	if (!isSupportedWorkspaceHost(host) || uri.includes('?') || uri.includes('#') || uri.includes('..')) {
+		return undefined;
+	}
+	for (const folder of host.folders) {
+		if (!folder.uri.startsWith('file:')) {
+			continue;
+		}
+		const prefix = folder.transportUri.endsWith('/') ? folder.transportUri : `${folder.transportUri}/`;
+		if (uri.startsWith(prefix) && uri.length > prefix.length) {
+			const base = folder.uri.endsWith('/') ? folder.uri.slice(0, -1) : folder.uri;
+			return `${base}/${uri.slice(prefix.length)}`;
+		}
+	}
+	return undefined;
+}

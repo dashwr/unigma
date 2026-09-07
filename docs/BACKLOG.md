@@ -1492,6 +1492,24 @@ conexão caiu e a janela voltou sem ser recriada. Menos que isso não fecha
 - **limite autorizado:** dependências/build/testes no runner, commit e push;
   nenhum staging, instalação ou limpeza na VPS. Implantar novo par exige
   autorização separada.
+- **2026-09-06 — segunda leva do mesmo recorte, também sem prova de runner:**
+  o pedido passou a carregar o editor aberto e a seleção como `FilePartInput`
+  reais, resolvidos contra a pasta aberta e lidos pelo próprio OpenCode no host
+  que executa; um preâmbulo curto (`application/sessionContext.ts`) entra como
+  `PromptInput.system` dizendo quem chama, a qual pasta a sessão está presa, se
+  o host é remoto e quantos anexos vieram; `session.idle` deixou de ser
+  traduzido como execução em curso, de modo que a UI distingue streaming de
+  ociosidade; e um comando `cancel` aborta a execução preservando a sessão para
+  o próximo pedido, diferente de `stop`, que a encerra. As opções de contexto do
+  OpenCode estão levantadas em `docs/OPENCODE-CONTEXT-OPTIONS.md`, e a conclusão
+  é não ampliar o patchset `service-only`.
+- **verificação local, que não marca item:** 60 testes da suíte do runtime e 7
+  do contrato RPC serializado passaram com Node `24.18.0`. Compile e teste local
+  não são evidência de aceite.
+- **bloqueio aberto:** `gh workflow run unigma-agent-runtime-validation.yml
+  --ref remote-runtime` responde 404 porque o GitHub só despacha
+  `workflow_dispatch` de arquivo presente na branch default. Sem esse dispatch
+  não há run, logo nada aqui vira `[FEITO]` e `AC-007` continua parcial.
 
 - **objetivo:** fazer o extension host remoto executar/reutilizar `opencode serve`
   no workspace remoto, sem copiar projeto ou iniciar processo local indevido.

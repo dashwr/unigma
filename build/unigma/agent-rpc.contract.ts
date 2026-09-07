@@ -38,7 +38,10 @@ const commonCommands = [
 	{ version: AGENT_PROTOCOL_VERSION, requestId: 'start-accepted', type: AgentCommandType.StartSession, workspaceUri, localIntegrationPreflight: { accepted: true } },
 	{ version: AGENT_PROTOCOL_VERSION, requestId: 'start-refused', type: AgentCommandType.StartSession, workspaceUri, localIntegrationPreflight: { accepted: false, code: 'permissionDenied' } },
 	{ version: AGENT_PROTOCOL_VERSION, requestId: 'stop', type: AgentCommandType.StopSession, sessionId: 'session-1' },
+	{ version: AGENT_PROTOCOL_VERSION, requestId: 'cancel', type: AgentCommandType.CancelRun, sessionId: 'session-1' },
 	{ version: AGENT_PROTOCOL_VERSION, requestId: 'input', type: AgentCommandType.SendInput, sessionId: 'session-1', text: 'Explain this change.' },
+	{ version: AGENT_PROTOCOL_VERSION, requestId: 'input-file', type: AgentCommandType.SendInput, sessionId: 'session-1', text: 'Review it.', context: [{ uri: `${workspaceUri}/src/file.ts` }] },
+	{ version: AGENT_PROTOCOL_VERSION, requestId: 'input-selection', type: AgentCommandType.SendInput, sessionId: 'session-1', text: 'Review it.', context: [{ uri: `${workspaceUri}/src/file.ts`, startLine: 3, endLine: 9 }] },
 	{ version: AGENT_PROTOCOL_VERSION, requestId: 'diff', type: AgentCommandType.RequestDiff, sessionId: 'session-1', diffId: 'diff-1' },
 	{ version: AGENT_PROTOCOL_VERSION, requestId: 'approve', type: AgentCommandType.Approve, sessionId: 'session-1', approvalId: 'approval-1' },
 	{ version: AGENT_PROTOCOL_VERSION, requestId: 'reject', type: AgentCommandType.Reject, sessionId: 'session-1', approvalId: 'approval-1', reason: 'Not now.' },
@@ -51,6 +54,8 @@ const commonCommands = [
 
 const commonEvents = [
 	{ version: AGENT_PROTOCOL_VERSION, type: AgentEventType.State, sessionId: 'session-1', state: AgentSessionState.Running },
+	{ version: AGENT_PROTOCOL_VERSION, type: AgentEventType.State, sessionId: 'session-1', state: AgentSessionState.Idle },
+	{ version: AGENT_PROTOCOL_VERSION, type: AgentEventType.Result, sessionId: 'session-1', result: { status: AgentResultStatus.Cancelled } },
 	{ version: AGENT_PROTOCOL_VERSION, type: AgentEventType.Content, sessionId: 'session-1', role: 'assistant', content: 'Done.', delta: false },
 	{ version: AGENT_PROTOCOL_VERSION, type: AgentEventType.Diff, sessionId: 'session-1', diff: { diffId: 'diff-1', files: [{ path: 'src/file.ts', patch: '@@ -1 +1 @@\n-old\n+new' }] } },
 	{ version: AGENT_PROTOCOL_VERSION, type: AgentEventType.Permission, sessionId: 'session-1', permission: { approvalId: 'approval-1', kind: AgentApprovalKind.Edit, title: 'Apply change' } },
@@ -88,6 +93,24 @@ test('accepts every existing event after JSON serialization on both sides', () =
 
 		const runtime = validateTransportEvent(wire);
 		assert.equal(runtime.valid, true, `${event.type} must be valid in the runtime`);
+	}
+});
+
+test('rejects malformed attached context on both sides', () => {
+	const invalid = [
+		[{ uri: '' }],
+		[{ uri: `${workspaceUri}/src/file.ts`, startLine: 0 }],
+		[{ uri: `${workspaceUri}/src/file.ts`, startLine: 2, endLine: 1 }],
+		[{ uri: `${workspaceUri}/src/file.ts`, endLine: 4 }],
+		[{ uri: `${workspaceUri}/src/file.ts`, startLine: 1.5 }],
+		[{ uri: `${workspaceUri}/src/file.ts`, line: 1 }],
+		'file.ts',
+	];
+
+	for (const context of invalid) {
+		const wire = serialize({ version: AGENT_PROTOCOL_VERSION, requestId: 'input-invalid', type: AgentCommandType.SendInput, sessionId: 'session-1', text: 'Review it.', context });
+		assert.equal(validateAgentCommand(wire).valid, false, `${JSON.stringify(context)} must be refused by the workbench`);
+		assert.equal(validateTransportCommand(wire).valid, false, `${JSON.stringify(context)} must be refused by the runtime`);
 	}
 });
 

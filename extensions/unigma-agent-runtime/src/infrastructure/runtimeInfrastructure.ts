@@ -12,7 +12,7 @@ import { ChildProcessManager } from './processManager';
 import { WorkspaceStateSessionReferenceStore } from './sessionReferenceStore';
 import { enumerateLocalIntegrations } from './localIntegrationInventory';
 import { evaluateRuntimeLocalIntegrationPreflight } from './localIntegrationPreflight';
-import { isSupportedWorkspaceHost, resolveWorkspace } from './workspaceResolver';
+import { isSupportedWorkspaceHost, resolveWorkspace, resolveWorkspaceFile, type WorkspaceHost } from './workspaceResolver';
 
 /**
  * Composes the local adapters while keeping process and transport access outside the UI.
@@ -43,20 +43,24 @@ export function createRuntimeInfrastructure(context: vscode.ExtensionContext): R
 		}
 	})();
 
+	const currentHost = (): WorkspaceHost => {
+		const remoteAuthority = vscode.env.remoteAuthority;
+		return {
+			remoteName: vscode.env.remoteName,
+			remoteAuthority,
+			isWorkspaceHost: context.extension.extensionKind === vscode.ExtensionKind.Workspace,
+			folders: (vscode.workspace.workspaceFolders ?? []).map(folder => ({
+				uri: folder.uri.toString(),
+				transportUri: remoteAuthority ? folder.uri.with({ scheme: 'vscode-remote', authority: remoteAuthority }).toString() : folder.uri.toString(),
+			})),
+		};
+	};
+
 	return {
 		ports: {
-			resolveWorkspace: uri => {
-				const remoteAuthority = vscode.env.remoteAuthority;
-				return resolveWorkspace(uri, {
-					remoteName: vscode.env.remoteName,
-					remoteAuthority,
-					isWorkspaceHost: context.extension.extensionKind === vscode.ExtensionKind.Workspace,
-					folders: (vscode.workspace.workspaceFolders ?? []).map(folder => ({
-						uri: folder.uri.toString(),
-						transportUri: remoteAuthority ? folder.uri.with({ scheme: 'vscode-remote', authority: remoteAuthority }).toString() : folder.uri.toString(),
-					})),
-				});
-			},
+			resolveWorkspace: uri => resolveWorkspace(uri, currentHost()),
+			resolveWorkspaceFile: uri => resolveWorkspaceFile(uri, currentHost()),
+			remoteAuthority: () => vscode.env.remoteAuthority,
 			workspaceTrust,
 			processManager: {
 				ensureStarted: workspace => processManager.ensureStarted(workspace),

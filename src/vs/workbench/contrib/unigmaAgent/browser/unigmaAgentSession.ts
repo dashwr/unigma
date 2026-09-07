@@ -8,6 +8,7 @@ import { AgentEvent, AgentEventType, AgentSessionState, type AgentDiff, type Age
 export const UNIGMA_AGENT_VIEW_STATES = {
 	Empty: 'empty',
 	Loading: 'loading',
+	Running: 'running',
 	Error: 'error',
 	Result: 'result',
 } as const;
@@ -62,11 +63,16 @@ export function reduceUnigmaAgentSessionEvent(model: UnigmaAgentSessionViewModel
 					? { state: UNIGMA_AGENT_VIEW_STATES.Error, sessionId: event.sessionId }
 					: EMPTY_UNIGMA_AGENT_SESSION;
 			}
+			if (event.state === AgentSessionState.Running || event.state === AgentSessionState.Stopping) {
+				/* A run in progress stays visible so the transcript keeps growing and cancel remains reachable. */
+				return { ...model, state: UNIGMA_AGENT_VIEW_STATES.Running, sessionId: event.sessionId };
+			}
 			return { ...model, state: UNIGMA_AGENT_VIEW_STATES.Empty, sessionId: event.sessionId };
 		case AgentEventType.Content:
+			/* Streaming deltas do not end the run; only a state or result event does. */
 			return {
 				...model,
-				state: UNIGMA_AGENT_VIEW_STATES.Empty,
+				state: model.state === UNIGMA_AGENT_VIEW_STATES.Running ? UNIGMA_AGENT_VIEW_STATES.Running : UNIGMA_AGENT_VIEW_STATES.Empty,
 				sessionId: event.sessionId,
 				content: event.delta ? `${model.content ?? ''}${event.content}` : event.content,
 			};

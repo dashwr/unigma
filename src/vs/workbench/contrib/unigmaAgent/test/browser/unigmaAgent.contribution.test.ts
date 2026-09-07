@@ -330,6 +330,54 @@ suite('Unigma Agent contribution', () => {
 		assert.strictEqual(lateError, loading);
 	});
 
+	test('keeps a run visible while it streams and returns to input after cancellation', () => {
+		const started = reduceUnigmaAgentSessionEvent(startUnigmaAgentSession(), {
+			version: AGENT_PROTOCOL_VERSION,
+			type: AgentEventType.State,
+			sessionId: 'session-1',
+			state: AgentSessionState.Starting,
+		});
+		const running = reduceUnigmaAgentSessionEvent(started, {
+			version: AGENT_PROTOCOL_VERSION,
+			type: AgentEventType.State,
+			sessionId: 'session-1',
+			state: AgentSessionState.Running,
+		});
+		const firstDelta = reduceUnigmaAgentSessionEvent(running, {
+			version: AGENT_PROTOCOL_VERSION,
+			type: AgentEventType.Content,
+			sessionId: 'session-1',
+			role: 'assistant',
+			content: 'Hel',
+			delta: true,
+		});
+		const secondDelta = reduceUnigmaAgentSessionEvent(firstDelta, {
+			version: AGENT_PROTOCOL_VERSION,
+			type: AgentEventType.Content,
+			sessionId: 'session-1',
+			role: 'assistant',
+			content: 'lo',
+			delta: true,
+		});
+		const idle = reduceUnigmaAgentSessionEvent(secondDelta, {
+			version: AGENT_PROTOCOL_VERSION,
+			type: AgentEventType.State,
+			sessionId: 'session-1',
+			state: AgentSessionState.Idle,
+		});
+
+		// Streaming keeps the run state, so the cancel affordance stays reachable.
+		assert.strictEqual(running.state, UNIGMA_AGENT_VIEW_STATES.Running);
+		assert.strictEqual(secondDelta.state, UNIGMA_AGENT_VIEW_STATES.Running);
+		assert.strictEqual(secondDelta.content, 'Hello');
+		assert.strictEqual(getUnigmaAgentStateAccessibility(running.state).busy, true);
+
+		// Going idle returns the panel to the input without discarding the transcript.
+		assert.strictEqual(idle.state, UNIGMA_AGENT_VIEW_STATES.Empty);
+		assert.strictEqual(idle.sessionId, 'session-1');
+		assert.strictEqual(idle.content, 'Hello');
+	});
+
 	test('retires an approval only after the runtime reports the real reply', () => {
 		const permission = { approvalId: 'per-1', kind: AgentApprovalKind.Tool, title: 'bash' };
 		const started = reduceUnigmaAgentSessionEvent(startUnigmaAgentSession(), {

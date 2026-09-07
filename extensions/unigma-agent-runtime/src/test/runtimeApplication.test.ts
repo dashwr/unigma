@@ -34,6 +34,8 @@ function portsFor(options: {
 	const diagnostics = options.diagnostics ?? [];
 	return {
 		resolveWorkspace: uri => ({ uri }),
+		resolveWorkspaceFile: uri => uri,
+		remoteAuthority: () => undefined,
 		workspaceTrust: {
 			isTrusted: () => options.trusted ?? true,
 		},

@@ -13,6 +13,7 @@ import {
 	type AgentError,
 	AgentCommand,
 	AgentCommandType,
+	type AgentContextReference,
 	AgentErrorCode,
 	type AgentErrorEvent,
 	type AgentLocalIntegrationInventory,
@@ -52,7 +53,8 @@ export interface IUnigmaAgentRuntime {
 
 	start(preflight: AgentLocalIntegrationPreflight, workspaceUri?: string): Promise<void>;
 	stopSession(sessionId: string): Promise<void>;
-	sendInput(sessionId: string, text: string): Promise<void>;
+	cancelRun(sessionId: string): Promise<void>;
+	sendInput(sessionId: string, text: string, context?: readonly AgentContextReference[]): Promise<void>;
 	/**
 	 * Requests the current diff of a session. No diff identifier is sent: the
 	 * OpenCode profile documents no such parameter, and the UI must not invent one.
@@ -115,6 +117,7 @@ function serializeAgentCommand(command: AgentCommand): Record<string, unknown> {
 				localIntegrationPreflight: { ...command.localIntegrationPreflight },
 			};
 		case AgentCommandType.StopSession:
+		case AgentCommandType.CancelRun:
 		case AgentCommandType.ListWorktrees:
 		case AgentCommandType.ListCatalog:
 		case AgentCommandType.ListModels:
@@ -122,7 +125,18 @@ function serializeAgentCommand(command: AgentCommand): Record<string, unknown> {
 		case AgentCommandType.ListLocalIntegrations:
 			return { ...envelope, workspaceUri: command.workspaceUri };
 		case AgentCommandType.SendInput:
-			return { ...envelope, sessionId: command.sessionId, text: command.text };
+			return {
+				...envelope,
+				sessionId: command.sessionId,
+				text: command.text,
+				...(command.context === undefined ? {} : {
+					context: command.context.map(reference => ({
+						uri: reference.uri,
+						...(reference.startLine === undefined ? {} : { startLine: reference.startLine }),
+						...(reference.endLine === undefined ? {} : { endLine: reference.endLine }),
+					})),
+				}),
+			};
 		case AgentCommandType.RequestDiff:
 			return {
 				...envelope,
@@ -287,13 +301,23 @@ export class UnigmaAgentRuntime extends Disposable implements IUnigmaAgentRuntim
 		}
 	}
 
-	async sendInput(sessionId: string, text: string): Promise<void> {
+	async sendInput(sessionId: string, text: string, context?: readonly AgentContextReference[]): Promise<void> {
 		await this.send({
 			version: AGENT_PROTOCOL_VERSION,
 			requestId: this.nextRequestId(),
 			type: AgentCommandType.SendInput,
 			sessionId,
 			text,
+			...(context === undefined || context.length === 0 ? {} : { context }),
+		});
+	}
+
+	async cancelRun(sessionId: string): Promise<void> {
+		await this.send({
+			version: AGENT_PROTOCOL_VERSION,
+			requestId: this.nextRequestId(),
+			type: AgentCommandType.CancelRun,
+			sessionId,
 		});
 	}
 

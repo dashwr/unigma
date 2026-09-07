@@ -93,6 +93,10 @@ export interface DiagnosticSink {
 export interface RuntimePorts {
 	/** Resolves a wire identity to an open folder on the executing host, without IO. */
 	readonly resolveWorkspace: (uri: string) => WorkspaceReference | undefined;
+	/** Resolves an attached editor file to its identity inside an open folder, without IO. */
+	readonly resolveWorkspaceFile: (uri: string) => string | undefined;
+	/** Authority of the host that runs this extension host, when it is remote. */
+	readonly remoteAuthority: () => string | undefined;
 	readonly workspaceTrust: WorkspaceTrust;
 	readonly processManager: ProcessManager;
 	/** Runs after workspace trust and immediately before process startup. */
