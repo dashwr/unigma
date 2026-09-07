@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import * as path from 'node:path';
 import type { ProcessManager } from '../application/runtimePorts';
 import type { OwnedProcessHandle, WorkspaceReference } from '../domain/runtime';
-import { resolveOpenCodeCommand, type OpenCodeCandidate } from './openCodeResolver';
+import { resolveEmbeddedOpenCodeCandidate, resolveOpenCodeCommand, type OpenCodeCandidate } from './openCodeResolver';
 
 interface SpawnedProcess {
 	readonly pid?: number;
@@ -101,12 +101,11 @@ function findPathCommand(command: string): OpenCodeCandidate | undefined {
 }
 
 function resolveBundledCommand(applicationDirectory: string): string {
-	const embeddedPath = path.join(applicationDirectory, 'opencode', 'bin', 'opencode');
-	const embedded = inspectCandidate(embeddedPath);
-	const embeddedBundlePresent = existsSync(path.join(applicationDirectory, 'opencode'));
-	const embeddedCandidate = embeddedBundlePresent && !embedded.exists
-		? { ...embedded, exists: true }
-		: embedded;
+	const embeddedCandidate = resolveEmbeddedOpenCodeCandidate(applicationDirectory, {
+		inspect: inspectCandidate,
+		directoryExists: existsSync,
+		join: path.join,
+	});
 	// There is no user setting for an OpenCode executable in this extension yet.
 	// Keep this slot explicit so adding one later cannot silently outrank the bundle.
 	const resolution = resolveOpenCodeCommand({
