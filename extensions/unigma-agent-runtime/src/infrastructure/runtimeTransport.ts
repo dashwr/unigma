@@ -142,12 +142,7 @@ export class RuntimeTransportBridge implements RuntimeTransport {
 		if (typeof value !== 'string' || value.length === 0 || value.trim() !== value) {
 			return undefined;
 		}
-		try {
-			const parsed = new URL(value);
-			return parsed.protocol === 'file:' && parsed.pathname.length > 0 ? { uri: value } : undefined;
-		} catch {
-			return undefined;
-		}
+		return this.ports.resolveWorkspace(value);
 	}
 
 	private isKnownSession(sessionId: string, workspaceUri?: string): boolean {
@@ -411,7 +406,7 @@ export class RuntimeTransportBridge implements RuntimeTransport {
 
 	private async handleListCatalog(requestId: string, sessionId: string): Promise<void> {
 		const workspaceUri = this.knownSessionWorkspaces.get(sessionId);
-		const workspace = workspaceUri ? this.workspaceFromUri(workspaceUri) : undefined;
+		const workspace = workspaceUri ? { uri: workspaceUri } : undefined;
 		if (!workspace || !this.isKnownSession(sessionId) || !this.ports.workspaceTrust.isTrusted(workspace)) {
 			this.emitError(requestId, TransportErrorCode.WorkspaceUntrusted, 'The workspace is not trusted.', false);
 			return;
@@ -440,7 +435,7 @@ export class RuntimeTransportBridge implements RuntimeTransport {
 
 	private async handleListModels(requestId: string, sessionId: string): Promise<void> {
 		const workspaceUri = this.knownSessionWorkspaces.get(sessionId);
-		const workspace = workspaceUri ? this.workspaceFromUri(workspaceUri) : undefined;
+		const workspace = workspaceUri ? { uri: workspaceUri } : undefined;
 		if (!workspace || !this.isKnownSession(sessionId) || !this.ports.workspaceTrust.isTrusted(workspace)) {
 			this.emitError(requestId, TransportErrorCode.WorkspaceUntrusted, 'The workspace is not trusted.', false);
 			return;

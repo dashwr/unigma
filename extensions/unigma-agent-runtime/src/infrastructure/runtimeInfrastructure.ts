@@ -12,6 +12,7 @@ import { ChildProcessManager } from './processManager';
 import { WorkspaceStateSessionReferenceStore } from './sessionReferenceStore';
 import { enumerateLocalIntegrations } from './localIntegrationInventory';
 import { evaluateRuntimeLocalIntegrationPreflight } from './localIntegrationPreflight';
+import { isSupportedWorkspaceHost, resolveWorkspace } from './workspaceResolver';
 
 /**
  * Composes the local adapters while keeping process and transport access outside the UI.
@@ -27,7 +28,8 @@ export function createRuntimeInfrastructure(context: vscode.ExtensionContext): R
 	const sessionReferenceStore = new WorkspaceStateSessionReferenceStore(context.workspaceState);
 	const workspaceTrust = {
 		isTrusted: (workspace: { readonly uri: string }): boolean => vscode.workspace.isTrusted
-			&& vscode.workspace.workspaceFolders?.some(folder => folder.uri.toString() === workspace.uri) === true,
+			&& isSupportedWorkspaceHost({ remoteName: vscode.env.remoteName, remoteAuthority: vscode.env.remoteAuthority, isWorkspaceHost: context.extension.extensionKind === vscode.ExtensionKind.Workspace })
+			&& vscode.workspace.workspaceFolders?.some(folder => folder.uri.scheme === 'file' && folder.uri.toString() === workspace.uri) === true,
 	};
 	let disconnectPromise: Promise<void> | undefined;
 	let stopPromise: Promise<void> | undefined;
@@ -43,6 +45,18 @@ export function createRuntimeInfrastructure(context: vscode.ExtensionContext): R
 
 	return {
 		ports: {
+			resolveWorkspace: uri => {
+				const remoteAuthority = vscode.env.remoteAuthority;
+				return resolveWorkspace(uri, {
+					remoteName: vscode.env.remoteName,
+					remoteAuthority,
+					isWorkspaceHost: context.extension.extensionKind === vscode.ExtensionKind.Workspace,
+					folders: (vscode.workspace.workspaceFolders ?? []).map(folder => ({
+						uri: folder.uri.toString(),
+						transportUri: remoteAuthority ? folder.uri.with({ scheme: 'vscode-remote', authority: remoteAuthority }).toString() : folder.uri.toString(),
+					})),
+				});
+			},
 			workspaceTrust,
 			processManager: {
 				ensureStarted: workspace => processManager.ensureStarted(workspace),

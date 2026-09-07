@@ -849,6 +849,7 @@ function getAgentCommandError(value: unknown): AgentError | undefined {
 		case AgentCommandType.StopSession:
 		case AgentCommandType.ListWorktrees:
 		case AgentCommandType.ListCatalog:
+		case AgentCommandType.ListModels:
 			return hasOnlyKeys(command, ['version', 'requestId', 'type', 'sessionId'])
 				&& isNonEmptyString(command.sessionId)
 				? undefined

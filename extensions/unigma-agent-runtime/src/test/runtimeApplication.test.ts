@@ -33,6 +33,7 @@ function portsFor(options: {
 	const order = options.order ?? [];
 	const diagnostics = options.diagnostics ?? [];
 	return {
+		resolveWorkspace: uri => ({ uri }),
 		workspaceTrust: {
 			isTrusted: () => options.trusted ?? true,
 		},

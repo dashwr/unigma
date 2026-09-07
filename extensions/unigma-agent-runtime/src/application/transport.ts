@@ -6,7 +6,7 @@
 import type { DisposableLike } from '../domain/runtime';
 
 /** Version of the private native workbench <-> agent runtime transport contract. */
-export const TRANSPORT_PROTOCOL_VERSION = 1 as const;
+export const TRANSPORT_PROTOCOL_VERSION = 2 as const;
 export type TransportProtocolVersion = typeof TRANSPORT_PROTOCOL_VERSION;
 
 /** Sanitized decision accepted from the workbench boundary. */
@@ -342,6 +342,11 @@ function getEnvelopeError(value: unknown): TransportError | undefined {
 
 	if (!isNonEmptyString(value.requestId)) {
 		return invalidPayload('Transport command requires a requestId.');
+	}
+
+	// The v2 envelope is shared; question execution remains outside this runtime slice.
+	if (value.type === 'answerQuestion' || value.type === 'rejectQuestion') {
+		return { code: TransportErrorCode.CapabilityUnavailable, message: 'Question commands are not available in this runtime.', retryable: false };
 	}
 
 	if (!isTransportCommandType(value.type)) {

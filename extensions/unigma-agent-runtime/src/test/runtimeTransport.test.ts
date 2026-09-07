@@ -8,6 +8,7 @@ import assert from 'assert';
 import { EventEmitter } from 'node:events';
 import { pathToFileURL } from 'node:url';
 import { RuntimeTransportBridge } from '../infrastructure/runtimeTransport';
+import { resolveWorkspace, type WorkspaceHost } from '../infrastructure/workspaceResolver';
 import type { RuntimePorts, OpenCodeRequest, OpenCodeEvent } from '../application/runtimePorts';
 import type { OwnedProcessHandle, SessionReference, WorkspaceReference } from '../domain/runtime';
 import {
@@ -42,12 +43,21 @@ function portsFor(options: {
 	readonly send?: (request: OpenCodeRequest) => Promise<unknown>;
 	readonly onEvent?: (listener: (event: OpenCodeEvent) => void) => { dispose(): void };
 	readonly trusted?: boolean | (() => boolean);
+	readonly resolveWorkspace?: RuntimePorts['resolveWorkspace'];
 	readonly ensureStarted?: (workspace: WorkspaceReference) => Promise<OwnedProcessHandle>;
 	readonly preflight?: RuntimePorts['localIntegrationPreflight'];
 	readonly enumerateLocalIntegrations?: RuntimePorts['enumerateLocalIntegrations'];
 } = {}): RuntimePorts & { eventEmitter: FakeEventEmitter } {
 	const eventEmitter = new FakeEventEmitter();
 	return {
+		resolveWorkspace: options.resolveWorkspace ?? (uri => {
+			try {
+				const parsed = new URL(uri);
+				return parsed.protocol === 'file:' && parsed.pathname.length > 0 ? { uri } : undefined;
+			} catch {
+				return undefined;
+			}
+		}),
 		workspaceTrust: {
 			isTrusted: () => typeof options.trusted === 'function' ? options.trusted() : options.trusted ?? true,
 		},
@@ -79,6 +89,50 @@ function portsFor(options: {
 }
 
 suite('RuntimeTransportBridge', () => {
+	test('resolves the remote workspace consistently before inventory, trust and startup', async () => {
+		const remoteUri = 'vscode-remote://ssh-remote+fixture/workspace';
+		const host: WorkspaceHost = { remoteName: 'ssh-remote', remoteAuthority: 'ssh-remote+fixture', isWorkspaceHost: true, folders: [{ uri: workspace.uri, transportUri: remoteUri }] };
+		const seen: string[] = [];
+		const ports = portsFor({
+			resolveWorkspace: uri => resolveWorkspace(uri, host),
+			enumerateLocalIntegrations: async resolved => { seen.push(resolved.uri); return { complete: true, sources: [] }; },
+			preflight: resolved => { seen.push(resolved.uri); return { accepted: true }; },
+			ensureStarted: async resolved => { seen.push(resolved.uri); return processHandle; },
+		});
+		ports.workspaceTrust.isTrusted = resolved => { seen.push(resolved.uri); return resolved.uri === workspace.uri; };
+		const bridge = new RuntimeTransportBridge(ports);
+		const events: TransportEvent[] = [];
+		bridge.onEvent(event => events.push(event));
+		await bridge.send({ version: TRANSPORT_PROTOCOL_VERSION, requestId: 'inventory', type: TransportCommandType.ListLocalIntegrations, workspaceUri: remoteUri });
+		await bridge.send({ version: TRANSPORT_PROTOCOL_VERSION, requestId: 'start', type: TransportCommandType.StartSession, workspaceUri: remoteUri, localIntegrationPreflight: { accepted: true } });
+		assert.ok(seen.length >= 5);
+		assert.ok(seen.every(uri => uri === workspace.uri));
+		assert.deepStrictEqual(events.map(event => event.type), [TransportEventType.LocalIntegrations, TransportEventType.State]);
+		bridge.dispose();
+	});
+
+	test('rejects wrong remote authority or local execution before any workspace effects', async () => {
+		for (const isWorkspaceHost of [true, false]) {
+			let effects = 0;
+			const host: WorkspaceHost = { remoteName: 'ssh-remote', remoteAuthority: 'ssh-remote+fixture', isWorkspaceHost, folders: [{ uri: workspace.uri, transportUri: 'vscode-remote://ssh-remote+fixture/workspace' }] };
+			const ports = portsFor({
+				resolveWorkspace: uri => resolveWorkspace(uri, host),
+				enumerateLocalIntegrations: async () => { effects++; return { complete: true, sources: [] }; },
+				ensureStarted: async () => { effects++; return processHandle; },
+			});
+			const bridge = new RuntimeTransportBridge(ports);
+			const events: TransportEvent[] = [];
+			bridge.onEvent(event => events.push(event));
+			const uri = `vscode-remote://ssh-remote+${isWorkspaceHost ? 'other' : 'fixture'}/workspace`;
+			await bridge.send({ version: TRANSPORT_PROTOCOL_VERSION, requestId: 'inventory', type: TransportCommandType.ListLocalIntegrations, workspaceUri: uri });
+			await bridge.send({ version: TRANSPORT_PROTOCOL_VERSION, requestId: 'start', type: TransportCommandType.StartSession, workspaceUri: uri, localIntegrationPreflight: { accepted: true } });
+			assert.strictEqual(effects, 0);
+			assert.strictEqual(events.length, 2);
+			assert.ok(events.every(event => event.type === TransportEventType.Error && event.error.code === TransportErrorCode.InvalidPayload));
+			bridge.dispose();
+		}
+	});
+
 	test('enumerates local integrations before starting the process', async () => {
 		let starts = 0;
 		const ports = portsFor({
@@ -870,7 +924,7 @@ suite('RuntimeTransportBridge', () => {
 		bridge.onEvent(event => events.push(event));
 
 		await bridge.send({
-			version: 2 as unknown as typeof TRANSPORT_PROTOCOL_VERSION,
+			version: 1 as unknown as typeof TRANSPORT_PROTOCOL_VERSION,
 			requestId: 'req-1',
 			type: TransportCommandType.StartSession,
 			workspaceUri: workspace.uri,

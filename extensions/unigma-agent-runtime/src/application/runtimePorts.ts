@@ -91,6 +91,8 @@ export interface DiagnosticSink {
 
 /** Composition boundary for the future T-021/T-022/T-023 adapters. */
 export interface RuntimePorts {
+	/** Resolves a wire identity to an open folder on the executing host, without IO. */
+	readonly resolveWorkspace: (uri: string) => WorkspaceReference | undefined;
 	readonly workspaceTrust: WorkspaceTrust;
 	readonly processManager: ProcessManager;
 	/** Runs after workspace trust and immediately before process startup. */

@@ -1477,6 +1477,22 @@ conexão caiu e a janela voltou sem ser recriada. Menos que isso não fecha
 
 ### T-054 — iniciar runtime no host remoto
 
+- **2026-09-06 — recorte em revisão, sem prova ainda:** alinhar o envelope RPC
+  v2 e resolver a string recebida pelo bridge somente para uma pasta aberta no
+  host correto. A extensão interna declara `resolvers` para conferir
+  `env.remoteAuthority`; exige autoridade SSH exata, tipo efetivo workspace e
+  trust. Inventário, preflight e processo usam a mesma referência `file:` do
+  extension host. Sem fallback local. Question retorna `CapabilityUnavailable`;
+  as demais projeções v2 não fazem parte deste recorte.
+- **validação prevista:** workflow `unigma-agent-runtime-validation.yml`, sem
+  privilégio, provider ou VPS: compile/suíte runtime, contrato serializado
+  `node --experimental-transform-types --test build/unigma/agent-rpc.contract.ts`,
+  compile-client e testes common do workbench. Ainda sem resultado de runner;
+  item Trello aberto. Isso não prova sessão remota nem fecha AC-007.
+- **limite autorizado:** dependências/build/testes no runner, commit e push;
+  nenhum staging, instalação ou limpeza na VPS. Implantar novo par exige
+  autorização separada.
+
 - **objetivo:** fazer o extension host remoto executar/reutilizar `opencode serve`
   no workspace remoto, sem copiar projeto ou iniciar processo local indevido.
 - **responsável lógico:** engenharia remota + runtime.

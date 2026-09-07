@@ -1,6 +1,15 @@
 # unigma — workbench operacional
 
-**T-053 — execução mais recente:** branch `test/t053-owned-reconnect`, commit
+**foco atual — T-054/T-055:** correção RPC v2 e resolução segura de workspace
+SSH em revisão, ainda sem testes executados. Validação somente no runner;
+staging de novo par na VPS exige autorização separada. Projeções restantes
+fora do recorte; AC-007 continua parcial.
+
+| id | escopo | fase | estado | responsável | dependências | próximo passo | fonte |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| T-054/T-055 | RPC e workspace SSH | implementação | em revisão | lovelace | host remoto T-053 | validar no runner | BACKLOG T-054 |
+
+**T-053 — histórico de execução:** branch `test/t053-owned-reconnect`, commit
 `cf6cb5b6`, run `34008859142`. Caminho sem staging/install/cleanup publicado e
 disparado; falhou antes de conectar por par divergente (`6e973c67` desktop,
 `493dcfe7` servidor). Próximo passo: selecionar par existente do mesmo commit;
@@ -10,7 +19,8 @@ Runs `34010310240` e `34010391641` (commits `5c9d3d97`/`56584d93`) avançaram at
 host com o par `493dcfe7` e pararam em `ssh.remote-server-unavailable`. Com
 staging autorizado, o run `34011376887` (commit `ed8b224c`) **provou queda e
 reconexão na mesma janela**; ver `EVIDENCE.md`. Restam sessão de agente remota
-(T-054/055) e matriz de módulos nativos; AC-007 continua parcial. O servidor
+(T-054/055); a matriz de módulos nativos passou no run `34013237745`.
+AC-007 continua parcial. O servidor
 segue preparado na VPS.
 
 > quadro vivo das frentes de trabalho. O histórico detalhado fica nos arquivos

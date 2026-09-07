@@ -12,6 +12,9 @@
   "extensionKind": [
     "workspace"
   ],
+  "enabledApiProposals": [
+    "resolvers"
+  ],
   "activationEvents": [
     "onCommand:unigma.agent.runtime.activate",
     "onCommand:unigma.agent.runtime.transport.send"
