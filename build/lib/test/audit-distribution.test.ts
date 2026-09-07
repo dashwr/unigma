@@ -7,13 +7,14 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, renameSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { test } from 'node:test';
 
 const script = resolve(import.meta.dirname, '../../unigma/audit-distribution.ts');
 
 interface FixtureOptions {
 	readonly extensionsGallery?: unknown;
+	readonly omitRuntime?: boolean;
 	readonly extension?: { readonly name: string; readonly packageJson?: Record<string, unknown> };
 	readonly noticeText?: string;
 	readonly omitNode?: boolean;
@@ -85,11 +86,33 @@ function createServerFixture(options: FixtureOptions = {}) {
 	if (options.omitNode) {
 		unlinkSync(join(root, 'node'));
 	}
+	if (options.omitRuntime !== true) {
+		// A server package without `unigma-agent-runtime`, or with it but without
+		// the entry point its manifest names, is a server whose remote extension
+		// host has no runtime to load. The audit refuses both, so a fixture that
+		// stands for a valid package has to carry it.
+		const runtimeDirectory = join(root, 'extensions', 'unigma-agent-runtime');
+		mkdirSync(join(runtimeDirectory, 'out'), { recursive: true });
+		writeFileSync(join(runtimeDirectory, 'package.json'), JSON.stringify({
+			name: 'unigma-agent-runtime',
+			main: './out/extension.js',
+			extensionKind: ['workspace'],
+		}));
+		writeFileSync(join(runtimeDirectory, 'out', 'extension.js'), '');
+	}
 	if (options.extension) {
 		const extensionDirectory = join(root, 'extensions', options.extension.name);
 		mkdirSync(extensionDirectory);
 		if (options.extension.packageJson) {
 			writeFileSync(join(extensionDirectory, 'package.json'), JSON.stringify(options.extension.packageJson));
+			// A manifest that names an entry point has to ship it: the server
+			// profile audits that now, and a fixture standing for a shippable
+			// extension would otherwise be refused for the fixture's own gap.
+			const entry = (options.extension.packageJson as { main?: unknown }).main;
+			if (typeof entry === 'string') {
+				mkdirSync(dirname(join(extensionDirectory, entry)), { recursive: true });
+				writeFileSync(join(extensionDirectory, entry), '');
+			}
 		}
 	}
 	return root;

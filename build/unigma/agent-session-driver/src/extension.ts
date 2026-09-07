@@ -30,12 +30,20 @@
 import { execFile } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { get as httpGet } from 'node:http';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import type * as vscodeApi from 'vscode';
 
 // Resolved at runtime: the driver is loaded by the extension host, never bundled.
 const vscode = require('vscode') as typeof vscodeApi;
 
-const REPORT_VARIABLE = 'UNIGMA_AGENT_SESSION_REPORT';
+/*
+ * A fixed name under the host's own home, because the remote extension host does
+ * not inherit the desktop's environment: there is no way to hand it a path on
+ * the command line. The bench owns that home and removes the file before the
+ * run, so a stale report cannot be mistaken for this one.
+ */
+const REPORT_NAME = 'unigma-agent-session-report.txt';
 const TRANSPORT_COMMAND = 'unigma.agent.runtime.transport.send';
 const AGENT_PROTOCOL_VERSION = 2;
 const DEADLINE_MS = 90_000;
@@ -49,10 +57,7 @@ function record(key: string, value: unknown): void {
 }
 
 function writeReport(): void {
-	const target = process.env[REPORT_VARIABLE];
-	if (!target) {
-		return;
-	}
+	const target = join(homedir(), REPORT_NAME);
 	const lines = [...facts].map(([key, value]) => `${key}=${value}`);
 	try {
 		writeFileSync(target, `${lines.join('\n')}\n`, { mode: 0o600 });

@@ -22,6 +22,10 @@
 		"node_modules/**",
 		"monaco-editor-playground/**",
 		"builtin/**",
+		// The smoke driver is an extension source: it targets the extension host
+		// with CommonJS and the `vscode` types, not this project, which is
+		// nodenext build tooling. It is compiled by the smoke that loads it.
+		"unigma/agent-session-driver/**",
 		"vite/**"
 	]
 }
