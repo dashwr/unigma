@@ -24,11 +24,11 @@
  */
 
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
-import { accessSync, chmodSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { accessSync, chmodSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { createRequire } from 'node:module';
 import { homedir, userInfo } from 'node:os';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { createRemoteSshProcessRunner as CreateRemoteSshProcessRunner, openRemoteServer as OpenRemoteServer, RemoteSshProcess } from '../../extensions/unigma-remote-ssh/out/remoteServerTransport.js';
 import type { createRemotePayloadTarRunner as CreateRemotePayloadTarRunner, stageRemotePayload as StageRemotePayload } from '../../extensions/unigma-remote-ssh/out/remoteStagingTransfer.js';
@@ -147,7 +147,7 @@ function provenanceCommit(directory: string): string {
 	return readFileSync(file, 'utf8').split(/\r?\n/).find(line => line.startsWith('commit='))?.slice('commit='.length) ?? '';
 }
 
-function artifactPair(): ArtifactPair | undefined {
+function artifactPair(workDirectory: string): ArtifactPair | undefined {
 	const store = process.env['UNIGMA_ARTIFACT_ROOT'] ?? join(homedir(), '.local', 'share', 'unigma-artifacts');
 	const requested = process.env['UNIGMA_ARTIFACT_COMMIT'] ?? '';
 	const desktopTree = COMMIT.test(requested) ? join(store, 'versions', 'unigma', requested) : join(store, 'unigma-latest');
@@ -162,9 +162,19 @@ function artifactPair(): ArtifactPair | undefined {
 	if (!COMMIT.test(desktopCommit) || desktopCommit !== serverCommit) {
 		return undefined;
 	}
+	/*
+	 * The store keeps the server extracted while the payload format transports a
+	 * single archive, so it is repacked here — the same thing
+	 * `smoke-remote-staging.ts` does, and for the same reason. The pointer is a
+	 * symlink, and tar would archive the link rather than the tree, so the
+	 * version directory is resolved first.
+	 */
+	const archive = join(workDirectory, 'store-server.tar.gz');
+	const resolved = realpathSync(serverTree);
+	execFileSync(executable('tar') ?? 'tar', ['--owner=0', '--group=0', '-czf', archive, '-C', dirname(resolved), basename(resolved)]);
 	return {
 		desktop: desktopTree,
-		server: join(serverTree, 'server', 'unigma-server.tar.gz'),
+		server: archive,
 		opencode: join(opencodeTree, 'bin', 'opencode'),
 		license: join(opencodeTree, 'LICENSE-opencode.txt'),
 		commit: desktopCommit
@@ -209,7 +219,12 @@ async function main(): Promise<void> {
 		return;
 	}
 
-	const pair = artifactPair();
+	const work = join(repoRoot, '.build', 'remote-agent-session');
+	rmSync(work, { recursive: true, force: true });
+	mkdirSync(work, { recursive: true });
+	chmodSync(work, 0o700);
+
+	const pair = artifactPair(work);
 	check('artifact-commit-pair', pair !== undefined);
 	if (!pair) {
 		writeReport();
@@ -225,14 +240,10 @@ async function main(): Promise<void> {
 
 	let sshdProcess: ChildProcess | undefined;
 	let product: ChildProcess | undefined;
-	const work = join(repoRoot, '.build', 'remote-agent-session');
 	// A short lexical home keeps the server's UNIX socket under sun_path.
 	const benchHome = '/tmp/ug-as';
 	try {
-		rmSync(work, { recursive: true, force: true });
 		rmSync(benchHome, { recursive: true, force: true });
-		mkdirSync(work, { recursive: true });
-		chmodSync(work, 0o700);
 		symlinkSync(work, benchHome, 'dir');
 
 		const hostKey = join(work, 'host-key');
@@ -356,7 +367,12 @@ async function main(): Promise<void> {
 		// The claim of T-054: the runtime started OpenCode on the remote host.
 		check('opencode-on-remote-host', reported.get('opencode.listening') === 'true');
 	} catch (error) {
-		fact('failure', (error as Error | undefined)?.message?.slice(0, 120) ?? 'unknown');
+		// `Command failed: <very long argv>` truncates to nothing useful, and the
+		// stderr of the child is where the reason actually is.
+		const thrown = error as (Error & { stderr?: Buffer | string }) | undefined;
+		const stderr = typeof thrown?.stderr === 'string' ? thrown.stderr : thrown?.stderr?.toString('utf8') ?? '';
+		fact('failure.message', (thrown?.message ?? 'unknown').split('\n')[0].slice(0, 120));
+		fact('failure.stderr', stderr.trim().split('\n').filter(Boolean).slice(-1)[0]?.slice(0, 160) ?? 'none');
 		check('completed', false);
 	} finally {
 		product?.kill('SIGTERM');
