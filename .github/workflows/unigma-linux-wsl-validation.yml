@@ -258,11 +258,23 @@ jobs:
           # envelope to reject it, which stopped being true when `ace14a12`
           # made v2 the supported version. It needs a DOM, so it runs in
           # Electron under Xvfb, against the same `out` tree transpiled above.
-          # VSCODE_SKIP_PRELAUNCH is not set: the download is a no-op once
-          # .build/electron is populated, and the packaging step above already
-          # populated it.
-          xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' \
+          # The packaging step already downloaded .build/electron, and
+          # VSCODE_SKIP_PRELAUNCH keeps scripts/test.sh from deleting and
+          # re-fetching it; if it were missing the step fails loudly.
+          VSCODE_SKIP_PRELAUNCH=1 \
+            xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' \
             bash ./scripts/test.sh --runGlob "vs/workbench/contrib/unigmaAgent/test/browser/*.test.js"
+
+          # This step has to leave the tree as it found it. The desktop smoke
+          # below runs out of sources, and `ensureCompiled` in
+          # build/lib/preLaunch.ts runs `npm run compile` only when `out` is
+          # absent. Leaving a transpile-only `out` behind made the smoke skip
+          # that compile and fail six upstream tests in run 34079783571 —
+          # languages, statusbar and scm, none of them related to the change
+          # that introduced the step.
+          if [ -n "$build" ] && [ -f "$build/package.json" ] && [ -d "$build/out" ]; then
+            rm -rf -- "$build/out"
+          fi
           '@
           $script = $script -replace "`r`n?", "`n"
           [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))
