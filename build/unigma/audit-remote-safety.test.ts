@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { spawnSync } from 'child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join, resolve } from 'path';
 import { test } from 'node:test';
@@ -137,6 +137,63 @@ test('escalation is refused in assembled remote shell but not policed in workflo
 		const { stdout } = audit(root);
 		assert.match(stdout, /findings=0/, stdout);
 	});
+});
+
+test('a recursive removal of the home or the root is refused', () => {
+	for (const target of ['"$HOME"', '$HOME', '~', '/']) {
+		withTree({ '.github/workflows/w.yml': `          rm -rf ${target}\n` }, root => {
+			const { status, stdout } = audit(root);
+			assert.match(stdout, /^failure=recursive-removal /m, `${target}: ${stdout}`);
+			assert.strictEqual(status, 1);
+		});
+	}
+});
+
+test('an unquoted expansion is refused, because one empty variable renames the target', () => {
+	// `rm -rf $tree/out` with an empty tree is `rm -rf /out`.
+	withTree({ '.github/workflows/w.yml': '          rm -rf $tree/out\n' }, root => {
+		const { status, stdout } = audit(root);
+		assert.match(stdout, /^failure=recursive-removal .*unquoted expansion/m, stdout);
+		assert.strictEqual(status, 1);
+	});
+});
+
+test('a quoted expansion or an explicit path is the job naming what it owns, and passes', () => {
+	withTree({
+		'.github/workflows/w.yml': [
+			'          rm -rf "$build"',
+			'          rm -rf -- "$build/out"',
+			`          trap ${String.fromCharCode(39)}rm -rf "$temporary"${String.fromCharCode(39)} EXIT`,
+			'          if [ -d out ]; then rm -rf -- "$root/out"; fi',
+			'          rm -rf .build/logs',
+			''
+		].join('\n')
+	}, root => {
+		const { status, stdout } = audit(root);
+		assert.doesNotMatch(stdout, /recursive-removal/, stdout);
+		assert.strictEqual(status, 0);
+	});
+});
+
+test('the focused validation workflow disposes of the tree it creates in $HOME', () => {
+	/*
+	 * The workflow makes a fresh `mktemp -d` under $HOME on every run, so without
+	 * a cleanup each execution leaves one behind for good. It cannot be proved by
+	 * running the workflow — it is absent from the default branch and therefore
+	 * not dispatchable — so the property is asserted over the file itself, the
+	 * same way remoteStagingScript.test.ts asserts over generated shell.
+	 */
+	const workflow = readFileSync(resolve(repositoryRoot, '.github/workflows/unigma-agent-runtime-validation.yml'), 'utf8');
+
+	assert.match(workflow, /mktemp -d "\$HOME\/unigma-agent-runtime-validation\.XXXXXX"/);
+	assert.match(workflow, /trap cleanup EXIT/);
+	// The sentinel starts empty: a trap that fires before the real assignment
+	// must not have a real path to act on.
+	assert.match(workflow, /^\s*build=""$/m);
+	assert.match(workflow, /\[ -n "\$build" \] \|\| return 0/);
+	// The removal is reachable only through the prefix guard.
+	assert.match(workflow, /"\$HOME"\/unigma-agent-runtime-validation\.\*\) rm -rf -- "\$build" ;;/);
+	assert.strictEqual(workflow.match(/rm -rf/g)?.length, 1, 'the guarded removal must be the only one in the workflow');
 });
 
 test('a comment describing a refused form is not a violation', () => {

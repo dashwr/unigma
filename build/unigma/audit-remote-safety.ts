@@ -101,7 +101,47 @@ const ESCALATION_RULE: Rule = {
 	}
 };
 
-const WORKFLOW_RULES: readonly Rule[] = [EXTRACTION_RULE, HOST_KEY_RULE, PIPED_DOWNLOAD_RULE];
+/*
+ * A recursive removal has two forms that are dangerous regardless of intent.
+ * The first names the whole home, or the root, and no job ever means that. The
+ * second leaves the expansion unquoted: one empty variable turns
+ * `rm -rf $tree/out` into `rm -rf /out`, and one containing a space removes two
+ * things. A quoted expansion or an explicit literal path is the job naming
+ * something it owns, and those are left alone — the rule is about the forms
+ * that stop meaning what they say.
+ */
+const RECURSIVE_REMOVAL_RULE: Rule = {
+	id: 'recursive-removal',
+	description: 'a recursive removal never names the home or root, and never leaves an expansion unquoted',
+	check: line => {
+		if (/^\s*(#|\/\/|\*)/.test(line)) {
+			return undefined;
+		}
+		const match = /\brm\s+(?:-[a-zA-Z]*\s+)*-[a-zA-Z]*[rR][a-zA-Z]*\s+(?:--\s+)?(\S+)/.exec(line);
+		if (!match) {
+			return undefined;
+		}
+		// Trailing punctuation is not part of the path: a removal inside an `if`
+		// ends with a semicolon, and one inside a trap ends with the closing quote
+		// of the trap body — which is not the quote around the path itself.
+		let target = match[1].replace(/[;)]+$/, '');
+		const singleQuote = String.fromCharCode(39);
+		if (target.endsWith(singleQuote) && !target.startsWith(singleQuote)) {
+			target = target.slice(0, -1);
+		}
+		const quoted = target.length > 1 && target.startsWith('"') && target.endsWith('"');
+		const path = quoted ? target.slice(1, -1) : target;
+		if (/^(\$\{?HOME\}?|~|\/)$/.test(path)) {
+			return `recursive removal of ${target}`;
+		}
+		if (!quoted && path.startsWith('$')) {
+			return `recursive removal of an unquoted expansion: ${target}`;
+		}
+		return undefined;
+	}
+};
+
+const WORKFLOW_RULES: readonly Rule[] = [EXTRACTION_RULE, HOST_KEY_RULE, PIPED_DOWNLOAD_RULE, RECURSIVE_REMOVAL_RULE];
 const REMOTE_SHELL_RULES: readonly Rule[] = [EXTRACTION_RULE, HOST_KEY_RULE, PIPED_DOWNLOAD_RULE, ESCALATION_RULE];
 
 interface Scope {
