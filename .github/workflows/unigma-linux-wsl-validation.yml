@@ -258,11 +258,13 @@ jobs:
           # envelope to reject it, which stopped being true when `ace14a12`
           # made v2 the supported version. It needs a DOM, so it runs in
           # Electron under Xvfb, against the same `out` tree transpiled above.
-          # The packaging step already downloaded .build/electron, and
-          # VSCODE_SKIP_PRELAUNCH keeps scripts/test.sh from deleting and
-          # re-fetching it; if it were missing the step fails loudly.
-          VSCODE_SKIP_PRELAUNCH=1 \
-            xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' \
+          # VSCODE_SKIP_PRELAUNCH is deliberately not set. The tree copied into
+          # WSL excludes .build, so .build/electron does not exist yet at this
+          # point, and scripts/test.sh has to fetch Electron itself. It is not a
+          # second download: the desktop smoke below goes through
+          # build/lib/preLaunch.ts, whose isExpectedElectronInstalled finds the
+          # matching version this step just installed and skips the refresh.
+          xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' \
             bash ./scripts/test.sh --runGlob "vs/workbench/contrib/unigmaAgent/test/browser/*.test.js"
 
           # This step has to leave the tree as it found it. The desktop smoke
