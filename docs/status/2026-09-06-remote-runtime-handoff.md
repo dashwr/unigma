@@ -187,6 +187,23 @@ O que falta para a prova, e cada item é decisão humana, não trabalho pendente
    comando público de `start`. Provar exige instalar na VPS uma extensão-driver
    `extensionKind: ["workspace"]` que dispare a sessão e escreva relatório no
    host. Isso é escrita em host remoto, que o backlog exige autorizar por run.
+
+   **E antes disso há uma lacuna de contrato, verificada, que precisa de decisão
+   de desenho.** Um driver no extension host remoto consegue *iniciar* a sessão,
+   porque `unigma.agent.runtime.transport.send` é registrado no próprio extension
+   host (`extensions/unigma-agent-runtime/src/extension.ts:47`) e uma extensão
+   pode executar comando de outra. Mas **não consegue observar o resultado**:
+   `unigma.agent.runtime.transport.event` é registrado apenas no workbench
+   (`src/vs/workbench/contrib/unigmaAgent/browser/unigmaAgentRuntime.ts:205`), a
+   extensão de runtime só o *executa*, e `activate` não devolve API alguma. Um
+   driver que registrasse o mesmo id colidiria com o do workbench.
+
+   Ou seja, o smoke não tem por onde ler os eventos da sessão no host. As saídas
+   possíveis — expor um segundo comando de observação, devolver API em
+   `activate`, ou fazer o driver observar só os efeitos do lado do OpenCode — são
+   decisão de arquitetura, não de execução. Escolher uma por conta própria seria
+   inventar contrato, que é o que `AGENTS.md` proíbe. **É esta a primeira coisa a
+   decidir**, antes de qualquer linha do harness.
 2. **Credencial no host.** `OPENROUTER_API_KEY` não atravessa o SSH: nada em
    `remoteServerTransport.ts` encaminha ambiente. Ou a chave passa a viver na
    VPS — segredo persistente fora do CI —, ou o recorte é provado sem provider,
