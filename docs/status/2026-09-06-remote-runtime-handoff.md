@@ -97,6 +97,11 @@ sob Xvfb, com o smoke desktop de volta a 40 passando e 0 falhando. As três
 suítes do `unigmaAgent` executam em CI pela primeira vez, e cada número tem nome
 de teste no log — não apenas um passo verde.
 
+**Run `34082974153`, head `9016876d`: verde.** Runtime **181** com 1 pendente e
+`unigma-remote-ssh` **99** — as duas guardas novas do par staged entraram em CI,
+descritas mais abaixo. O resto sem mudança: harnesses 98, contrato RPC 7,
+workbench 47 e 13, smoke desktop 40 com 0 falhando.
+
 **Um dos passos verdes não provava nada, e isso foi apurado.** `run workbench
 agent unit tests in WSL` reportava sucesso sem executar teste algum: `--build`
 aponta o harness para `out-build`, e a task de empacotamento segue o caminho
