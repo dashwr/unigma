@@ -49,6 +49,16 @@ jobs:
           node --version | grep -Fx "v$node_version"
           npm --version | grep -Ev '^(1[2-9]|[2-9][0-9])\.'
 
+          # The tree is disposable and lives in $HOME; a sentinel that is empty
+          # until the real assignment keeps the trap from touching anything else.
+          build=""
+          cleanup() {
+            [ -n "$build" ] || return 0
+            case "$build" in
+              "$HOME"/unigma-agent-runtime-validation.*) rm -rf -- "$build" ;;
+            esac
+          }
+          trap cleanup EXIT
           build="$(mktemp -d "$HOME/unigma-agent-runtime-validation.XXXXXX")"
           tar --exclude=.git --exclude=node_modules --exclude=out \
             --exclude=out-build --exclude=.build -C "$source" -cf - . |
@@ -83,7 +93,8 @@ jobs:
             --run src/vs/workbench/contrib/unigmaAgent/test/common/agentProtocol.test.ts \
             --run src/vs/workbench/contrib/unigmaAgent/test/common/autopilotState.test.ts \
             --run src/vs/workbench/contrib/unigmaAgent/test/common/localIntegrationPolicy.test.ts \
-            --run src/vs/workbench/contrib/unigmaAgent/test/common/localIntegrationPreflight.test.ts
+            --run src/vs/workbench/contrib/unigmaAgent/test/common/localIntegrationPreflight.test.ts \
+            --run src/vs/workbench/contrib/unigmaAgent/test/common/unigmaAgentSession.test.ts
           '@
           $script = $script -replace "`r`n?", "`n"
           [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))

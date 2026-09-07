@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AgentEvent, AgentEventType, AgentSessionState, type AgentDiff, type AgentModelEntry, type AgentPermissionRequest } from '../common/agentProtocol.js';
+import { AgentEvent, AgentEventType, AgentSessionState, type AgentDiff, type AgentModelEntry, type AgentPermissionRequest } from './agentProtocol.js';
 
 export const UNIGMA_AGENT_VIEW_STATES = {
 	Empty: 'empty',
@@ -29,6 +29,21 @@ export interface UnigmaAgentSessionViewModel {
 }
 
 export const EMPTY_UNIGMA_AGENT_SESSION: UnigmaAgentSessionViewModel = Object.freeze({ state: UNIGMA_AGENT_VIEW_STATES.Empty });
+
+/** Live-region semantics per view state; kept beside the reducer so it stays DOM-free and testable in `common`. */
+export function getUnigmaAgentStateAccessibility(state: UnigmaAgentSessionViewModel['state']): { readonly role?: string; readonly live?: string; readonly busy?: boolean } {
+	switch (state) {
+		case UNIGMA_AGENT_VIEW_STATES.Loading:
+		case UNIGMA_AGENT_VIEW_STATES.Running:
+			return { role: 'status', live: 'polite', busy: true };
+		case UNIGMA_AGENT_VIEW_STATES.Error:
+			return { role: 'alert', live: 'assertive', busy: false };
+		case UNIGMA_AGENT_VIEW_STATES.Result:
+			return { role: 'status', live: 'polite', busy: false };
+		default:
+			return {};
+	}
+}
 
 export function startUnigmaAgentSession(): UnigmaAgentSessionViewModel {
 	return { state: UNIGMA_AGENT_VIEW_STATES.Loading };

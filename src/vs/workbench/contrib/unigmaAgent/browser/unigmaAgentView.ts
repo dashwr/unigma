@@ -33,27 +33,14 @@ import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { getUnigmaAgentInputAction, parseUnigmaAgentInput } from '../common/agentInput.js';
 import {
 	EMPTY_UNIGMA_AGENT_SESSION,
+	getUnigmaAgentStateAccessibility,
 	reduceUnigmaAgentSessionEvent,
 	startUnigmaAgentSession,
 	UNIGMA_AGENT_VIEW_STATES,
 	UnigmaAgentSessionViewModel,
-} from './unigmaAgentSession.js';
+} from '../common/unigmaAgentSession.js';
 
-export { UNIGMA_AGENT_VIEW_STATES } from './unigmaAgentSession.js';
-
-export function getUnigmaAgentStateAccessibility(state: UnigmaAgentSessionViewModel['state']): { readonly role?: string; readonly live?: string; readonly busy?: boolean } {
-	switch (state) {
-		case UNIGMA_AGENT_VIEW_STATES.Loading:
-		case UNIGMA_AGENT_VIEW_STATES.Running:
-			return { role: 'status', live: 'polite', busy: true };
-		case UNIGMA_AGENT_VIEW_STATES.Error:
-			return { role: 'alert', live: 'assertive', busy: false };
-		case UNIGMA_AGENT_VIEW_STATES.Result:
-			return { role: 'status', live: 'polite', busy: false };
-		default:
-			return {};
-	}
-}
+export { getUnigmaAgentStateAccessibility, UNIGMA_AGENT_VIEW_STATES } from '../common/unigmaAgentSession.js';
 
 export class UnigmaAgentViewPane extends ViewPane {
 	static readonly ID = UNIGMA_AGENT_MANIFEST.viewId;
