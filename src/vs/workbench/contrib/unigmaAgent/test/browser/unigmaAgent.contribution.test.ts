@@ -106,7 +106,11 @@ suite('Unigma Agent contribution', () => {
 			send: async () => { throw new Error('offline'); },
 		});
 
-		received.fire({ version: 2, type: AgentEventType.State, sessionId: 'session-1', state: AgentSessionState.Running });
+		// A literal was written here when the envelope was v1, so bumping it to v2
+		// in `ace14a12` quietly turned this into a valid event, and nothing caught
+		// it because no workflow runs this suite. Derive the unsupported version
+		// from the constant instead.
+		received.fire({ version: AGENT_PROTOCOL_VERSION + 1, type: AgentEventType.State, sessionId: 'session-1', state: AgentSessionState.Running });
 		await assert.rejects(runtime.sendInput('session-1', 'hello'), /The unigma agent RPC transport disconnected/);
 
 		assert.deepStrictEqual(events, [

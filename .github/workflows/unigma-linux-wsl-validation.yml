@@ -228,7 +228,7 @@ jobs:
           if ($exitCode -ne 0) { exit $exitCode }
 
       - name: run workbench agent unit tests in WSL
-        timeout-minutes: 10
+        timeout-minutes: 20
         run: |
           $scriptPath = Join-Path $env:RUNNER_TEMP 'unigma-wsl-workbench-test.sh'
           $script = @'
@@ -251,6 +251,18 @@ jobs:
           # by the Windows job and by the packaging step above.
           npm run transpile-client
           npm run test-node -- --runGlob "vs/workbench/contrib/unigmaAgent/test/common/*.test.js"
+
+          # The browser-layer suite of the same feature also ran nowhere, and it
+          # was red: one assertion still listed four view states, missing
+          # `running`, and another fired a literal `version: 2` expecting the
+          # envelope to reject it, which stopped being true when `ace14a12`
+          # made v2 the supported version. It needs a DOM, so it runs in
+          # Electron under Xvfb, against the same `out` tree transpiled above.
+          # VSCODE_SKIP_PRELAUNCH is not set: the download is a no-op once
+          # .build/electron is populated, and the packaging step above already
+          # populated it.
+          xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' \
+            bash ./scripts/test.sh --runGlob "vs/workbench/contrib/unigmaAgent/test/browser/*.test.js"
           '@
           $script = $script -replace "`r`n?", "`n"
           [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))

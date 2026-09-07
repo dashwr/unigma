@@ -103,10 +103,12 @@ o comentário do próprio passo afirmava.
    dá 47 passando. No caminho apareceu outro defeito: a suíte de browser
    **não é executada por workflow algum** e estava vermelha em silêncio, com a
    asserção de `UNIGMA_AGENT_VIEW_STATES` esperando quatro estados, sem
-   `running`. Corrigida. *Fica em aberto* que a suíte de browser continua sem
-   execução em CI — cobri-la exige um passo Electron sob Xvfb que nenhum
-   workflow tem hoje, e criá-lo dentro da validação oficial de 240 min é decisão
-   de custo que não tomei sozinho.
+   `running`. **A suíte de browser também passou a rodar em CI**, em Electron
+   sob Xvfb, dentro do job Linux. Ao ligá-la apareceu um segundo teste podre:
+   ele disparava um literal `version: 2` esperando que o envelope recusasse,
+   coisa que deixou de ser verdade quando `ace14a12` tornou v2 a versão
+   suportada. Agora a versão inválida é derivada da constante. Com as duas
+   correções a suíte fica 13 passando, verificado em Electron nesta máquina.
 2. **Nenhum item do Trello marcado — fechado.** Os itens do TD-3 cobertos pelo
    run foram marcados, com comentário no cartão descrevendo a rota usada. O que
    não tem prova de runner continua desmarcado.
