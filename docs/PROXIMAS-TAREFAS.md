@@ -301,9 +301,14 @@ prompt ou segredo. **Não objetivo:** declarar UI inteira pronta com testes puro
 ## [BLOQUEADO] T-054/055 — agente no extension host remoto
 
 **[EM REVISÃO] 2026-09-06 — pré-requisito RPC/workspace:** correção autorizada
-do envelope v2 e da resolução segura da pasta SSH em implementação; validação
-pendente no runner via `unigma-agent-runtime-validation.yml`. Ver BACKLOG T-054.
-Sem staging de novo par na VPS; sessão real e AC-007 continuam pendentes.
+do envelope v2 e da resolução segura da pasta SSH implementada, junto com o
+contexto do editor no pedido, o contexto-base do unigma, o streaming visível e
+o cancelamento que preserva a sessão. Enviado em `remote-runtime`
+(`ace14a12`, `c0527b05`). Ver BACKLOG T-054.
+**[BLOQUEADO] validação:** `unigma-agent-runtime-validation.yml` não existe na
+branch default, então o `workflow_dispatch` responde 404 e não há run. Sem run,
+nada aqui fecha. Sem staging de novo par na VPS; sessão real e AC-007 continuam
+pendentes.
 
 **Dependência:** transporte/abertura T-053 provados e contratos de runtime local;
 autorização do host e credencial do provider de D-043. **O quê:** executar o único OpenCode do extension
