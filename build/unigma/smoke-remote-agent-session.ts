@@ -33,6 +33,7 @@ import { fileURLToPath } from 'node:url';
 import type { createRemoteSshProcessRunner as CreateRemoteSshProcessRunner, openRemoteServer as OpenRemoteServer, RemoteSshProcess } from '../../extensions/unigma-remote-ssh/out/remoteServerTransport.js';
 import type { createRemotePayloadTarRunner as CreateRemotePayloadTarRunner, stageRemotePayload as StageRemotePayload } from '../../extensions/unigma-remote-ssh/out/remoteStagingTransfer.js';
 import type { BootstrapManifest } from '../../extensions/unigma-remote-ssh/out/bootstrapManifest.js';
+import { observedContractCategories, observedExitCodes, observedPhases, observedReasons, observedServerExitCodes } from './remote-window-evidence.ts';
 
 const require = createRequire(import.meta.url);
 const transport = require('../../extensions/unigma-remote-ssh/out/remoteServerTransport.js') as {
@@ -279,6 +280,27 @@ function observeWindow(logsDirectory: string): void {
 	fact('window.resolver', RESOLVER_SUCCESS.test(text) ? 'returned' : RESOLVER_ERROR.test(text) ? 'error' : 'absent');
 	fact('window.authority-consumed', RESOLVED_AUTHORITY_CONSUMED.test(text));
 	fact('window.exthost-handshake', EXTENSION_HOST_HANDSHAKE.test(text));
+	/*
+	 * `resolver=error` alone says the connection failed and nothing about why.
+	 * These are the categories the SSH contract already names, extracted by
+	 * `remote-window-evidence.ts` — the same vocabulary the window smoke reports,
+	 * so a failure here reads against the same table.
+	 */
+	for (const category of observedContractCategories(text)) {
+		fact(`window.category.${category}`, 'observed');
+	}
+	for (const phase of observedPhases(text)) {
+		fact(`window.phase.${phase}`, 'observed');
+	}
+	for (const reason of observedReasons(text)) {
+		fact(`window.reason.${reason}`, 'observed');
+	}
+	for (const code of observedExitCodes(text)) {
+		fact(`window.ssh-exit.${code}`, 'observed');
+	}
+	for (const code of observedServerExitCodes(text)) {
+		fact(`window.server-exit.${code}`, 'observed');
+	}
 }
 
 async function main(): Promise<void> {
