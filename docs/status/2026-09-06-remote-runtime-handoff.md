@@ -181,23 +181,44 @@ gate**, e há teste que recusa qualquer comando de escrita ou redirecionamento
 nas linhas que os produzem. A intenção era converter a conclusão acima de
 leitura de código em observação do host real.
 
-Ela não foi disparada, e a razão é o mesmo bloqueio da branch default, agora
-mais perigoso. A sonda só é alcançável por `unigma-remote-native-modules-smoke.yml`,
-que não existe em `main` e portanto não é despachável, ou por
+A sonda só é alcançável por `unigma-remote-native-modules-smoke.yml`, que não
+existe em `main` e portanto não é despachável, ou por
 `unigma-remote-window-smoke.yml`, que existe — **mas a versão em `main` tem
 apenas o input `alias` e um único job, sem guarda, que provisiona a VPS e a
 limpa com `if: always()`**. As guardas `reconnect_only`/`native_modules_only`
-que selecionam o caminho somente-leitura só existem na versão de
-`remote-runtime`.
+que selecionam o caminho somente-leitura só existem em `remote-runtime`.
 
-Se o GitHub validar os inputs pela definição da branch default e executar a do
-ref — comportamento que não consegui confirmar sem executar —, um pedido de
-sonda somente-leitura chegaria ao job com os booleanos vazios, e
-`inputs.native_modules_only == false` seria verdadeiro. O caminho selecionado
-seria o de provisionamento e limpeza. Não disparei: o ganho era confirmar uma
-inferência que já tem três caminhos de código concordando, e o risco era escrever
-na VPS sem supervisão. **Fica pronto para o momento em que os workflows
-estiverem na branch default.**
+A dúvida era se um dispatch por ref usaria a definição do ref ou a da branch
+default. Se fosse a da default, os booleanos chegariam vazios,
+`inputs.native_modules_only == false` seria verdadeiro e o caminho selecionado
+seria o de provisionamento e limpeza — exatamente o que não se pode disparar sem
+supervisão.
+
+**A dúvida foi resolvida com risco zero, e a resposta é: a definição do ref
+governa.** O experimento está no run `34082375469`: um input que existia só em
+`remote-runtime` foi acrescentado ao `unigma-windows-ssh-capabilities.yml`, que
+não conecta a host algum e é idêntico nas duas branches. O dispatch **foi
+aceito** — logo a validação usou a definição do ref — e o job imprimiu
+`definition=feature-branch` e `probe_input_resolution=ref-governs`, logo a
+execução também. A branch default só precisa ter o arquivo para o workflow ser
+despachável. O andaime do experimento foi revertido em seguida.
+
+Portanto as guardas de `remote-runtime` valeriam, e a sonda seria selecionada
+sozinha, sem provisionar nada. **Mesmo assim ela não rodou:** o dispatch de um
+workflow que alcança a VPS externa foi negado pela política de permissões desta
+sessão. Não é risco técnico e não é dúvida de desenho — é autorização que só o
+responsável tem. A sonda fica pronta e o comando exato é:
+
+```bash
+gh workflow run unigma-remote-window-smoke.yml --ref remote-runtime \
+  -f alias=unigma-vps -f reconnect_only=true -f native_modules_only=true \
+  -f stage=false \
+  -f artifact_commit=493dcfe76117e759058a28e69cb6c956a780f952
+```
+
+Esperado no relatório: `native.opencode.desktop-layout=absent` e
+`native.opencode.server-layout=executable`, que é o que confirma a causa
+descrita acima contra o host real.
 
 Tamanho estimado do que teria de ser escrito: extensão-driver (~300 linhas),
 `build/unigma/smoke-remote-agent-session.ts` (~400), workflow próprio (~200) e

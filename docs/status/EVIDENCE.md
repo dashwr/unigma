@@ -891,3 +891,40 @@ não prova:       nada de sessão de agente em host remoto. Não houve staging, 
                  `2026-09-06-remote-runtime-handoff.md` para a razão.
                  `AC-007` continua parcial. Não é release.
 
+### qual definição de workflow um dispatch por ref usa — 2026-09-07
+
+data:            2026-09-07
+tarefa/gate:     nenhuma; é medição de infraestrutura de CI
+run id:          `34082375469`
+workflow:        `unigma-windows-ssh-capabilities.yml`, `--ref remote-runtime`
+resultado:       sucesso
+
+pergunta:        um `workflow_dispatch` com `--ref <branch>` usa a definição do
+                 ref ou a da branch default? Isso decide se um modo
+                 somente-leitura que existe apenas numa branch de trabalho pode
+                 ser selecionado, ou se os inputs chegam vazios e o job sem
+                 guarda da branch default é o que roda.
+
+método:          um input `probe_input_resolution` foi acrescentado **somente em
+                 `remote-runtime`**, mais um passo que imprime de qual definição
+                 veio. O workflow escolhido não conecta a host algum, não lê
+                 chave e era idêntico nas duas branches, então o experimento não
+                 podia causar efeito nenhum.
+
+resposta:        **a definição do ref governa, nas duas pontas.** O dispatch com
+                 o input foi aceito — se a validação usasse a branch default, a
+                 API teria recusado um input não declarado — e o job imprimiu
+                 `definition=feature-branch` e
+                 `probe_input_resolution=ref-governs`. A branch default só
+                 precisa ter o arquivo para o workflow aparecer como despachável.
+
+consequência:    as guardas `reconnect_only`/`native_modules_only` de
+                 `unigma-remote-window-smoke.yml` em `remote-runtime` valem num
+                 dispatch por CLI, e o caminho somente-leitura pode ser
+                 selecionado sem risco de cair no job que provisiona e limpa a
+                 VPS. Continua valendo o alerta para quem usa a **UI** na branch
+                 default, onde só o input `alias` existe.
+
+andaime:         revertido no commit seguinte; nada deste experimento fica no
+                 workflow.
+
