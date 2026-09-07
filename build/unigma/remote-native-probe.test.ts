@@ -71,6 +71,20 @@ describe('remote native probe', () => {
 		assert.ok(!/\n\s*rm -rf/.test(script));
 	});
 
+	it('reports both OpenCode layouts as read-only facts, never as a gate', () => {
+		const script = buildNativeProbeScript('b'.repeat(40), '$HOME/.unigma-server/bin/' + 'b'.repeat(40));
+
+		// The desktop package writes <appRoot>/opencode/bin/opencode; the payload
+		// staged on a host lands it as <appRoot>/bin/opencode. The probe answers
+		// which one an activated version has, and does so with `[` tests only.
+		assert.match(script, /native\.opencode\.desktop-layout=/);
+		assert.match(script, /native\.opencode\.server-layout=/);
+		for (const line of script.split('\n').filter(entry => entry.includes('opencode'))) {
+			assert.doesNotMatch(line, /\b(rm|mv|cp|ln|mkdir|touch|chmod|chown|tee)\b/, line);
+			assert.doesNotMatch(line, />[^&]/, line);
+		}
+	});
+
 	it('asks the packaged Node of the requested version and writes nothing', () => {
 		const script = buildNativeProbeScript('a'.repeat(40), '"$BASE/.unigma-server/$COMMIT"');
 		assert.ok(script.includes('NODE="$VERSION_DIRECTORY/node"'));

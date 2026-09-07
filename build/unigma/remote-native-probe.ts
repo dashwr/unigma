@@ -188,6 +188,15 @@ export function buildNativeProbeScript(commit: string, versionedDirectory: strin
 		`COMMIT=${shellQuote(commit)}`,
 		`VERSION_DIRECTORY=${versionedDirectory}`,
 		'NODE="$VERSION_DIRECTORY/node"',
+		// Two read-only tests, reported as facts and never as a gate. The
+		// runtime looks for the bundle the desktop package writes,
+		// `<appRoot>/opencode/bin/opencode`, but `build/gulpfile.reh.ts` ships
+		// no OpenCode at all and the payload lands it beside the server
+		// executable instead, as `<appRoot>/bin/opencode`. Which of the two the
+		// activated version actually has was read from source until now; this
+		// asks the host.
+		'if [ -x "$VERSION_DIRECTORY/opencode/bin/opencode" ]; then printf "%s\\n" "native.opencode.desktop-layout=executable"; elif [ -e "$VERSION_DIRECTORY/opencode/bin/opencode" ]; then printf "%s\\n" "native.opencode.desktop-layout=present"; else printf "%s\\n" "native.opencode.desktop-layout=absent"; fi',
+		'if [ -x "$VERSION_DIRECTORY/bin/opencode" ]; then printf "%s\\n" "native.opencode.server-layout=executable"; elif [ -e "$VERSION_DIRECTORY/bin/opencode" ]; then printf "%s\\n" "native.opencode.server-layout=present"; else printf "%s\\n" "native.opencode.server-layout=absent"; fi',
 		'if [ ! -x "$NODE" ]; then printf "%s\\n" "native.probe=node-missing"; exit 0; fi',
 		// Remote stderr is discarded on purpose: an uncaught loader message would
 		// otherwise carry absolute host paths into the trace artifact, and every
