@@ -305,10 +305,42 @@ do envelope v2 e da resolução segura da pasta SSH implementada, junto com o
 contexto do editor no pedido, o contexto-base do unigma, o streaming visível e
 o cancelamento que preserva a sessão. Enviado em `remote-runtime`
 (`ace14a12`, `c0527b05`). Ver BACKLOG T-054.
-**[BLOQUEADO] validação:** `unigma-agent-runtime-validation.yml` não existe na
-branch default, então o `workflow_dispatch` responde 404 e não há run. Sem run,
-nada aqui fecha. Sem staging de novo par na VPS; sessão real e AC-007 continuam
-pendentes.
+
+**[FEITO] 2026-09-07 — validação do recorte puro no runner, run `34078327932`,
+head `30b3c547`:** o dispatch foi destravado sem tocar na branch default. O
+`unigma-linux-wsl-validation.yml` já está em `main`, é despachável e cobre o
+mesmo conjunto do workflow focado; passou a cobrir também o contrato RPC
+serializado, que o glob `build/unigma/*.test.ts` não alcançava. Passaram compile
+e suíte do runtime (172, 1 pendente), `unigma-remote-ssh` (98), harnesses de
+`build/unigma` (97), contrato RPC (7), pacote linux-x64, auditoria de
+distribuição e os smokes. **O passo de testes `test/common` do workbench
+reportou sucesso sem executar nada** — `--build` aponta o harness para
+`out-build`, que o caminho esbuild do empacotamento nunca popula; corrigido no
+harness e no workflow, e a prova desse recorte fica pendente do próximo run.
+O PR
+[#15](https://github.com/dashwr/unigma/pull/15) continua aberto para tornar o
+workflow focado despachável, que é a rota barata para iterar. Ver EVIDENCE.
+
+**[BLOQUEADO] sessão de agente remota:** continua sem prova, e agora com causa
+identificada. O artefato do servidor **não empacota o OpenCode**
+(`build/gulpfile.reh.ts` não tem equivalente de `getOpenCodeBundle`), e o payload
+de staging entrega o binário em `<appRoot>/bin/opencode`, enquanto o resolver do
+runtime só conhecia `<appRoot>/opencode/bin/opencode`. Corrigido em `18644365`,
+com teste — mas isso é condição necessária, não prova. Faltam, e cada um exige
+decisão humana:
+
+1. **escrita no host** para colocar um driver de smoke na VPS: o único caminho
+   de produção para iniciar sessão é o botão da view, e não há comando público
+   de `start`; provar exige uma extensão-driver `extensionKind: ["workspace"]`
+   instalada no host;
+2. **credencial no host**: `OPENROUTER_API_KEY` não atravessa o SSH — nada em
+   `remoteServerTransport.ts` encaminha ambiente. Ou a chave passa a viver na
+   VPS, ou o recorte é provado sem provider (sessão criada e contexto remoto
+   correto), que é o que se recomenda;
+3. **novo par cliente/servidor** publicado e staged, porque `18644365` muda o
+   commit e o smoke recusa par divergente por desenho.
+
+Enquanto isso não for decidido, `AC-007` permanece parcial.
 
 **Dependência:** transporte/abertura T-053 provados e contratos de runtime local;
 autorização do host e credencial do provider de D-043. **O quê:** executar o único OpenCode do extension

@@ -1,16 +1,26 @@
 # unigma — workbench operacional
 
-**foco atual — T-054/T-055:** correção RPC v2, resolução segura de workspace
-SSH, contexto do editor no pedido, contexto-base do unigma, streaming visível e
-cancelamento da execução. Tudo em revisão: há suíte local verde do runtime e do
-contrato RPC, **não há run do runner**, porque o workflow focado não existe na
-branch default e o `workflow_dispatch` responde 404. Validação oficial só no
-runner; staging de novo par na VPS exige autorização separada. Projeções
-restantes fora do recorte; AC-007 continua parcial.
+**foco atual — T-054/T-055:** o recorte puro está **validado no runner**. O run
+`34078327932` (head `30b3c547`, linux-x64) cobriu compile e suíte do runtime,
+contrato RPC serializado, pacote linux-x64, auditoria de distribuição e os
+smokes. O passo de testes `test/common` do workbench estava decorativo — verde
+sem executar teste algum — e foi corrigido; esse recorte espera o próximo run.
+O 404 do workflow focado não foi resolvido e sim
+contornado: `unigma-linux-wsl-validation.yml` já está em `main`, é despachável e
+passou a cobrir o mesmo conjunto; o PR
+[#15](https://github.com/dashwr/unigma/pull/15) segue aberto para tornar o
+workflow focado despachável.
+
+**O que continua aberto é a sessão de agente remota, e agora com causa
+identificada:** o artefato do servidor não empacota o OpenCode e o payload de
+staging o entrega em `<appRoot>/bin/opencode`, caminho que o resolver do runtime
+não conhecia. Corrigido em `18644365` com teste; é condição necessária, não
+prova. Provar exige driver no host, decisão sobre credencial remota e novo par
+staged — três decisões humanas. AC-007 continua parcial.
 
 | id | escopo | fase | estado | responsável | dependências | próximo passo | fonte |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| T-054/T-055 | RPC, workspace SSH, contexto, streaming e cancelamento | implementação | em revisão | lovelace | host remoto T-053; workflow focado na branch default | destravar o dispatch e validar no runner | BACKLOG T-054 |
+| T-054/T-055 | RPC, workspace SSH, contexto, streaming e cancelamento | implementação | validado no runner (recorte puro) | lovelace | host remoto T-053 | decidir driver, credencial e par para o smoke de sessão remota | BACKLOG T-054 |
 
 **T-053 — histórico de execução:** branch `test/t053-owned-reconnect`, commit
 `cf6cb5b6`, run `34008859142`. Caminho sem staging/install/cleanup publicado e
@@ -491,6 +501,10 @@ superado; o quadro acima é a leitura atual.
 
 | data | id | transição | evidência |
 | --- | --- | --- | --- |
+| 2026-09-07 | `T-054`/`T-055` | recorte puro → validado no runner | run `34078327932`, head `30b3c547`, linux-x64: suíte do runtime 172 com 1 pendente, `unigma-remote-ssh` 98, harnesses de `build/unigma` 97, contrato RPC serializado 7, pacote linux-x64, auditoria de distribuição e smokes. O 404 do `unigma-agent-runtime-validation.yml` não foi resolvido e sim contornado: `unigma-linux-wsl-validation.yml` já está em `main`, é despachável, e `30b3c547` fez o job Linux cobrir também `build/unigma/agent-rpc.contract.ts`, que o glob `build/unigma/*.test.ts` nunca alcançou por não terminar em `.test.ts`. PR [#15](https://github.com/dashwr/unigma/pull/15) aberto para tornar o workflow focado despachável. **Não prova sessão de agente remota** |
+| 2026-09-07 | `T-054` / OpenCode no host remoto | defeito identificado e corrigido, sem prova de host | `18644365`. O resolver do runtime só conhecia `<appRoot>/opencode/bin/opencode`, layout que `getOpenCodeBundle` escreve no pacote desktop. `build/gulpfile.reh.ts` não empacota OpenCode algum, e o payload de staging entrega o binário como `bin/opencode` dentro do diretório de staging, que `mv -T` ativa como o diretório de versão — o `appRoot` do extension host remoto (`remoteAgentEnvironmentImpl.ts:114`). O binário estava em `<appRoot>/bin/opencode`, o resolver olhava o outro caminho e caía para o `PATH`, onde o extension host remoto só recebe `<appRoot>/bin/remote-cli`. Seis testes fixam os dois layouts contra um filesystem falso. Condição necessária do recorte agentivo de `AC-007`, **não** prova dele |
+| 2026-09-07 | CI / harness de teste | passo verde que não executava teste | o passo `run workbench agent unit tests in WSL` reportava sucesso sem rodar nada. `--build` aponta o harness para `out-build`, e o empacotamento segue o caminho esbuild (`useEsbuildTranspile` em `build/gulpfile.vscode.ts`), que bundla em `out-vscode` e nunca popula `out-build/vs`; o harness falhava ao importar `errors.js`, nunca chegava a `runner.run` e o processo terminava com status 0. `test/unit/node/index.js` passa a sair com status 1 nesse caminho, e o passo passa a usar `npm run transpile-client` contra `out`. A suíte `test/common` do `unigmaAgent` nunca havia rodado em CI, ao contrário do que o comentário do próprio passo afirmava |
+| 2026-09-07 | cobertura de teste | reducer de streaming sai do DOM | `acd6d274`. `unigmaAgentSession.ts` e `getUnigmaAgentStateAccessibility` não dependiam de DOM mas moravam em `browser/`, e só a suíte de browser os exercitava — suíte que **nenhum workflow executa**. Movidos para `common/`, com quatro testes puros em `test/common/unigmaAgentSession.test.ts`, agora dentro do glob do runner. A suíte de browser estava vermelha em silêncio: a asserção sobre `UNIGMA_AGENT_VIEW_STATES` ainda esperava quatro estados, sem `running`. O workflow focado também deixava a árvore temporária no `$HOME` do WSL; passou a removê-la em `trap EXIT` com sentinela vazia e guarda de prefixo |
 | 2026-09-05 | `E09` / `T-096..T-099` | gates do perfil service-only implementados → artefato aceito pendente | `b03c3964` versionou o patchset e o aplicador; `2629b1e0` adicionou o input de workflow e a proveniência; `a92c6454` implementou troca/rollback; `c8b07354` implementou a auditoria. Isso não equivale a bundle `service-only` aceito ou suporte publicado |
 | 2026-09-05 | `E08` / `T-086..T-092` | domínio do router implementado → integração E2E pendente | `c7c16a91`, `b86d7bb3`, `e5582fd2`, `a6423f3c` e `8112d3b9` cobrem contrato, índice/custo, seleção, plano e suíte de propriedades; falta a costura com envio real, provider/modelo autorizado e OpenCode real |
 | 2026-09-05 | `T-071` / `AC-015` | medição executada → baseline numérico inválido | run `33950524239`: `--status` respondeu `exit=0` com `Version`/`OS Version`/`CPUs`, sem `Process Info`; não há instância viva nem baseline numérico |

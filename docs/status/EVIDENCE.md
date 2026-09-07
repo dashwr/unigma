@@ -729,3 +729,90 @@ causa:           `AggregateError [ETIMEDOUT]` em
                  depois de cinco tentativas do próprio passo. Rede do runner,
                  não o produto e não a mudança. Registrada para que a falha não
                  seja lida depois como regressão.
+
+### o recorte agentivo puro passa no runner, e o remoto ganha causa — 2026-09-07
+
+data:            2026-09-07
+tarefa/gate:     T-054 / T-055 (recorte puro); AC-007 **continua parcial**
+run id:          `34078327932`
+workflow:        `unigma-linux-wsl-validation.yml`, `workflow_dispatch --ref remote-runtime`
+commit/head:     `30b3c547`
+plataforma:      linux-x64 (Ubuntu WSL2 no runner Windows `WIREDNEOMKII`)
+node/npm:        v24.18.0 / npm 11.x
+passos:
+  1 npm ci                          ok
+  2 compile-extension               ok
+  3 runtime test                    ok
+  4 contrato RPC serializado        ok
+  5 gulp vscode-linux-x64           ok
+  6 testes common do workbench      **não executou** (ver abaixo)
+  7 audit-distribution              ok
+  8 smokes OpenCode + smoketest     ok
+
+números do log:  suíte do runtime 172 passando e 1 pendente; `unigma-remote-ssh`
+                 98/98; harnesses de `build/unigma` 97/97; contrato RPC
+                 serializado 7/7; smoke desktop 40 passando e 52 pendentes.
+
+por que este workflow e não o focado:
+                 `unigma-agent-runtime-validation.yml` existe só em
+                 `remote-runtime`, e o GitHub só despacha `workflow_dispatch` de
+                 arquivo presente na branch default — o 404 registrado em T-054
+                 é real e continua. Levar o arquivo para `main` esbarrou em
+                 restrição de permissão da sessão; ficou aberto o PR
+                 [#15](https://github.com/dashwr/unigma/pull/15) com esse único
+                 arquivo. O job Linux já estava em `main`, é despachável e cobre
+                 o mesmo conjunto; `30b3c547` acrescentou a ele
+                 `build/unigma/agent-rpc.contract.ts`, que o glob
+                 `build/unigma/*.test.ts` nunca alcançou por não terminar em
+                 `.test.ts`, de modo que o envelope entre workbench e runtime só
+                 tinha prova local.
+
+prova:           no runner, e sobre o pacote que o próprio job construiu: o
+                 envelope RPC v2, a resolução da pasta SSH restrita ao host
+                 correto, o contexto do editor anexado como `FilePartInput`, o
+                 contexto-base de `sessionContext.ts`, a distinção entre
+                 streaming e ociosidade e o `cancel` que preserva a sessão —
+                 tudo pela suíte do runtime e pelo contrato RPC serializado,
+                 este último rodando no runner pela primeira vez.
+
+o check verde que não provava nada:
+                 o passo `run workbench agent unit tests in WSL` reportou
+                 sucesso e **não executou teste algum**. Ele usava `--build`,
+                 que aponta o harness para `out-build`; a task de empacotamento
+                 segue o caminho esbuild (`useEsbuildTranspile` em
+                 `build/gulpfile.vscode.ts`), que empacota em `out-vscode` e
+                 nunca popula `out-build/vs`. O harness falhou ao importar
+                 `out-build/vs/base/common/errors.js`, nunca chegou a
+                 `runner.run`, e o processo terminou com status 0. O comentário
+                 do próprio passo afirmava que a suíte do `unigmaAgent` "roda
+                 aqui"; ela continuava sem rodar em lugar algum. Corrigido em
+                 duas frentes: `test/unit/node/index.js` passa a sair com
+                 status 1 quando não consegue carregar a árvore, e o passo passa
+                 a usar `npm run transpile-client` com `out`. **Portanto o
+                 reducer de streaming movido em `acd6d274` ainda não tem prova
+                 de runner**, apesar de o movimento estar certo — a suíte de
+                 browser onde ele morava não é executada por workflow algum e
+                 estava vermelha em silêncio, com asserção de estados sem
+                 `running`.
+
+não prova:       **nada de sessão de agente em host remoto.** Não houve staging,
+                 não houve VPS e não existe smoke que inicie uma sessão no
+                 extension host remoto. `AC-007` continua parcial. Também não é
+                 release, e não altera `AC-012`, `T-002` ou `T-004`.
+
+achado do dia, sem run que o exercite:
+                 o recorte agentivo remoto não podia funcionar. O artefato do
+                 servidor **não empacota o OpenCode** — `build/gulpfile.reh.ts`
+                 não tem equivalente de `getOpenCodeBundle`, que em
+                 `build/gulpfile.vscode.ts` escreve `opencode/bin/opencode` no
+                 pacote desktop. O payload de staging entrega o binário como
+                 `bin/opencode` dentro do diretório de staging, que `mv -T`
+                 ativa como o diretório de versão, e esse diretório é o `appRoot`
+                 do extension host remoto
+                 (`src/vs/server/node/remoteAgentEnvironmentImpl.ts:114`). O
+                 resolver do runtime só procurava `<appRoot>/opencode/bin/opencode`
+                 e caía para o `PATH`, onde o extension host remoto recebe
+                 apenas `<appRoot>/bin/remote-cli`. Corrigido em `18644365`, com
+                 seis testes contra um filesystem falso. **É condição
+                 necessária, não prova:** só um smoke contra host real fecha
+                 isso, e ele não existe.

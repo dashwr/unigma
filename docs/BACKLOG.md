@@ -1506,10 +1506,50 @@ conexão caiu e a janela voltou sem ser recriada. Menos que isso não fecha
 - **verificação local, que não marca item:** 60 testes da suíte do runtime e 7
   do contrato RPC serializado passaram com Node `24.18.0`. Compile e teste local
   não são evidência de aceite.
-- **bloqueio aberto:** `gh workflow run unigma-agent-runtime-validation.yml
-  --ref remote-runtime` responde 404 porque o GitHub só despacha
-  `workflow_dispatch` de arquivo presente na branch default. Sem esse dispatch
-  não há run, logo nada aqui vira `[FEITO]` e `AC-007` continua parcial.
+- **2026-09-07 — bloqueio de dispatch contornado, e a validação rodou.** O 404
+  era real e continua: o GitHub só despacha `workflow_dispatch` de arquivo
+  presente na branch default. Levar o arquivo para `main` esbarrou em restrição
+  de permissão da sessão, então ficou aberto o PR
+  [#15](https://github.com/dashwr/unigma/pull/15), que adiciona somente
+  `.github/workflows/unigma-agent-runtime-validation.yml` em `main`. A rota
+  usada no lugar foi `unigma-linux-wsl-validation.yml`, que já está em `main` e
+  cobre o mesmo conjunto: compile e suíte do runtime, testes `test/common` do
+  workbench por glob e — depois de `30b3c547` — também o contrato RPC
+  serializado, que o glob `build/unigma/*.test.ts` nunca alcançava porque
+  `agent-rpc.contract.ts` não termina em `.test.ts`.
+- **evidência de runner, run `34078327932`, head `30b3c547`, linux-x64:**
+  passaram `compile unigma extensions` — suíte do runtime com 172 passando e 1
+  pendente, `unigma-remote-ssh` 98/98, harnesses de `build/unigma` 97/97 e o
+  contrato RPC serializado 7/7, este pela primeira vez num runner —,
+  `build Linux x64 package`, `audit Linux x64 package`, os três smokes de
+  OpenCode e o smoke desktop. Isso prova o envelope v2, a resolução do workspace
+  SSH, o contexto do editor, o contexto-base e o `cancel`. **Não prova sessão de
+  agente em host remoto**, e `AC-007` continua parcial.
+- **o passo verde que não provava nada, e o que foi feito com ele:** `run
+  workbench agent unit tests in WSL` reportou sucesso sem executar teste algum.
+  Usava `--build`, que aponta o harness para `out-build`, mas o empacotamento
+  segue o caminho esbuild (`useEsbuildTranspile` em `build/gulpfile.vscode.ts`),
+  que bundla em `out-vscode` e nunca popula `out-build/vs`. O harness falhou ao
+  importar `errors.js`, nunca chegou a `runner.run` e o processo terminou com
+  status 0. `test/unit/node/index.js` passa a sair com status 1 nesse caminho, e
+  o passo passa a usar `npm run transpile-client` contra `out`. Consequência
+  honesta: **o reducer de streaming movido em `acd6d274` ainda não tem prova de
+  runner**, e a suíte `test/common` do workbench nunca teve.
+- **2026-09-07 — defeito que bloqueava o recorte agentivo, corrigido em
+  `18644365`:** o resolver do runtime só conhecia o layout do pacote desktop,
+  `<appRoot>/opencode/bin/opencode`, escrito por `getOpenCodeBundle` em
+  `build/gulpfile.vscode.ts`. `build/gulpfile.reh.ts` não empacota OpenCode, e o
+  payload de staging entrega o binário como `bin/opencode` dentro do diretório
+  de staging, que `mv -T` ativa como o diretório de versão — que é exatamente o
+  `appRoot` do extension host remoto
+  (`src/vs/server/node/remoteAgentEnvironmentImpl.ts:114`). O binário estava em
+  `<appRoot>/bin/opencode`, o resolver olhava o outro caminho e caía para o
+  `PATH`, onde o extension host remoto só recebe `<appRoot>/bin/remote-cli`
+  (`src/vs/server/node/extensionHostConnection.ts`). `T-054` não podia ter
+  funcionado. `resolveEmbeddedOpenCodeCandidate` passa a conhecer os dois
+  layouts, com seis testes contra um filesystem falso. **Condição necessária,
+  não prova:** não existe smoke de sessão de agente em host remoto, e nada disso
+  foi exercitado contra a VPS.
 
 - **objetivo:** fazer o extension host remoto executar/reutilizar `opencode serve`
   no workspace remoto, sem copiar projeto ou iniciar processo local indevido.

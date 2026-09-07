@@ -236,14 +236,21 @@ jobs:
           build="$1"
           export PATH="/opt/node-current/bin:$PATH"
           cd "$build"
-          # The unigmaAgent workbench suite had never run anywhere: the Linux job
-          # ran the extension suites and the Windows job ran typecheck and the
-          # build scripts, so the tests that guard the UI/runtime boundary and the
-          # local integration policy were only ever executed by hand. They run
-          # here, against out-build, because the package step just produced it and
-          # compiling the client a second time would cost ten minutes to obtain a
-          # tree the job already has.
-          npm run test-node -- --build --runGlob "vs/workbench/contrib/unigmaAgent/test/common/*.test.js"
+          # The unigmaAgent workbench suite still had never run anywhere. This
+          # step existed and reported success, but executed no test: `--build`
+          # points the harness at out-build, and the packaging task takes the
+          # esbuild path (`useEsbuildTranspile` in build/gulpfile.vscode.ts),
+          # which bundles into out-vscode and never populates out-build/vs. The
+          # harness then failed to import errors.js, never reached
+          # `runner.run`, and ended with status 0 — a green step over nothing.
+          # Fixed in test/unit/node/index.js, which now exits non-zero there.
+          #
+          # The tree these tests need is the plain `out`, so transpile it. That
+          # is a one-shot of about twenty seconds, not the ten-minute
+          # compile-client the earlier comment was avoiding; types are checked
+          # by the Windows job and by the packaging step above.
+          npm run transpile-client
+          npm run test-node -- --runGlob "vs/workbench/contrib/unigmaAgent/test/common/*.test.js"
           '@
           $script = $script -replace "`r`n?", "`n"
           [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))

@@ -247,6 +247,14 @@ function main() {
 
 			// fire up mocha
 			runner.run(failures => process.exit(failures ? 1 : 0));
+		}, err => {
+			// Without this branch a wrong `out` tree was silently a pass: the
+			// import rejected, `runner.run` was never reached, nothing kept the
+			// loop alive and the process ended with status 0, so CI reported a
+			// green step that had executed no test at all.
+			console.error(`FAILED to load ${baseUrl}/vs/base/common/errors.js; is ${out} built?`);
+			console.error(err);
+			process.exit(1);
 		});
 	});
 }
