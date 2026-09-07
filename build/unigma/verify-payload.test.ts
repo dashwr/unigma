@@ -5,7 +5,7 @@
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync, appendFileSync } from 'node:fs';
+import { chmodSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync, appendFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
@@ -33,7 +33,9 @@ function withPayload(body: (payload: string, root: string) => void): void {
 		const opencode = join(root, 'opencode');
 		const payload = join(root, 'payload');
 		writeFileSync(server, 'server archive');
-		writeFileSync(opencode, elf);
+		// A real OpenCode artifact arrives executable, and the payload has to keep
+		// it that way: the manifest pins size and hash, and neither carries the mode.
+		writeFileSync(opencode, elf, { mode: 0o755 });
 		const made = runScript(maker, ['--server', server, '--opencode', opencode, '--output', payload, '--client-commit', commit, '--server-commit', commit, '--target', 'linux-x64']);
 		assert.equal(made.status, 0, made.stderr);
 		body(payload, root);
@@ -80,6 +82,20 @@ test('rejects a file whose bytes no longer match its digest', () => {
 		assert.equal(result.status, 1);
 		assert.match(result.stdout, /^failure=digest mismatch for server\/unigma-server\.tar\.gz$/m);
 		assert.doesNotMatch(result.stdout, /^failure=size mismatch/m);
+	});
+});
+
+test('rejects a payload whose OpenCode lost its executable bit', { skip: process.platform === 'win32' }, () => {
+	withPayload(payload => {
+		// Size and hash are unchanged, so every other gate still passes: this is
+		// exactly the shape that reached a host and only failed there, when the
+		// runtime refused to start the bundle the payload had just delivered.
+		chmodSync(join(payload, 'bin', 'opencode'), 0o644);
+		const result = runScript(verifier, [payload]);
+		assert.equal(result.status, 1);
+		assert.match(result.stdout, /^failure=bin\/opencode is not executable$/m);
+		assert.doesNotMatch(result.stdout, /^failure=size mismatch/m);
+		assert.doesNotMatch(result.stdout, /^failure=digest mismatch/m);
 	});
 });
 
@@ -136,7 +152,10 @@ test('refuses an opencode that is not an executable', () => {
 		const payload = join(root, 'payload');
 		writeFileSync(server, 'server archive');
 		// A shell wrapper reads as a plausible binary to anything that only checks the name.
-		writeFileSync(opencode, '#!/bin/sh\nexec opencode "$@"\n');
+		// Executable on purpose: this test is about the file not being an ELF
+		// binary, and the maker now refuses a source without the execute bit for
+		// a different reason, which would mask what is being asserted here.
+		writeFileSync(opencode, '#!/bin/sh\nexec opencode "$@"\n', { mode: 0o755 });
 		const made = runScript(maker, ['--server', server, '--opencode', opencode, '--output', payload, '--client-commit', commit, '--server-commit', commit, '--target', 'linux-x64']);
 		assert.equal(made.status, 0, made.stderr);
 		const result = runScript(verifier, [payload]);

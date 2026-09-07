@@ -175,6 +175,17 @@ function main(): void {
 		const path = join(root, 'bin/opencode');
 		if (existsSync(path)) {
 			check(startsWithMagic(path, ELF_MAGIC), 'bin/opencode is not an ELF executable');
+			/*
+			 * Being an ELF binary is not the same as being runnable. The manifest
+			 * pins size and hash, and neither carries the mode, so a payload
+			 * assembled from a source that lost its execute bit travelled all the
+			 * way to the host and only failed there, when the runtime refused to
+			 * start the bundle it had just been given. Windows has no such bit,
+			 * and the payload target is linux-x64 either way.
+			 */
+			if (process.platform !== 'win32') {
+				check((statSync(path).mode & 0o111) !== 0, 'bin/opencode is not executable');
+			}
 		}
 	}
 	const server = manifest.files.find(file => file.relativePath === 'server/unigma-server.tar.gz');

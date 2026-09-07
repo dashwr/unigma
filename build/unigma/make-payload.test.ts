@@ -5,7 +5,7 @@
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
@@ -25,13 +25,18 @@ test('creates a deterministic Linux payload manifest from explicit inputs', () =
 		const license = join(root, 'LICENSE');
 		const output = join(root, 'payload');
 		writeFileSync(server, 'server archive');
-		writeFileSync(opencode, 'opencode');
+		writeFileSync(opencode, 'opencode', { mode: 0o755 });
 		writeFileSync(license, 'MIT');
 
 		const result = run(['--server', server, '--opencode', opencode, '--output', output, '--client-commit', commit, '--server-commit', commit, '--target', 'linux-x64', '--opencode-license', license]);
 		assert.equal(result.status, 0, result.stderr);
 		assert.equal(readFileSync(join(output, 'server', 'unigma-server.tar.gz'), 'utf8'), 'server archive');
 		assert.equal(readFileSync(join(output, 'bin', 'opencode'), 'utf8'), 'opencode');
+		// The manifest pins size and hash and neither carries the mode, so the copy
+		// has to keep the execute bit or the payload only fails on the host.
+		if (process.platform !== 'win32') {
+			assert.notEqual(statSync(join(output, 'bin', 'opencode')).mode & 0o111, 0);
+		}
 		assert.equal(readFileSync(join(output, 'LICENSE-opencode.txt'), 'utf8'), 'MIT');
 		const manifest = JSON.parse(readFileSync(join(output, 'manifest.json'), 'utf8'));
 		assert.deepEqual({ ...manifest, files: manifest.files.map((file: { sha256: string }) => ({ ...file, sha256: '<sha256>' })) }, {
@@ -62,7 +67,7 @@ test('fails closed for mismatched commits and a non-empty output', () => {
 		const output = join(root, 'payload');
 		writeFileSync(server, 'server archive');
 		writeFileSync(nonArchiveServer, 'server wrapper');
-		writeFileSync(opencode, 'opencode');
+		writeFileSync(opencode, 'opencode', { mode: 0o755 });
 		const nonArchive = run(['--server', nonArchiveServer, '--opencode', opencode, '--output', output, '--client-commit', commit, '--server-commit', commit, '--target', 'linux-x64']);
 		assert.equal(nonArchive.status, 1);
 		assert.match(nonArchive.stderr, /server must be a .tar.gz archive/);
@@ -75,6 +80,25 @@ test('fails closed for mismatched commits and a non-empty output', () => {
 		const nonEmpty = run(['--server', server, '--opencode', opencode, '--output', output, '--client-commit', commit, '--server-commit', commit, '--target', 'linux-x64']);
 		assert.equal(nonEmpty.status, 1);
 		assert.match(nonEmpty.stderr, /output must be new or empty/);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test('refuses an OpenCode source without its executable bit', { skip: process.platform === 'win32' }, () => {
+	const root = mkdtempSync(join(tmpdir(), 'unigma-payload-'));
+	try {
+		const server = join(root, 'unigma-server.tar.gz');
+		const opencode = join(root, 'opencode');
+		const output = join(root, 'payload');
+		writeFileSync(server, 'server archive');
+		writeFileSync(opencode, 'opencode', { mode: 0o644 });
+
+		// It would copy cleanly, hash cleanly and stage cleanly; without this the
+		// failure only appears on the host, as the runtime refusing its own bundle.
+		const result = run(['--server', server, '--opencode', opencode, '--output', output, '--client-commit', commit, '--server-commit', commit, '--target', 'linux-x64']);
+		assert.equal(result.status, 1);
+		assert.match(result.stderr, /opencode source is not executable/);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}

@@ -41,6 +41,11 @@ function main(): void {
 	if (clientCommit !== serverCommit || !sha1.test(clientCommit) || !sha1.test(serverCommit)) { throw new Error('commits must be equal 40-character SHA-1 values'); }
 	if (argument(values, '--target') !== 'linux-x64') { throw new Error('target must be linux-x64'); }
 	regularFile(server); regularFile(opencode);
+	// The manifest pins size and hash, and neither carries the mode, so an
+	// OpenCode that arrives here without its execute bit travels intact all the
+	// way to the host and only fails there. Windows has no such bit, and the
+	// only accepted target is linux-x64 anyway.
+	if (process.platform !== 'win32' && (statSync(opencode).mode & 0o111) === 0) { throw new Error(`opencode source is not executable: ${opencode}`); }
 	if (!server.endsWith('.tar.gz')) { throw new Error('server must be a .tar.gz archive'); }
 	if (server === opencode || server === output || opencode === output) { throw new Error('payload sources and output must be distinct'); }
 	if (existsSync(output) && (lstatSync(output).isSymbolicLink() || !lstatSync(output).isDirectory() || readdirSync(output).length > 0)) { throw new Error('output must be new or empty'); }
