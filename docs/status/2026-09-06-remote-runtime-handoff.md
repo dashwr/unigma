@@ -154,6 +154,33 @@ O que falta para a prova, e cada item é decisão humana, não trabalho pendente
    divergente por desenho (`smoke-remote-window.ts`, gate
    `artifact-commit-pair`). Provar exige publicar o par novo e re-stage na VPS.
 
+### a sonda somente-leitura ficou pronta e não pôde ser disparada
+
+`d2a366f2` estendeu `build/unigma/remote-native-probe.ts` com dois testes
+`[ -x ]`/`[ -e ]` que reportam `native.opencode.desktop-layout` e
+`native.opencode.server-layout` da versão ativada no host. São **fatos, nunca
+gate**, e há teste que recusa qualquer comando de escrita ou redirecionamento
+nas linhas que os produzem. A intenção era converter a conclusão acima de
+leitura de código em observação do host real.
+
+Ela não foi disparada, e a razão é o mesmo bloqueio da branch default, agora
+mais perigoso. A sonda só é alcançável por `unigma-remote-native-modules-smoke.yml`,
+que não existe em `main` e portanto não é despachável, ou por
+`unigma-remote-window-smoke.yml`, que existe — **mas a versão em `main` tem
+apenas o input `alias` e um único job, sem guarda, que provisiona a VPS e a
+limpa com `if: always()`**. As guardas `reconnect_only`/`native_modules_only`
+que selecionam o caminho somente-leitura só existem na versão de
+`remote-runtime`.
+
+Se o GitHub validar os inputs pela definição da branch default e executar a do
+ref — comportamento que não consegui confirmar sem executar —, um pedido de
+sonda somente-leitura chegaria ao job com os booleanos vazios, e
+`inputs.native_modules_only == false` seria verdadeiro. O caminho selecionado
+seria o de provisionamento e limpeza. Não disparei: o ganho era confirmar uma
+inferência que já tem três caminhos de código concordando, e o risco era escrever
+na VPS sem supervisão. **Fica pronto para o momento em que os workflows
+estiverem na branch default.**
+
 Tamanho estimado do que teria de ser escrito: extensão-driver (~300 linhas),
 `build/unigma/smoke-remote-agent-session.ts` (~400), workflow próprio (~200) e
 testes (~150). Nada disso foi começado, de propósito: escrever mil linhas de

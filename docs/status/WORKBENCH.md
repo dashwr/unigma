@@ -16,7 +16,9 @@ identificada:** o artefato do servidor não empacota o OpenCode e o payload de
 staging o entrega em `<appRoot>/bin/opencode`, caminho que o resolver do runtime
 não conhecia. Corrigido em `18644365` com teste; é condição necessária, não
 prova. Provar exige driver no host, decisão sobre credencial remota e novo par
-staged — três decisões humanas. AC-007 continua parcial.
+staged — três decisões humanas, descritas em
+[`2026-09-06-remote-runtime-handoff.md`](2026-09-06-remote-runtime-handoff.md).
+AC-007 continua parcial.
 
 | id | escopo | fase | estado | responsável | dependências | próximo passo | fonte |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -479,6 +481,8 @@ adiciona uma asserção negativa. `compile-client`, `typecheck-client`, 60 teste
 
 | tipo | frente | necessário | estado |
 | --- | --- | --- | --- |
+| risco/CI | `unigma-remote-window-smoke.yml` na branch default | a versão em `main` — a única que a UI do GitHub oferece — tem só o input `alias` e **um único job sem guarda**, que provisiona a VPS e a limpa com `if: always()`. As guardas `reconnect_only`/`native_modules_only`, que selecionam os caminhos sem provisionamento, existem apenas em `remote-runtime`. Enquanto isso, pedir a sonda somente-leitura pela UI não é possível, e um dispatch com os booleanos ausentes pode selecionar o caminho destrutivo. Levar a versão com guardas para `main` | pendente |
+| permissão | branch default | escrever em `main` foi negado nesta sessão, por `git push` e por merge de PR. O PR [#15](https://github.com/dashwr/unigma/pull/15) está aberto com o workflow focado, e o item acima precisa do mesmo caminho. Sem isso, todo workflow novo deste fork nasce não despachável | pendente |
 | decisão técnica | remoto SSH no Windows | o transporte é construído sobre `ControlMaster` do OpenSSH, que o OpenSSH do Windows **não implementa**. O contrato lista cliente Windows x64 como suportado, então isso é lacuna real, não detalhe. Exige decisão de desenho — segunda sessão SSH em vez de `ControlMaster`, `ManagedResolvedAuthority` sobre stdio, ou reduzir a matriz de clientes — e não um remendo. A premissa deixou de ser suposição em `33785474120`: OpenSSH 9.5p2 do Windows não multiplexa, mas aceita `-L` para socket UNIX e `-W`, o que mantém viva a segunda sessão `ssh -N -L` como caminho único para os dois clientes. Rastreado como `T-056` | pendente |
 | autorização | provider e modelo | prompt real exige um provider e um modelo autorizados por decisão humana; sem isso `AC-003`, `AC-004`, `AC-006`, `AC-008`, `AC-014` e a validação da E-08 não têm como fechar, por mais código que exista. É a decisão que destrava mais itens do board de uma vez | pendente |
 | escopo | `E00-B` / `AC-012` | prova formal e trademark clearance não são gates por D-030; preservar obrigações legais aplicáveis | decidido |

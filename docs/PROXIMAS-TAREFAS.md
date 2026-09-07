@@ -340,7 +340,7 @@ decisão humana:
 3. **novo par cliente/servidor** publicado e staged, porque `18644365` muda o
    commit e o smoke recusa par divergente por desenho.
 
-Enquanto isso não for decidido, `AC-007` permanece parcial.
+Enquanto isso não for decidido, `AC-007` permanece parcial. O levantamento completo, com estimativa do que teria de ser escrito, está em [`status/2026-09-06-remote-runtime-handoff.md`](status/2026-09-06-remote-runtime-handoff.md).
 
 **Dependência:** transporte/abertura T-053 provados e contratos de runtime local;
 autorização do host e credencial do provider de D-043. **O quê:** executar o único OpenCode do extension
