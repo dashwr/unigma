@@ -1547,6 +1547,18 @@ conexão caiu e a janela voltou sem ser recriada. Menos que isso não fecha
   Xvfb, com o smoke desktop de volta a 40 passando e 0 falhando. As três suítes
   do `unigmaAgent` executam em CI pela primeira vez, e cada número tem nome de
   teste no log. **`AC-007` não se move:** nada disso é sessão de agente remota.
+- **2026-09-07 — o levantamento de contexto do OpenCode tem prova, e ela não é
+  revisão de diff.** `docs/OPENCODE-CONTEXT-OPTIONS.md` (`c0527b05`) conclui por
+  **não ampliar o patchset `service-only`**, e essa conclusão é verificável: o
+  patchset segue byte a byte o que era antes do recorte — `git diff
+  0a1cb597..HEAD -- build/unigma/opencode-service-only
+  build/unigma/apply-service-only-patches.ts build/unigma/audit-service-only.ts`
+  não retorna nada —, continua sendo um único patch
+  (`0001-service-only-entrypoint.patch`, sha256 `a8190af0ab7dfa0e…`), e as duas
+  suítes que o aplicam e o auditam passaram **no runner**, dentro dos 100 testes
+  de `build/unigma` do run `34084155109`. O documento é a direção; o patchset
+  intocado com auditoria verde é a prova de que a direção foi seguida. Isso não
+  torna nenhuma opção citada no documento suportada: elas continuam sem run.
 - **2026-09-07, `9016876d` — duas lacunas vizinhas ao defeito do resolver:** o
   script de staging exigia `[ -x ]` do `unigma-server` e nada do `opencode`,
   então o par podia ser ativado com o binário sem bit de execução e a falha só
