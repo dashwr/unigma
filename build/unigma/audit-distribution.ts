@@ -294,10 +294,16 @@ function auditServerPackage(packageDirectory) {
 	// Workspace kind is what places it in the remote extension host rather than
 	// the desktop one, and it is the gate the runtime itself re-checks.
 	check('server.runtime.workspaceKind', runtimeKinds.length > 0 && runtimeKinds.includes('workspace') && !runtimeKinds.includes('ui'));
-	const runtimeEntry = typeof runtimeManifest?.main === 'string' ? join(runtimeDirectory, runtimeManifest.main) : undefined;
-	// Same tolerance the general entry-point audit uses: a manifest may omit the
-	// extension, as `./out/extension` does.
-	check('server.runtime.entryPoint', Boolean(runtimeEntry) && (isFile(runtimeEntry) || isFile(`${runtimeEntry}.js`) || isFile(join(runtimeEntry, 'index.js'))));
+	/*
+	 * The entry-point audit only ever ran on the desktop branch, so the server
+	 * package — the one whose extensions are the remote extension host — was
+	 * never asked to prove that a manifest naming a `main` actually ships it.
+	 * That is the same failure the desktop already paid for, and the listing this
+	 * prints is what makes it actionable: an entry point can be absent because
+	 * the sources were never compiled, because the manifest points somewhere
+	 * wrong, or because packaging filtered the output away.
+	 */
+	auditExtensionEntryPoints(join(packageDirectory, 'extensions'));
 
 	const product = readJson(join(packageDirectory, 'product.json'));
 	const packageJson = readJson(join(packageDirectory, 'package.json'));
