@@ -130,9 +130,16 @@ o comentário do próprio passo afirmava.
    comentários da noite. O único que continua desmarcado é *documentar as opções
    de contexto do OpenCode*: o documento existe e está commitado, mas a regra do
    board não marca entrega cuja prova é revisão de diff local.
-3. **Árvore temporária no `$HOME` do WSL — fechado.** `acd6d274`. O workflow
-   focado passa a removê-la em `trap EXIT`, com sentinela vazia e guarda de
-   prefixo, na forma que `AGENTS.md` exige de remoção recursiva.
+3. **Árvore temporária no `$HOME` do WSL — corrigido, e a prova é local, não de
+   runner.** `acd6d274`. O workflow focado passa a removê-la em `trap EXIT`, com
+   sentinela vazia e guarda de prefixo, na forma que `AGENTS.md` exige de
+   remoção recursiva. **Esse workflow não é despachável**, então o conserto não
+   tem run: o que existe é a verificação do texto extraído do próprio arquivo,
+   executado contra um `HOME` falso nos dois caminhos — saída limpa e saída por
+   erro —, deixando o diretório vazio nos dois. É mais que revisão de diff e
+   menos que evidência de runner; vira evidência quando o PR
+   [#15](https://github.com/dashwr/unigma/pull/15) for integrado e o workflow
+   focado puder rodar.
 4. **`AC-007` parcial, sessão agentiva remota não provada — continua aberto, com
    causa identificada.** Ver abaixo.
 
