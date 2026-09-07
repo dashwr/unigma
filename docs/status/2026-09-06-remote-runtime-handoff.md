@@ -240,6 +240,18 @@ filesystem falso. **Condição necessária, não prova.**
   fixtures de teste passaram a criar o binário com modo `0755`, que é como um
   artefato real chega, e o depósito do WSL preserva o modo, então o pipeline
   atual não é afetado.
+- **nada afirmava que o runtime remoto está no pacote do servidor.** Toda a
+  história do agente remoto depende de `unigma-agent-runtime` estar no pacote do
+  servidor e ser hospedado do lado remoto, e o auditor do perfil `--server`
+  checava layout, identidade e licenças sem tocar nisso. O repositório já pagou
+  pela metade negativa: `gulpfile.reh.ts` comparava `extensionKind` com uma
+  string quando o campo é array, e toda extensão com `main` era embarcada,
+  `unigma-remote-ssh` inclusive. A metade positiva ficou descoberta — se a regra
+  de inclusão deixar de trazer o runtime, o servidor compila, responde
+  `/version`, passa na auditoria, e o runtime remoto não está lá. `5b1b5d04`
+  acrescenta três checks: presente, declarado `workspace` e não `ui`, e com o
+  ponto de entrada que o manifesto nomeia. Exercitados contra pacotes sintéticos
+  nos três sentidos antes de ir ao runner.
 - **a resolução dos dois layouts estava provada só contra um filesystem falso**,
   quando o defeito original era exatamente a resolução real olhar um diretório
   que o payload remoto nunca escreve. Três testes passam por
