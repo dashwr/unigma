@@ -23,7 +23,7 @@
  * unnecessary.
  */
 
-import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
+import { execFileSync, spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { accessSync, chmodSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { createRequire } from 'node:module';
@@ -186,23 +186,53 @@ function benchRunner(identity: string, port: number): (arguments_: readonly stri
 	return arguments_ => real(['-F', '/dev/null', '-i', identity, '-o', 'IdentitiesOnly=yes', '-p', String(port), ...arguments_]);
 }
 
-const PYTHON_SQLITE_SEED = `import sqlite3, sys
-path, key, value = sys.argv[1], sys.argv[2], sys.argv[3]
-connection = sqlite3.connect(path)
-connection.execute('CREATE TABLE IF NOT EXISTS ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)')
-connection.execute('INSERT INTO ItemTable (key, value) VALUES (?, ?)', (key, value))
-connection.commit()
-row = connection.execute('SELECT value FROM ItemTable WHERE key = ?', (key,)).fetchone()
-connection.close()
-sys.exit(0 if row and row[0] == value else 1)
+const PYTHON_SQLITE_SEED = `
+import sqlite3
+import sys
+
+database, key, value, targets_key, targets_value = sys.argv[1:6]
+connection = sqlite3.connect(database)
+try:
+\tconnection.execute("CREATE TABLE IF NOT EXISTS ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)")
+\tconnection.execute("INSERT OR REPLACE INTO ItemTable (key, value) VALUES (?, ?)", (key, value))
+\tconnection.execute("INSERT OR REPLACE INTO ItemTable (key, value) VALUES (?, ?)", (targets_key, targets_value))
+\tconnection.commit()
+\trow = connection.execute("SELECT value FROM ItemTable WHERE key = ?", (key,)).fetchone()
+\ttargets_row = connection.execute("SELECT value FROM ItemTable WHERE key = ?", (targets_key,)).fetchone()
+\tif row is None or row[0] != value or targets_row is None or targets_row[0] != targets_value:
+\t\traise RuntimeError("seed verification failed")
+finally:
+\tconnection.close()
 `;
 
-function seedTrust(databasePath: string, authority: string, folderPath: string): boolean {
+/*
+ * Keys and shape copied from `smoke-remote-window.ts`, which copied them from
+ * the workbench: `content.trust.model.key` is what the trust service reads, and
+ * the target marker is what makes the row survive as machine state. Guessing
+ * either one produces a row the workbench ignores, and a window that stops on
+ * the trust dialog with no visible reason.
+ */
+const WORKSPACE_TRUST_STORAGE_KEY = 'content.trust.model.key';
+const STORAGE_TARGETS_KEY = '__$__targetStorageMarker';
+const STORAGE_MACHINE_TARGET = '1';
+
+function seedTrust(databasePath: string, authority: string, folderPath: string): { readonly seeded: boolean; readonly reason: string } {
+	// URI.toJSON() for the canonical remote URI emits the marshalling id and only
+	// non-empty components.
 	const state = JSON.stringify({
 		uriTrustInfo: [{ uri: { $mid: 1, path: folderPath, scheme: 'vscode-remote', authority: `ssh-remote+${authority}` }, trusted: true }]
 	});
-	const result = execFileSync('python3', ['-c', PYTHON_SQLITE_SEED, databasePath, 'workspaceTrust', state], { encoding: 'utf8', stdio: ['ignore', 'ignore', 'pipe'] });
-	return typeof result === 'string';
+	const result = spawnSync('python3', [
+		'-c', PYTHON_SQLITE_SEED, databasePath, WORKSPACE_TRUST_STORAGE_KEY, state,
+		STORAGE_TARGETS_KEY, JSON.stringify({ [WORKSPACE_TRUST_STORAGE_KEY]: Number(STORAGE_MACHINE_TARGET) })
+	], { encoding: 'utf8', stdio: ['ignore', 'ignore', 'pipe'] });
+	if (result.error) {
+		return { seeded: false, reason: result.error.code === 'ENOENT' ? 'python3-unavailable' : 'python3-failed-to-start' };
+	}
+	if (result.status !== 0) {
+		return { seeded: false, reason: result.status === null ? 'sqlite-process-signaled' : 'sqlite-write-or-verification-failed' };
+	}
+	return { seeded: true, reason: 'sqlite-row-verified' };
 }
 
 async function main(): Promise<void> {
@@ -326,7 +356,13 @@ async function main(): Promise<void> {
 		writeFileSync(join(productSsh, 'config'), `Host 127.0.0.1\n\tPort ${port}\n\tIdentitiesOnly yes\n`, { mode: 0o600 });
 
 		const authority = `${username}@127.0.0.1:${port}`;
-		check('workspace-trust-seeded', seedTrust(join(sharedData, 'sharedStorage', 'state.vscdb'), authority, benchHome));
+		const trust = seedTrust(join(sharedData, 'sharedStorage', 'state.vscdb'), authority, benchHome);
+		check('workspace-trust-seeded', trust.seeded);
+		fact('workspace-trust', trust.seeded ? 'seeded-by-smoke' : `not-seeded:${trust.reason}`);
+		if (!trust.seeded) {
+			writeReport();
+			return;
+		}
 
 		rmSync(join(work, REPORT_NAME), { force: true });
 		const folderUri = `vscode-remote://ssh-remote+${authority}${benchHome}`;
