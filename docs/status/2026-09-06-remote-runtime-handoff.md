@@ -290,13 +290,48 @@ filesystem falso. **Condição necessária, não prova.**
   layout que `mv -T` ativa num host, e o binário sem bit de execução, que tem de
   ser recusado em vez de cair para o `PATH`.
 
-**O bloqueio que fecha a porta nesta rodada é de autorização, não de desenho.**
-Todo caminho até a VPS passa por um `workflow_dispatch`, e disparar workflow que
-alcança a VPS externa foi negado pela política de permissões desta sessão.
-Escrever o harness completo produziria mil linhas que não poderiam ser
-exercitadas — que é exatamente o que `AGENTS.md` proíbe tratar como entrega.
+**Correção ao que este documento dizia antes.** Eu havia registrado que todo
+caminho até um host remoto passa pela VPS e portanto por uma autorização que esta
+sessão não tem. **Isso está errado, e a correção muda o plano.**
 
-O que falta para a prova, e cada item é decisão humana, não trabalho pendente:
+`build/unigma/smoke-remote-staging.ts` sobe um `sshd` efêmero em `127.0.0.1`
+**dentro do próprio WSL do runner**, com host key, `authorized_keys` e
+`known_hosts` próprios. O host remoto ali é a própria máquina, e
+`unigma-remote-staging-smoke.yml` **está na branch default**, portanto é
+despachável — e a definição do ref é que governa, medido no run `34082375469`.
+Contra essa bancada, dois dos três bloqueios que eu havia listado desaparecem:
+
+- **escrita no host deixa de existir como problema.** O filesystem do "host
+  remoto" é o do WSL, que já contém o checkout. Um driver carregado por
+  `--extensionDevelopmentPath` com `--extensionDevelopmentKind=workspace` resolve
+  num caminho que já está lá. Nada é empurrado para máquina alguma;
+- **a permissão da VPS não se aplica**, porque a VPS não entra.
+
+O terceiro — a lacuna de observação — também é contornável sem inventar contrato.
+Os diagnostics do runtime vão para um `OutputChannel`
+(`runtimeInfrastructure.ts:25`), que não vai a disco, então de fato não dá para
+lê-los. Mas o driver não precisa dos eventos: pode afirmar o **efeito**, que é o
+que `T-054` pede em primeiro lugar — depois do `StartSession`, o `opencode serve`
+tem de estar rodando **naquele host**, com o loopback daquele host respondendo
+`/global/health`. Se não estiver, falhou. Isso se observa sem API nova.
+
+Sobra, então, trabalho de escrita e não autorização: um driver mínimo
+(`extensionKind: ["workspace"]`, ativa no startup, dispara `StartSession`,
+confere o efeito, escreve relatório), um smoke que reúna a bancada do staging com
+o lançamento de janela do `smoke-remote-window.ts`, e um passo no workflow que já
+é despachável. Ordem de 400 a 500 linhas.
+
+**Por que não fiz nesta rodada, e é escolha, não impedimento:** mesmo verde, isso
+não fecha o item como ele está escrito. A matriz de `AC-007` pede host real, e
+`AGENTS.md` é explícito sobre a diferença — "um check verde merece a pergunta o
+que exatamente isso provou", e uma bancada efêmera na própria máquina não é o
+host que o critério quer. Entregar 500 linhas de harness novo, sem supervisão,
+para um recorte que o backlog marca `[BLOQUEADO]` aguardando decisão, e cujo
+verde ainda assim não moveria o aceite, é o tipo de trabalho que o mantenedor
+deve poder moldar. O que fica é o mapa correto, que é melhor do que o mapa errado
+que estava aqui.
+
+**Para o host real, o que falta continua sendo autorização:**
 
 1. **Escrita no host.** O único caminho de produção para iniciar sessão é o
    botão da view; `unigma.agent.runtime.transport.send` é `when: false` e não há
