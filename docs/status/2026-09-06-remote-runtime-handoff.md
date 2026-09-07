@@ -55,6 +55,32 @@ em `main` mas faz build amplo e bootstrap com `apt-get`.
 Sessão de retomada, sem supervisão. O que segue diz o que foi fechado, com que
 prova, e o que **não** foi, com a razão.
 
+### para destravar em minutos, na ordem
+
+Os três itens abertos são autorização, não trabalho. Cada um tem o comando ou a
+ação exata:
+
+1. **Integrar o PR [#15](https://github.com/dashwr/unigma/pull/15)** — um único
+   arquivo, `mergeable`. Isso torna `unigma-agent-runtime-validation.yml`
+   despachável e dá prova de runner à limpeza da árvore temporária, hoje a única
+   pendência da lista original sem run.
+2. **Rodar a sonda somente-leitura**, que está pronta e nunca executou:
+
+   ```bash
+   gh workflow run unigma-remote-window-smoke.yml --ref remote-runtime \
+     -f alias=unigma-vps -f reconnect_only=true -f native_modules_only=true \
+     -f stage=false \
+     -f artifact_commit=493dcfe76117e759058a28e69cb6c956a780f952
+   ```
+
+   As guardas do ref valem (medido no run `34082375469`), então só o job
+   somente-leitura roda. Esperado: `native.opencode.desktop-layout=absent` e
+   `native.opencode.server-layout=executable`, confirmando contra o host real a
+   causa que hoje só está lida no código.
+3. **Decidir a superfície de observação** descrita em "escrita no host", abaixo.
+   É o que precede qualquer linha do harness de sessão remota, e é decisão de
+   arquitetura, não de execução.
+
 ### o bloqueio de dispatch
 
 Continua verdadeiro que o GitHub só despacha `workflow_dispatch` de arquivo
