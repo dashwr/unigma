@@ -167,6 +167,14 @@ filesystem falso. **Condição necessária, não prova.**
   `opencode-not-executable`. A guarda recusa e não conserta — um `chmod` ali
   deixaria o payload escolher o próprio modo no host —, e há teste que exige a
   ausência dele.
+- **a mesma propriedade não era afirmada em nenhum ponto anterior.** `5f865511`
+  acrescenta a checagem na montagem (`make-payload.ts` recusa fonte não
+  executável) e na verificação (`verify-payload.ts`, ao lado da que já exigia
+  ELF — ser ELF não é ser executável). Com a guarda de staging, a propriedade
+  passa a ser afirmada em montagem, verificação, staging e runtime. Duas
+  fixtures de teste passaram a criar o binário com modo `0755`, que é como um
+  artefato real chega, e o depósito do WSL preserva o modo, então o pipeline
+  atual não é afetado.
 - **a resolução dos dois layouts estava provada só contra um filesystem falso**,
   quando o defeito original era exatamente a resolução real olhar um diretório
   que o payload remoto nunca escreve. Três testes passam por
