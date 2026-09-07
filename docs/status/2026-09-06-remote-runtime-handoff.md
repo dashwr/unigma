@@ -260,6 +260,17 @@ filesystem falso. **Condição necessária, não prova.**
   **Consequência imediata:** o servidor não é publicado enquanto isso não fechar,
   e esse é o comportamento certo. Um servidor com o runtime pela metade responde
   `/version`, passa em tudo o mais, e não roda sessão alguma.
+
+  **Causa, medida no run `34087643005`, cuja listagem era literalmente
+  `[package.json]`:** `unigma-agent-runtime` não tem config esbuild, então o
+  empacotamento toma o caminho `fromLocalNormal` em `build/lib/extensions.ts`,
+  que é `vsce.listFiles` sobre o que está **no disco**. O job desktop compila a
+  extensão explicitamente antes de `gulp vscode-linux-x64`, e é só por isso que
+  o pacote desktop está correto. O job do servidor rodava apenas
+  `vscode-reh-linux-x64-min`, e a árvore de build no WSL é recriada do zero a
+  cada run, sem `extensions/**/out/`, que é ignorado pelo git. Corrigido em
+  `a39f952f`, que acrescenta `compile-extension:unigma-agent-runtime` antes do
+  empacotamento, como o job desktop já fazia.
 - **nada afirmava que o runtime remoto está no pacote do servidor.** Toda a
   história do agente remoto depende de `unigma-agent-runtime` estar no pacote do
   servidor e ser hospedado do lado remoto, e o auditor do perfil `--server`
