@@ -330,20 +330,34 @@ escrever o harness surgiram três coisas que só aparecem quando se monta:
    produto. Contornável — caminho fixo sob o `$HOME` do host, que a bancada
    compartilha —, mas é mais uma coisa que escreve no `$HOME` e precisa de
    limpeza.
-2. **O alias exige mutar o `~/.ssh/config` do runner.** `remoteServerTransport.ts`
-   tem seam para `known_hosts` (`knownHostsFile`) e **não** para `-F <config>`:
-   o alias vai byte a byte para o `ssh`, e `docs/SSH-CONTRACT.md` §4 faz da
-   configuração do usuário a fonte de verdade. Por isso `unigma-wsl-ssh-alias.yml`
-   existe como **ação de manutenção separada**, e não como algo que um smoke faz.
-   Uma bancada com alias exige ou essa mutação de estado compartilhado a partir
-   de dentro do smoke, ou um seam de configuração no transporte — que é código de
-   produto e decisão de desenho.
+2. **~~O alias exige mutar o `~/.ssh/config`~~ — errado, e a correção encolhe o
+   problema.** `remoteSshAuthority.ts` aceita, além do alias, a forma
+   **canônica** `user@host:port` (`parseHostAndPort`, e `HOSTNAME` casa
+   `127.0.0.1`). Uma autoridade `ssh-remote+dasher@127.0.0.1:PORT` dispensa
+   qualquer bloco `Host`, e portanto **nenhuma escrita no `~/.ssh/config`**.
+
+   Sobra uma única mutação de estado compartilhado, e é branda: a produção passa
+   `-o StrictHostKeyChecking=yes` sem `UserKnownHostsFile`
+   (`remoteServerTransport.ts:182-193`), então a chave de host da bancada
+   precisa estar no `~/.ssh/known_hosts` do usuário. O smoke acrescenta e remove
+   essa linha — arquivo cujo propósito é exatamente esse, com rollback trivial.
+   A identidade não pede nada: basta a bancada pôr a chave pública que o usuário
+   já tem no `authorized_keys` que ela mesma cria.
+
+   `docs/SSH-CONTRACT.md` §4.2 proíbe **o produto** de alterar `known_hosts`;
+   uma bancada de teste fazendo isso é o mesmo tipo de provisionamento que
+   instalou o `sshd` no WSL com autorização. Ainda assim é estado compartilhado
+   do runner, e por isso continua sendo coisa de sessão supervisionada — não
+   porque seja difícil, mas porque ninguém deve descobrir de manhã que o
+   `known_hosts` mudou durante a noite.
 3. **Nada disso é testável fora do runner**, e cada sondagem custa um ciclo de
-   quinze a vinte e cinco minutos. Restam seis incógnitas: a mutação do
-   `ssh_config`, se `--extensionDevelopmentPath` com URI `vscode-remote://` de
-   fato carrega no lado remoto, se `executeCommand` do bridge funciona de outra
-   extensão no mesmo ext host, se preflight e trust passam nesse contexto, o par
-   e o staging, e o tempo.
+   quinze a vinte e cinco minutos. Restam cinco incógnitas: se
+   `--extensionDevelopmentPath` com URI `vscode-remote://` de fato carrega no
+   lado remoto, se `executeCommand` do bridge funciona de outra extensão no
+   mesmo ext host, se preflight e trust passam nesse contexto, a linha do
+   `known_hosts` com seu rollback, e o tempo. **O par deixou de ser incógnita:**
+   `da61097a` está no depósito nos dois lados, publicado pelos runs
+   `34088913848` e `34088915524`.
 
 Somado: é trabalho de sessão supervisionada, não de madrugada. Fazê-lo sem
 supervisão terminaria com código parcial **e** com o `ssh_config` do runner
