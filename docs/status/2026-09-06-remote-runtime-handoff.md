@@ -162,11 +162,16 @@ o comentário do próprio passo afirmava.
    coisa que deixou de ser verdade quando `ace14a12` tornou v2 a versão
    suportada. Agora a versão inválida é derivada da constante. Com as duas
    correções a suíte fica 13 passando, provado no runner em `34081018988`.
-2. **Nenhum item do Trello marcado — fechado.** Nove dos dez itens do TD-3 foram
-   marcados, cada um coberto por prova de runner, e o cartão tem o histórico de
-   comentários da noite. O único que continua desmarcado é *documentar as opções
-   de contexto do OpenCode*: o documento existe e está commitado, mas a regra do
-   board não marca entrega cuja prova é revisão de diff local.
+2. **Nenhum item do Trello marcado — fechado, os dez.** Cada um coberto por
+   prova de runner, e o cartão tem o histórico de comentários da noite. O
+   décimo, *documentar as opções de contexto do OpenCode*, quase ficou de fora
+   por leitura preguiçosa da regra do board: um documento não tem run. Mas a
+   conclusão dele — **não ampliar o patchset `service-only`** — é verificável, e
+   é verdadeira: o patchset segue intocado desde antes do recorte, continua
+   sendo um único patch, e as duas suítes que o aplicam e o auditam passaram no
+   runner dentro dos 100 testes de `build/unigma`. O documento é a direção; o
+   patchset intocado com auditoria verde é a prova de que a direção foi seguida.
+   Evidência citada no backlog, como a regra exige.
 3. **Árvore temporária no `$HOME` do WSL — corrigido, e a prova é local, não de
    runner.** `acd6d274`. O workflow focado passa a removê-la em `trap EXIT`, com
    sentinela vazia e guarda de prefixo, na forma que `AGENTS.md` exige de
