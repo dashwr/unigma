@@ -156,6 +156,24 @@ Corrigido em `18644365`: `resolveEmbeddedOpenCodeCandidate` conhece os dois
 layouts, com o desktop na frente, e seis testes fixam as duas formas contra um
 filesystem falso. **Condição necessária, não prova.**
 
+`9016876d` fecha duas lacunas vizinhas, ambas provadas sem depender de host:
+
+- **o par podia ser ativado com o OpenCode sem bit de execução.** O script de
+  staging exigia `[ -x ]` do `unigma-server` e nada do `opencode`. O manifesto
+  fixa tamanho e hash, e nenhum dos dois carrega o modo; a extração usa
+  `--no-same-permissions` de propósito. A ativação passava e a falha só aparecia
+  depois, no host, como o runtime recusando o bundle que o payload tinha acabado
+  de entregar. Agora falha cedo, com categoria própria
+  `opencode-not-executable`. A guarda recusa e não conserta — um `chmod` ali
+  deixaria o payload escolher o próprio modo no host —, e há teste que exige a
+  ausência dele.
+- **a resolução dos dois layouts estava provada só contra um filesystem falso**,
+  quando o defeito original era exatamente a resolução real olhar um diretório
+  que o payload remoto nunca escreve. Três testes passam por
+  `ChildProcessManager` com diretórios de verdade: o layout do pacote desktop, o
+  layout que `mv -T` ativa num host, e o binário sem bit de execução, que tem de
+  ser recusado em vez de cair para o `PATH`.
+
 **O bloqueio que fecha a porta nesta rodada é de autorização, não de desenho.**
 Todo caminho até a VPS passa por um `workflow_dispatch`, e disparar workflow que
 alcança a VPS externa foi negado pela política de permissões desta sessão.

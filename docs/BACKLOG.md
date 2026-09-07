@@ -1547,6 +1547,16 @@ conexão caiu e a janela voltou sem ser recriada. Menos que isso não fecha
   Xvfb, com o smoke desktop de volta a 40 passando e 0 falhando. As três suítes
   do `unigmaAgent` executam em CI pela primeira vez, e cada número tem nome de
   teste no log. **`AC-007` não se move:** nada disso é sessão de agente remota.
+- **2026-09-07, `9016876d` — duas lacunas vizinhas ao defeito do resolver:** o
+  script de staging exigia `[ -x ]` do `unigma-server` e nada do `opencode`,
+  então o par podia ser ativado com o binário sem bit de execução e a falha só
+  aparecia no host, tarde, como o runtime recusando o próprio bundle. Passa a
+  falhar cedo, com categoria `opencode-not-executable`; a guarda recusa e não
+  conserta, e há teste que proíbe `chmod` no script gerado. Além disso, a
+  resolução dos dois layouts deixou de estar provada apenas contra um filesystem
+  falso: três testes passam por `ChildProcessManager` com diretórios reais,
+  incluindo o binário sem bit de execução. Suíte do runtime em 181, a do
+  `unigma-remote-ssh` em 99.
 - **2026-09-07 — defeito que bloqueava o recorte agentivo, corrigido em
   `18644365`:** o resolver do runtime só conhecia o layout do pacote desktop,
   `<appRoot>/opencode/bin/opencode`, escrito por `getOpenCodeBundle` em
