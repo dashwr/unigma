@@ -14,6 +14,16 @@ on:
           - dasher
           - root
         default: dasher
+      agent_session:
+        description: >-
+          Also ask whether the remote extension host starts OpenCode. Runs after
+          the staging smoke, on its own ephemeral bench, and touches no file
+          outside the run: the desktop is launched with HOME in a throwaway
+          directory, so its ssh reads that known_hosts and identity instead of
+          the user's.
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -110,6 +120,51 @@ jobs:
           Remove-Item -Force $scriptPath -ErrorAction SilentlyContinue
           if ($exitCode -ne 0) { exit $exitCode }
 
+      - name: ask whether the remote extension host starts OpenCode
+        if: inputs.agent_session
+        timeout-minutes: 25
+        run: |
+          $scriptPath = Join-Path $env:RUNNER_TEMP 'unigma-remote-agent-session.sh'
+          $script = @'
+          set -euo pipefail
+          build="$1"
+          node_version="$(tr -d '[:space:]' < "$build/.nvmrc")"
+          toolchain="$HOME/.local/share/unigma-toolchains/node-$node_version"
+          if [ -x "$toolchain/bin/node" ]; then export PATH="$toolchain/bin:$PATH"; fi
+          cd "$build"
+          report="$build/.build/unigma-remote-agent-session.txt"
+          # The bench needs the transport, and the desktop needs a display. The
+          # tree and node_modules are the ones the staging step already built.
+          xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' \
+            node --experimental-strip-types build/unigma/smoke-remote-agent-session.ts "$report"
+          '@
+          $script = $script -replace "`r`n?", "`n"
+          [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))
+          $scriptPathWsl = "/mnt/$($scriptPath.Substring(0, 1).ToLowerInvariant())/$($scriptPath.Substring(3).Replace('\', '/'))"
+          & wsl.exe -d Ubuntu --user dasher -- bash $scriptPathWsl $env:WSL_BUILD
+          $exitCode = $LASTEXITCODE
+          Remove-Item -Force $scriptPath -ErrorAction SilentlyContinue
+          if ($exitCode -ne 0) { exit $exitCode }
+
+      - name: collect remote agent session report
+        if: always() && inputs.agent_session
+        run: |
+          $scriptPath = Join-Path $env:RUNNER_TEMP 'unigma-collect-agent-session.sh'
+          $script = @'
+          set -euo pipefail
+          source="$1"
+          build="$2"
+          mkdir -p "$source/.build"
+          if [ -f "$build/.build/unigma-remote-agent-session.txt" ]; then
+            cp "$build/.build/unigma-remote-agent-session.txt" "$source/.build/"
+          fi
+          '@
+          $script = $script -replace "`r`n?", "`n"
+          [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))
+          $scriptPathWsl = "/mnt/$($scriptPath.Substring(0, 1).ToLowerInvariant())/$($scriptPath.Substring(3).Replace('\', '/'))"
+          & wsl.exe -d Ubuntu --user dasher -- bash $scriptPathWsl $env:WSL_SOURCE $env:WSL_BUILD
+          exit 0
+
       - name: upload remote staging smoke report
         if: always()
         uses: actions/upload-artifact@v4
@@ -118,5 +173,6 @@ jobs:
           path: |
             .build/unigma-remote-staging-smoke.txt
             .build/unigma-remote-staging-smoke.txt.ssh-trace.log
+            .build/unigma-remote-agent-session.txt
           if-no-files-found: warn
           retention-days: 7
