@@ -86,6 +86,13 @@ jobs:
 
           # compile-client writes the regular out tree; do not switch test-node
           # to out-build, and enumerate the focused common tests without a glob.
+          #
+          # The browser-layer suite of the same feature is deliberately absent
+          # here: it needs Electron under Xvfb, and fetching Electron would cost
+          # more than everything above put together in a workflow whose point is
+          # to be cheap. `unigma-linux-wsl-validation.yml` runs it, on the
+          # Electron the packaging step already fetched. So a green run here is
+          # not full coverage of the feature.
           npm run compile-client
           npm run test-node -- \
             --run src/vs/workbench/contrib/unigmaAgent/test/common/agentApplication.test.ts \
