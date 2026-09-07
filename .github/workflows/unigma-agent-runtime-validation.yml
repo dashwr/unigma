@@ -1,0 +1,112 @@
+name: unigma agent runtime validation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  agent-runtime-wsl:
+    name: agent runtime and RPC contract in Ubuntu WSL
+    runs-on: self-hosted
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: prepare WSL source path
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $workspace = $env:GITHUB_WORKSPACE -replace '\\', '/'
+          if ($workspace -notmatch '^([A-Za-z]):/(.+)$') {
+            throw "Unsupported Windows workspace path: $env:GITHUB_WORKSPACE"
+          }
+          $drive = $matches[1].ToLowerInvariant()
+          $path = $matches[2]
+          [System.IO.File]::AppendAllText($env:GITHUB_ENV, "WSL_SOURCE=/mnt/$drive/$path`n")
+
+      - name: validate runtime and client in WSL
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $scriptPath = Join-Path $env:RUNNER_TEMP 'unigma-agent-runtime-validation.sh'
+          $script = @'
+          set -euo pipefail
+
+          source="$1"
+          node_version="$(tr -d '[:space:]' < "$source/.nvmrc")"
+          node_prefix="/opt/node-v${node_version}-linux-x64"
+          if [ ! -x "$node_prefix/bin/node" ] || [ ! -x "$node_prefix/bin/npm" ]; then
+            echo "Required Node toolchain is missing: $node_prefix" >&2
+            exit 1
+          fi
+          export PATH="$node_prefix/bin:$PATH"
+          node --version | grep -Fx "v$node_version"
+          npm --version | grep -Ev '^(1[2-9]|[2-9][0-9])\.'
+
+          # The tree is disposable and lives in $HOME; a sentinel that is empty
+          # until the real assignment keeps the trap from touching anything else.
+          build=""
+          cleanup() {
+            [ -n "$build" ] || return 0
+            case "$build" in
+              "$HOME"/unigma-agent-runtime-validation.*) rm -rf -- "$build" ;;
+            esac
+          }
+          trap cleanup EXIT
+          build="$(mktemp -d "$HOME/unigma-agent-runtime-validation.XXXXXX")"
+          tar --exclude=.git --exclude=node_modules --exclude=out \
+            --exclude=out-build --exclude=.build -C "$source" -cf - . |
+            tar --no-same-owner --no-same-permissions -C "$build" -xf -
+          git -C "$build" init --quiet
+          cd "$build"
+
+          export UV_THREADPOOL_SIZE=4
+          export CMAKE_BUILD_PARALLEL_LEVEL=4
+          export MAKEFLAGS=-j4
+          export npm_config_jobs=4
+          export npm_config_fetch_retries=5
+          export npm_config_fetch_retry_factor=2
+          export npm_config_fetch_retry_mintimeout=10000
+          export npm_config_fetch_retry_maxtimeout=120000
+
+          node build/azure-pipelines/common/disableFoundryLocalInstall.ts
+          npm ci --no-audit --no-fund
+
+          node --experimental-strip-types --max-old-space-size=8192 \
+            ./node_modules/gulp/bin/gulp.js compile-extension:unigma-agent-runtime
+          npm --prefix extensions/unigma-agent-runtime test
+
+          node --experimental-transform-types --test build/unigma/agent-rpc.contract.ts
+
+          # compile-client writes the regular out tree; do not switch test-node
+          # to out-build, and enumerate the focused common tests without a glob.
+          #
+          # The browser-layer suite of the same feature is deliberately absent
+          # here: it needs Electron under Xvfb, and fetching Electron would cost
+          # more than everything above put together in a workflow whose point is
+          # to be cheap. `unigma-linux-wsl-validation.yml` runs it, on the
+          # Electron the packaging step already fetched. So a green run here is
+          # not full coverage of the feature.
+          npm run compile-client
+          npm run test-node -- \
+            --run src/vs/workbench/contrib/unigmaAgent/test/common/agentApplication.test.ts \
+            --run src/vs/workbench/contrib/unigmaAgent/test/common/agentInput.test.ts \
+            --run src/vs/workbench/contrib/unigmaAgent/test/common/agentProtocol.test.ts \
+            --run src/vs/workbench/contrib/unigmaAgent/test/common/autopilotState.test.ts \
+            --run src/vs/workbench/contrib/unigmaAgent/test/common/localIntegrationPolicy.test.ts \
+            --run src/vs/workbench/contrib/unigmaAgent/test/common/localIntegrationPreflight.test.ts \
+            --run src/vs/workbench/contrib/unigmaAgent/test/common/unigmaAgentSession.test.ts
+          '@
+          $script = $script -replace "`r`n?", "`n"
+          [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))
+          $scriptPathWsl = "/mnt/$($scriptPath.Substring(0, 1).ToLowerInvariant())/$($scriptPath.Substring(3).Replace('\', '/'))"
+          & wsl.exe -d Ubuntu --user dasher -- bash $scriptPathWsl $env:WSL_SOURCE
+          $exitCode = $LASTEXITCODE
+          Remove-Item -Force $scriptPath -ErrorAction SilentlyContinue
+          if ($exitCode -ne 0) { exit $exitCode }
