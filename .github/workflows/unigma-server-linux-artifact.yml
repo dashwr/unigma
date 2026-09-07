@@ -171,7 +171,16 @@ jobs:
           }
           set +e
           gulp_status=0
-          for stage in vscode-reh-linux-x64-min
+          # `unigma-agent-runtime` has no esbuild config, so packaging takes the
+          # `fromLocalNormal` path in build/lib/extensions.ts, which is
+          # `vsce.listFiles` over what is on disk. Without a compile first, the
+          # extension travels into the server package as a lone package.json and
+          # the remote extension host has nothing to load — measured in run
+          # `34087643005`, whose listing was literally `[package.json]`. The
+          # desktop job compiles it explicitly for the same reason; the server
+          # job never did, and nothing checked, because the entry-point audit
+          # only ran on the desktop branch.
+          for stage in compile-extension:unigma-agent-runtime vscode-reh-linux-x64-min
           do
             run_stage "$stage"
             gulp_status=$?
