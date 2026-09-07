@@ -192,6 +192,9 @@ jobs:
           # about sixteen seconds, and they guard the scripts that decide
           # whether a package ships.
           node --test --experimental-strip-types build/unigma/*.test.ts
+          # The serialized RPC contract is not named *.test.ts, so the glob above
+          # never reached it and the UI/runtime envelope had no runner proof.
+          node --experimental-transform-types --test build/unigma/agent-rpc.contract.ts
           '@
           $script = $script -replace "`r`n?", "`n"
           [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))
