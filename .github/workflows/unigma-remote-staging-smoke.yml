@@ -155,9 +155,9 @@ jobs:
           source="$1"
           build="$2"
           mkdir -p "$source/.build"
-          if [ -f "$build/.build/unigma-remote-agent-session.txt" ]; then
-            cp "$build/.build/unigma-remote-agent-session.txt" "$source/.build/"
-          fi
+          for name in unigma-remote-agent-session.txt unigma-remote-agent-session.txt.product.log; do
+            if [ -f "$build/.build/$name" ]; then cp "$build/.build/$name" "$source/.build/"; fi
+          done
           '@
           $script = $script -replace "`r`n?", "`n"
           [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))
@@ -174,5 +174,6 @@ jobs:
             .build/unigma-remote-staging-smoke.txt
             .build/unigma-remote-staging-smoke.txt.ssh-trace.log
             .build/unigma-remote-agent-session.txt
+            .build/unigma-remote-agent-session.txt.product.log
           if-no-files-found: warn
           retention-days: 7

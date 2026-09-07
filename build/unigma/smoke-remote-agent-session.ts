@@ -24,7 +24,7 @@
  */
 
 import { execFileSync, spawn, spawnSync, type ChildProcess } from 'node:child_process';
-import { accessSync, chmodSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { accessSync, appendFileSync, chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { createRequire } from 'node:module';
 import { homedir, userInfo } from 'node:os';
@@ -235,6 +235,52 @@ function seedTrust(databasePath: string, authority: string, folderPath: string):
 	return { seeded: true, reason: 'sqlite-row-verified' };
 }
 
+
+/*
+ * Without this the smoke is blind: a driver that never reports looks identical
+ * whether the remote window failed to open, the extension was not loaded, or the
+ * bridge refused. These are the same markers `smoke-remote-window.ts` watches,
+ * and they say how far the connection actually got.
+ */
+const RESOLVER_SUCCESS = /resolveAuthority\(ssh-remote\) returned '[^']*' after ([0-9]+) ms/;
+const RESOLVER_ERROR = /resolveAuthority\(ssh-remote\) returned an error after ([0-9]+) ms/;
+const RESOLVED_AUTHORITY_CONSUMED = /2\/6\. socketFactory\.connect\(\) was successful\./;
+const EXTENSION_HOST_HANDSHAKE = /handshake finished, connection is up and running after ([0-9]+) ms/;
+
+function walkLogs(directory: string, output: string[]): void {
+	let entries;
+	try {
+		entries = readdirSync(directory, { withFileTypes: true });
+	} catch {
+		return;
+	}
+	for (const entry of entries) {
+		if (entry.isSymbolicLink()) {
+			continue;
+		}
+		const path = join(directory, entry.name);
+		if (entry.isDirectory()) {
+			walkLogs(path, output);
+		} else if (entry.isFile() && output.length < 64) {
+			try {
+				output.push(readFileSync(path, { encoding: 'utf8', flag: 'r' }).slice(0, 4 * 1024 * 1024));
+			} catch {
+				// A log can be rotated while the workbench is running.
+			}
+		}
+	}
+}
+
+function observeWindow(logsDirectory: string): void {
+	const parts: string[] = [];
+	walkLogs(logsDirectory, parts);
+	const text = parts.join('\n');
+	fact('window.log-bytes', text.length);
+	fact('window.resolver', RESOLVER_SUCCESS.test(text) ? 'returned' : RESOLVER_ERROR.test(text) ? 'error' : 'absent');
+	fact('window.authority-consumed', RESOLVED_AUTHORITY_CONSUMED.test(text));
+	fact('window.exthost-handshake', EXTENSION_HOST_HANDSHAKE.test(text));
+}
+
 async function main(): Promise<void> {
 	const sshd = executable('/usr/sbin/sshd') ?? executable('sshd');
 	const keygen = executable('ssh-keygen');
@@ -376,8 +422,19 @@ async function main(): Promise<void> {
 			`--extensions-dir=${join(stateRoot, 'extensions')}`, `--logsPath=${join(stateRoot, 'logs')}`,
 			`--crash-reporter-directory=${join(stateRoot, 'crashes')}`
 		], { stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, HOME: productHome } });
-		product.stdout?.resume();
-		product.stderr?.resume();
+		// The product's own output is the other half of the diagnosis, and a
+		// resumed stream throws it away.
+		const productLog = `${reportPath}.product.log`;
+		rmSync(productLog, { force: true });
+		const append = (chunk: Buffer | string): void => {
+			try {
+				appendFileSync(productLog, chunk);
+			} catch {
+				// Best effort, and never changes the result.
+			}
+		};
+		product.stdout?.on('data', append);
+		product.stderr?.on('data', append);
 
 		const deadline = Date.now() + 180_000;
 		let report = '';
@@ -388,6 +445,7 @@ async function main(): Promise<void> {
 			}
 			await delay(1_000);
 		}
+		observeWindow(join(stateRoot, 'logs'));
 		check('driver-reported', report.length > 0);
 		for (const line of report.split('\n')) {
 			const match = /^([a-z][a-zA-Z0-9._-]{0,60})=([A-Za-z0-9._-]{1,40})$/.exec(line.trim());
