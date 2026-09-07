@@ -1120,3 +1120,49 @@ por que isto existe:
 
 não prova:       nada de sessão. `AC-007` continua parcial.
 
+### a sonda somente-leitura rodou, e a VPS não atendeu — 2026-09-07
+
+data:            2026-09-07
+tarefa/gate:     `AC-007`, recorte agentivo; **não move o critério**
+run id:          `34113390649`
+workflow:        `unigma-remote-window-smoke.yml`, `--ref remote-runtime`,
+                 `reconnect_only=true`, `native_modules_only=true`, `stage=false`,
+                 `artifact_commit=493dcfe7…`
+resultado:       **falha**, em `check.session`
+
+o que ficou provado, e importa por si:
+                 **as guardas do ref valem num dispatch por CLI.** Só o job
+                 somente-leitura executou; `remote-window-smoke` (que provisiona
+                 e limpa) e `reconnect-only` foram **skipped**. É a confirmação
+                 prática do que o run `34082375469` mediu: a definição do ref
+                 governa, e o caminho somente-leitura pode ser selecionado sem
+                 risco de cair no destrutivo. Nada foi escrito no host.
+
+o relatório:
+```
+probe.commit=493dcfe76117e759058a28e69cb6c956a780f952
+local.tmpdir.writable=true
+local.tmpdir.socket-path-length=22
+server.reachable=false
+server.unavailable.connect=ssh.transport-failed
+check.destination-required=pass · check.ssh=pass · check.commit-required=pass
+check.session=fail
+```
+
+leitura:         `ssh.transport-failed` é a categoria de **fallback** de
+                 `stderrCategory` em `remoteServerTransport.ts`: não casou host
+                 key desconhecida nem autenticação. O trace de SSH veio com
+                 **zero bytes**, ou seja o `ssh` falhou sem escrever mensagem
+                 reconhecível. O último run que conectou foi `34013237745`, de
+                 2026-09-06.
+
+hipótese, não estabelecida:
+                 o alias `unigma-vps` deixou de resolver no WSL do runner. É
+                 exatamente a perda que `unigma-wsl-ssh-alias.yml` existe para
+                 reparar — o próprio cabeçalho dele diz que um rebuild do WSL
+                 perde o alias. A alternativa é a VPS estar fora. **Nada aqui
+                 distingue as duas**, e o reparo precisa de hostname, usuário,
+                 porta e nome da chave, que não estão no repositório.
+
+não prova:       nada sobre sessão de agente. `AC-007` continua parcial.
+
