@@ -240,6 +240,26 @@ filesystem falso. **Condição necessária, não prova.**
   fixtures de teste passaram a criar o binário com modo `0755`, que é como um
   artefato real chega, e o depósito do WSL preserva o modo, então o pipeline
   atual não é afetado.
+- **e o achado maior, do run `34086194290`: o runtime está no pacote do servidor
+  como um manifesto sozinho.** `unigma-agent-runtime` está lá e é `workspace`,
+  mas o ponto de entrada que o `main` nomeia **não está no pacote**. Um extension
+  host remoto não tem o que carregar. Isto é anterior a tudo o mais: mesmo com o
+  OpenCode resolvível, mesmo com o par correto, mesmo com driver e credencial, a
+  sessão remota não podia existir.
+
+  A causa de ninguém ter visto é a mesma classe de defeito da noite inteira:
+  `auditExtensionEntryPoints` só era chamado no ramo desktop, então o pacote
+  cujas extensões **são** o extension host remoto nunca foi obrigado a provar que
+  um `main` declarado é um arquivo que existe. O auditor até tem o comentário que
+  descreve o defeito — o desktop já pagou por ele uma vez, quando a extensão
+  viajou como `package.json` solitário —, e mesmo assim o servidor ficou de fora.
+  `ae7380dd` aplica o auditor geral ao perfil `--server`, com a listagem do
+  diretório, que é o que separa "as fontes nunca foram compiladas" de "o
+  manifesto aponta para o lugar errado" de "o empacotamento filtrou a saída".
+
+  **Consequência imediata:** o servidor não é publicado enquanto isso não fechar,
+  e esse é o comportamento certo. Um servidor com o runtime pela metade responde
+  `/version`, passa em tudo o mais, e não roda sessão alguma.
 - **nada afirmava que o runtime remoto está no pacote do servidor.** Toda a
   história do agente remoto depende de `unigma-agent-runtime` estar no pacote do
   servidor e ser hospedado do lado remoto, e o auditor do perfil `--server`
